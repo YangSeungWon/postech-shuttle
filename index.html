@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>POSTECH 셔틀버스 실시간 지도</title>
 <meta name="description" content="POSTECH 셔틀버스 노선·정류장을 지도에서 보고, 내 위치 기준으로 다음 버스까지 남은 시간을 확인합니다.">
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#A61955">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="POSTECH 셔틀">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="icon" href="./icon-192.png" type="image/png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.css">
 <style>
@@ -180,18 +187,23 @@ button{cursor:pointer}
 /* 결과가 나오면 입력칸 두 줄을 한 줄 요약으로 접는다 */
 .trip.done .trip-fields{display:none}
 .trip-summary{
-  width:100%;border:1px solid var(--line);background:#fff;border-radius:12px;
+  width:100%;overflow:hidden;border:1px solid var(--line);background:#fff;border-radius:12px;
   padding:11px 13px;font-size:15.5px;font-weight:800;text-align:left;color:var(--ink);
   display:flex;align-items:center;gap:8px;
 }
 .trip-summary[hidden]{display:none}
 .trip-summary:hover{border-color:#bfc6d0;background:#fcfcfd}
-.trip-summary .arrow{color:var(--muted);font-weight:900}
-.trip-summary .edit{margin-left:auto;color:var(--muted);font-size:15px}
+.trip-summary .arrow{flex:0 0 auto;color:var(--muted);font-weight:900}
+.trip-summary .edit{flex:0 0 auto;margin-left:auto;color:var(--muted);font-size:15px}
 .trip-summary b{font-weight:900;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* 출발 시각 */
-.trip-when{text-align:right;margin-top:2px}
+.trip-when{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:2px}
+.trip-when .mode{
+  border:1px solid var(--line);border-radius:9px;padding:6px 10px;
+  background:#fff;color:#69717d;font-size:12.5px;font-weight:900;text-decoration:none;
+}
+.trip-when .mode:hover{background:var(--soft);color:var(--ink)}
 .trip-when button{
   border:0;background:none;color:var(--muted);font-size:14.5px;font-weight:800;
   padding:6px 2px;text-decoration:underline;text-underline-offset:3px;
@@ -273,6 +285,10 @@ button{cursor:pointer}
 .side{font-size:12.5px;font-weight:800;color:#8A9099}
 .arr-at{color:var(--muted);font-size:13.5px;font-weight:700;font-variant-numeric:tabular-nums}
 .arr-next{color:#9aa1ac;font-size:13px;font-weight:700;margin-left:auto;font-variant-numeric:tabular-nums}
+.arr-toward{
+  margin-left:auto;font-size:13px;font-weight:800;color:#7A818C;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:45%;
+}
 .empty{color:var(--muted);font-size:14.5px;padding:10px 2px;font-weight:600}
 
 .panel-links{
@@ -366,6 +382,7 @@ button{cursor:pointer}
   margin-left:auto;border:0;background:rgba(255,255,255,.2);color:#fff;
   border-radius:9px;padding:7px 12px;font-size:13px;font-weight:800;
 }
+.pick-hint.update{background:#333A45}
 #map.picking{cursor:crosshair}
 @media (min-width:821px){ .pick-hint{left:calc(var(--panel-w) + 12px);right:74px} }
 
@@ -488,6 +505,7 @@ button{cursor:pointer}
       </div>
       <div class="suggest" id="suggest"></div>
       <div class="trip-when">
+        <button id="btnMode" class="mode">출발</button>
         <button id="btnWhen">지금 출발</button>
         <input type="time" id="whenTime" hidden>
       </div>
@@ -502,6 +520,10 @@ button{cursor:pointer}
     <span id="editHint">좌표 보정 모드 — 정류장 마커를 끌어 실제 위치로 옮기세요.</span>
     <button id="btnCopy">JSON 복사</button>
     <button id="btnResetCoords">되돌리기</button>
+  </div>
+  <div class="pick-hint update" id="updateHint" hidden>
+    <span id="updateText">새 버전이 있습니다</span>
+    <button id="updateNow">새로고침</button>
   </div>
   <div class="pick-hint" id="pickHint" hidden>
     <span id="pickHintText">지도에서 지금 계신 곳을 눌러 주세요</span>
@@ -534,5 +556,32 @@ button{cursor:pointer}
 <script src="./walk.js"></script>
 <script src="./planner.js"></script>
 <script src="./map.js"></script>
+<script>
+/* 오프라인 지원. 시간표·노선·보행 그래프가 전부 정적 파일이라
+   지도 타일만 받아 두면 통째로 오프라인으로 동작한다. */
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('./sw.js');
+      const show = w => {
+        const el = document.getElementById('updateHint');
+        el.hidden = false;
+        document.getElementById('updateNow').onclick = () => {
+          w.postMessage('skipWaiting');
+          location.reload();
+        };
+      };
+      if (reg.waiting) show(reg.waiting);
+      reg.addEventListener('updatefound', () => {
+        const w = reg.installing;
+        w?.addEventListener('statechange', () => {
+          // 이미 쓰고 있는 중에 새 버전이 준비된 경우만 알린다
+          if (w.state === 'installed' && navigator.serviceWorker.controller) show(w);
+        });
+      });
+    } catch (e) { /* 오프라인 지원 없이도 그대로 동작한다 */ }
+  });
+}
+</script>
 </body>
 </html>

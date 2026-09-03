@@ -24,11 +24,29 @@ const fmt = min => {
   const m = ((Math.round(min) % 1440) + 1440) % 1440;
   return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
 };
+/* 운행일 판단 — 셔틀은 평일만 운행한다.
+   시각을 옮겨 보는 중에는(simMinutes) 날짜는 그대로 오늘로 둔다. */
+const SERVICE = DATA.service || { weekdaysOnly: true, fixed: [], lunar: {} };
+function serviceDay(d = new Date()) {
+  const dow = d.getDay();
+  if (SERVICE.weekdaysOnly && (dow === 0 || dow === 6)) return { runs: false, why: 'weekend' };
+  const m = d.getMonth() + 1, day = d.getDate();
+  if ((SERVICE.fixed || []).some(([fm, fd]) => fm === m && fd === day))
+    return { runs: false, why: 'holiday' };
+  const iso = `${d.getFullYear()}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  if ((SERVICE.lunar?.[d.getFullYear()] || []).includes(iso))
+    return { runs: false, why: 'holiday' };
+  return { runs: true };
+}
+const today = () => serviceDay();
+
 let simMinutes = null;                        // null이면 실제 시각
-function nowMin() {
-  if (simMinutes !== null) return simMinutes;
+function realNow() {
   const d = new Date();
   return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+}
+function nowMin() {
+  return simMinutes !== null ? simMinutes : realNow();
 }
 
 /* ---------- 거리 ---------- */
@@ -144,23 +162,32 @@ function arrivalsForGroup(name, t) {
 }
 
 function arrivalsAt(stopName, t) {
+  if (!today().runs) return [];
   const out = [];
   for (const r of ROUTES) {
     if (!isOn(r)) continue;
     const hits = [];
     r.canonStops.forEach((s, i) => { if (s === stopName) hits.push(i); });
     if (!hits.length) continue;
+    // 어느 방향으로 가는 차인지 — 라이더의 실제 질문은 "어느 쪽에서 타나"다
     const times = [];
-    for (const trip of r.tripsMin) for (const i of hits) if (trip[i] >= t - 0.5) times.push(trip[i]);
+    for (const trip of r.tripsMin) for (const i of hits) if (trip[i] >= t - 0.5) times.push([trip[i], i]);
     if (!times.length) continue;
-    times.sort((a, b) => a - b);
-    out.push({ route: r, at: times[0], eta: times[0] - t, after: times[1] ?? null });
+    times.sort((a, b) => a[0] - b[0]);
+    const [at, idx] = times[0];
+    const next = idx + 1 < r.stops.length ? r.stops[idx + 1]
+               : (r.kind === 'circulation' ? r.stops[1] : null);
+    out.push({
+      route: r, at, eta: at - t, after: times[1]?.[0] ?? null,
+      toward: next ? baseName(canon(next)) : null,
+    });
   }
   return out.sort((a, b) => a.eta - b.eta);
 }
 
 /* ---------- 운행 중인 버스 ---------- */
 function activeBuses(t) {
+  if (!today().runs) return [];
   const buses = [];
   for (const r of ROUTES) {
     if (!isOn(r)) continue;
@@ -477,7 +504,7 @@ $('pickCancel').onclick = () => {
 
 /* 지도 위에 얹힌 UI 는 #map 안에 있어 클릭이 지도까지 전파된다.
    막지 않으면 버튼을 누른 자리가 지도 클릭으로도 잡힌다. */
-for (const id of ['ask', 'pickHint', 'editbar']) {
+for (const id of ['ask', 'pickHint', 'updateHint', 'editbar']) {
   const el = $(id);
   if (el) { L.DomEvent.disableClickPropagation(el); L.DomEvent.disableScrollPropagation(el); }
 }
@@ -671,7 +698,7 @@ function stopCard(name, t, walk) {
         : `<span class="arr-eta ${a.eta <= 3 ? 'soon' : ''}">${etaText(a.eta)}</span>`}
       ${a.side ? `<span class="side">${T.across}</span>` : ''}
       ${a.eta >= FAR_MIN ? '' : `<span class="arr-at">${fmt(a.at)}</span>`}
-      ${a.after !== null && a.eta < FAR_MIN ? `<span class="arr-next">${T.next(fmt(a.after))}</span>` : ''}
+      ${a.toward ? `<span class="arr-toward">${T.toward(shortLabel(a.toward))}</span>` : ''}
     </div>`).join('')
     : `<div class="empty">${T.noService}</div>`;
   return `
@@ -701,6 +728,12 @@ function drawHero(t, walks, walkTo) {
     .filter(x => x.w)
     .sort((a, b) => a.w.min - b.w.min);
   const best = near.find(x => arrivalsForGroup(x.g.name, t).length) || near[0];
+  const day = today();
+  if (!day.runs) {
+    el.innerHTML = `<span class="hero-quiet">${day.why === 'weekend' ? T.noWeekend : T.noHoliday}</span>`;
+    el.onclick = () => sheet.goto(1);
+    return;
+  }
   if (!best) { el.innerHTML = `<span class="hero-quiet">${T.notRunning}</span>`; el.onclick = null; return; }
 
   const a = arrivalsForGroup(best.g.name, t)[0];
@@ -723,7 +756,7 @@ function render() {
 
   // 콜론을 깜빡여 지금 시각임을 드러낸다. 시각을 옮겨 둔 상태에서는 멈춘다.
   // 매초 다시 만들면 애니메이션이 리셋되므로 숫자만 갈아 끼운다.
-  const [hh, mm] = fmt(t).split(':');
+  const [hh, mm] = fmt(tripMode === 'arrive' ? realNow() : t).split(':');
   if ($('clockH').textContent !== hh) $('clockH').textContent = hh;
   if ($('clockM').textContent !== mm) $('clockM').textContent = mm;
   $('clock').classList.toggle('sim', simMinutes !== null);
@@ -734,6 +767,7 @@ function render() {
     $('hero').hidden = true;
     if (tripPlans.length) {
       html += `<div class="sec-title">${T.suggested}</div>`;
+      if (tripPlans[0]?.late) html += `<div class="notice warn">${T.tooLate(fmt(simMinutes))}</div>`;
       html += tripPlans.map(planCard).join('');
       $('panelScroll').innerHTML = html;
       $('panelScroll').querySelectorAll('.itin').forEach(el => el.onclick = () => {
@@ -800,7 +834,10 @@ function render() {
     html += near.slice(0, 6).map(s => stopCard(s.name, t, null)).join('');
   }
 
-  if (running === 0) {
+  const day = today();
+  if (!day.runs) {
+    html += `<div class="notice warn">${day.why === 'weekend' ? T.noWeekend : T.noHoliday}</div>`;
+  } else if (running === 0) {
     html += `<div class="notice warn">${T.notRunning}</div>`;
   }
 
@@ -945,7 +982,7 @@ function openTrip(on, suggest = true) {
   if (!show || on === false) {
     tripFrom = tripTo = null; tripPlans = []; layerTrip.clearLayers();
     $('suggest').innerHTML = ''; $('inFrom').value = $('inTo').value = '';
-    collapseForm(false); simMinutes = null; whenLabel();
+    collapseForm(false); simMinutes = null; tripMode = 'depart'; whenLabel();
     tripXings = []; drawCrossings(tripXings); drawRoutes(); drawStops();
   } else {
     // 출발지는 대개 내 위치다. 이미 알고 있으면 채워 두고 커서를 도착지로 보낸다.
@@ -1024,10 +1061,21 @@ $('btnHere').onclick = () => {
   $('inFrom').value = T.here;
   runTrip();
 };
-/* 출발 시각 — 기본은 지금. 눌러야 시각 입력이 나온다. */
+/* 출발 시각 — 기본은 지금. 눌러야 시각 입력이 나온다.
+   도착 기준으로 바꾸면 "그 시각 전에 도착"하는 경로를 찾는다. */
+let tripMode = 'depart';                       // 'depart' | 'arrive'
 function whenLabel() {
-  $('btnWhen').textContent = simMinutes === null ? T.now : T.departAt(fmt(simMinutes));
+  $('btnMode').textContent = tripMode === 'depart' ? T.modeDepart : T.modeArrive;
+  $('btnWhen').textContent = simMinutes === null
+    ? (tripMode === 'depart' ? T.now : T.pickTime)
+    : (tripMode === 'depart' ? T.departAt(fmt(simMinutes)) : T.arriveBy(fmt(simMinutes)));
 }
+$('btnMode').onclick = () => {
+  tripMode = tripMode === 'depart' ? 'arrive' : 'depart';
+  if (tripMode === 'arrive' && simMinutes === null) simMinutes = Math.round(nowMin()) + 30;
+  whenLabel();
+  runTrip();
+};
 $('btnWhen').onclick = () => {
   const el = $('whenTime');
   el.value = fmt(Math.round(nowMin()));
@@ -1104,7 +1152,12 @@ map.on('contextmenu', e => pointActions(e.latlng, T.mapPoint));
 function runTrip() {
   if (!tripFrom || !tripTo) { tripPlans = []; collapseForm(false); layerTrip.clearLayers(); render(); return; }
   const t = nowMin();
-  tripPlans = planTrip(tripFrom, tripTo, t, { ROUTES, STOP_LIST, isOn, walk: walkNet });
+  const ctx = { ROUTES, STOP_LIST, isOn, walk: walkNet };
+  // 기한이 이미 지났으면 다음 운행일로 본다 (시간표가 하루치뿐이다)
+  const earliest = tripMode === 'arrive' && simMinutes < realNow() ? 0 : Math.round(realNow());
+  tripPlans = tripMode === 'arrive' && simMinutes !== null
+    ? planArriveBy(tripFrom, tripTo, simMinutes, earliest, ctx)
+    : planTrip(tripFrom, tripTo, t, ctx);
   // 시트를 먼저 낮춰야 지도에 맞출 때 가려지는 높이를 제대로 계산한다
   collapseForm(tripPlans.length > 0);
   if (tripPlans.length) sheet.goto(1);
@@ -1309,6 +1362,8 @@ function applyLang() {
   set('btnResetCoords', T.resetCoords);
   set('askNo', T.askNo);
   set('pickHintText', T.pickHint);
+  set('updateText', T.updateReady);
+  set('updateNow', T.reload);
   set('pickCancel', T.cancel);
   $('inFrom').placeholder = T.fromPh;
   $('inTo').placeholder = T.toPh;

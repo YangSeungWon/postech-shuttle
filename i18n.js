@@ -15,14 +15,20 @@ const STRINGS = {
     from: '출발', to: '도착', fromPh: '출발지', toPh: '도착지',
     here: '내 위치', swap: '출발·도착 바꾸기', edit: '고치기',
     now: '지금 출발', departAt: t => `${t} 출발`,
+    modeDepart: '출발', modeArrive: '도착',
+    pickTime: '시각 선택', arriveBy: t => `${t}까지 도착`,
+    tooLate: t => `${t}까지 도착하는 경로가 없습니다`,
     all: '전체',
     routeOrder: label => `${label} 정류장 순서`,
     nearby: '내 주변 정류장', comingSoon: '곧 버스가 오는 정류장',
     selected: '선택한 정류장', suggested: '추천 경로',
     noService: '오늘 남은 운행이 없습니다.',
     notRunning: '운행 시간이 아닙니다 · 07:40–18:30',
+    noWeekend: '주말은 운행하지 않습니다 · 평일 07:40–18:30',
+    noHoliday: '공휴일은 운행하지 않습니다 · 평일 07:40–18:30',
     noRoute: '이 시각에 갈 수 있는 경로가 없습니다',
     due: '곧 도착', min: n => `${n}분`, next: t => `다음 ${t}`,
+    toward: s => `${s} 방면`,
     across: '건너',
     walkTo: (name, m) => `<b>${name}</b>까지 도보 ${m}분`,
     walkSub: (m, up) => `${m}m${up ? ` · 오르막 ${up}m` : ''}`,
@@ -39,6 +45,7 @@ const STRINGS = {
     heroAsk: '가까운 정류장 보기', walkShort: m => `도보 ${m}분`,
     pickOnMap: '지도에서 지정', pickHint: '지도에서 지금 계신 곳을 눌러 주세요',
     cancel: '취소',
+    updateReady: '새 버전이 있습니다', reload: '새로고침',
     denyTitle: '위치 권한이 꺼져 있습니다',
     editHint: '좌표 보정 모드 — 정류장 마커를 끌어 실제 위치로 옮기세요.',
     copyJson: 'JSON 복사', resetCoords: '되돌리기',
@@ -64,14 +71,20 @@ const STRINGS = {
     from: 'From', to: 'To', fromPh: 'Starting point', toPh: 'Destination',
     here: 'My location', swap: 'Swap start and destination', edit: 'Edit',
     now: 'Leave now', departAt: t => `Leave at ${t}`,
+    modeDepart: 'Depart', modeArrive: 'Arrive',
+    pickTime: 'Pick a time', arriveBy: t => `Arrive by ${t}`,
+    tooLate: t => `No route arrives by ${t}`,
     all: 'All',
     routeOrder: label => `${label} — stops in order`,
     nearby: 'Stops near you', comingSoon: 'Buses arriving soon',
     selected: 'Selected stop', suggested: 'Suggested routes',
     noService: 'No more service today.',
     notRunning: 'Outside service hours · 07:40–18:30',
+    noWeekend: 'No weekend service · weekdays 07:40–18:30',
+    noHoliday: 'No service on holidays · weekdays 07:40–18:30',
     noRoute: 'No route available at this time',
     due: 'Due now', min: n => `${n} min`, next: t => `then ${t}`,
+    toward: s => `to ${s}`,
     across: 'opposite',
     walkTo: (name, m) => `${m} min to <b>${name}</b>`,
     walkSub: (m, up) => `${m} m${up ? ` · ${up} m climb` : ''}`,
@@ -88,6 +101,7 @@ const STRINGS = {
     heroAsk: 'Show nearby stops', walkShort: m => `${m} min walk`,
     pickOnMap: 'Set on map', pickHint: 'Tap where you are on the map',
     cancel: 'Cancel',
+    updateReady: 'A new version is available', reload: 'Reload',
     denyTitle: 'Location access is off',
     editHint: 'Coordinate mode — drag stop markers to their real positions.',
     copyJson: 'Copy JSON', resetCoords: 'Reset',
@@ -126,6 +140,20 @@ const routeLabel = r => {
   return r.name;
 };
 const placeLabel = p => (LANG === 'en' && p.en) || p.n;
+
+/* 방면 표시처럼 좁은 자리에 쓸 짧은 이름.
+   별칭 중 더 짧은 것을 쓰고(생명공학연구센터(PBC) → PBC), 괄호 설명은 뗀다. */
+const SHORT = (() => {
+  const m = new Map();
+  for (const [alias, target] of Object.entries(DATA.canon || {})) {
+    if (alias.length < target.length) m.set(target, alias);
+  }
+  return m;
+})();
+const shortLabel = n => {
+  const base = SHORT.get(n) || n;
+  return stopLabel(base).replace(/\s*\([^)]*\)\s*$/, '').trim() || stopLabel(base);
+};
 
 function setLang(next) {
   LANG = STRINGS[next] ? next : 'ko';

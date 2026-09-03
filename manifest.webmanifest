@@ -1,0 +1,17 @@
+{
+  "name": "POSTECH 셔틀버스 지도",
+  "short_name": "POSTECH 셔틀",
+  "description": "노선·정류장을 지도에서 보고, 내 위치 기준으로 다음 버스까지 남은 시간을 확인합니다.",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F2F3F5",
+  "theme_color": "#A61955",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
