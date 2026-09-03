@@ -69,14 +69,18 @@ const ROUTES = DATA.routes.map(r => ({
   canonStops: r.stops.map(canon),
 }));
 const GROUPS = [
-  { id: 'route1', label: '순환 1', color: '#2674d9', match: r => r.id === 'route1' },
-  { id: 'route2', label: '순환 2', color: '#e0632a', match: r => r.id === 'route2' },
-  { id: 'route3', label: '순환 3', color: '#2f9e6e', match: r => r.id === 'route3' },
-  { id: 'jigok',  label: '지곡',   color: '#DAB765', match: r => r.id.startsWith('jigok:') },
-  { id: 'yugang', label: '유강',   color: '#A61955', match: r => r.id.startsWith('yugang:') },
+  { id: 'route1', ko: '순환 1', en: 'Loop 1',  color: '#2674d9', match: r => r.id === 'route1' },
+  { id: 'route2', ko: '순환 2', en: 'Loop 2',  color: '#e0632a', match: r => r.id === 'route2' },
+  { id: 'route3', ko: '순환 3', en: 'Loop 3',  color: '#2f9e6e', match: r => r.id === 'route3' },
+  { id: 'jigok',  ko: '지곡',   en: 'Jigok',   color: '#DAB765', match: r => r.id.startsWith('jigok:') },
+  { id: 'yugang', ko: '유강',   en: 'Yugang',  color: '#A61955', match: r => r.id.startsWith('yugang:') },
 ];
+const groupLabel = id => { const g = GROUPS.find(x => x.id === id); return g ? g[LANG] || g.ko : id; };
 const groupOf = r => GROUPS.find(g => g.match(r));
 ROUTES.forEach(r => { const g = groupOf(r); r.color = g.color; r.group = g.id; });
+/* 배지 글자 — 확장노선은 언어에 따라 지/유, J/Y */
+const BADGE_EN = { jigok: 'J', yugang: 'Y' };
+const badge = r => (LANG === 'en' && BADGE_EN[r.group]) || r.number;
 
 /* 노선 표시는 한 번에 하나만. 다섯 노선이 캠퍼스 중앙 도로를 공유해서
    동시에 색으로 그리면 무지개 리본이 된다. 기본값은 '전체'로, 이때는
@@ -173,29 +177,52 @@ function activeBuses(t) {
  * ================================================================== */
 const map = L.map('map', { center: CENTER, zoom: 15, zoomControl: false, attributionControl: true });
 L.control.zoom({ position: 'topright' }).addTo(map);
-/* 바탕 지도 — 노선 색이 묻히지 않도록 기본은 채도를 뺀 회색 톤으로 둔다.
-   별도 타일 제공자(키 필요)를 쓰는 대신 타일 레이어에만 CSS 필터를 건다.
-   벡터·마커는 다른 pane 에 있어 색이 그대로 남는다. */
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 기여자',
-}).addTo(map);
-
+/* 바탕 지도 — 벡터 스타일을 직접 손봐서 쓴다.
+   래스터에 흑백 필터를 씌우면 도로 위계와 라벨까지 함께 뭉개져서,
+   바탕이 물러나는 게 아니라 그냥 흐려지기만 한다. 벡터라면 땅과 건물은
+   물리고 길과 이름만 남길 수 있다. (스타일은 basemap.py 가 만든다) */
+const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 기여자';
+const VECTOR_ATTR = OSM_ATTR + ' · <a href="https://openfreemap.org">OpenFreeMap</a>';
 const BASE_STYLES = [
-  { id: 'muted',  label: '연한 지도', icon: '◻' },
-  { id: 'detail', label: '상세 지도', icon: '▦' },
+  { id: 'muted',  key: 'baseMuted',  icon: '◻',
+    style: () => LANG === 'en' ? './style-muted-en.json' : './style-muted.json', attr: VECTOR_ATTR },
+  { id: 'detail', key: 'baseDetail', icon: '▦',
+    style: () => 'https://tiles.openfreemap.org/styles/liberty', attr: VECTOR_ATTR },
 ];
 const LS_BASE = 'postech-shuttle-basemap';
 let baseIdx = Math.max(0, BASE_STYLES.findIndex(b => {
   try { return b.id === localStorage.getItem(LS_BASE); } catch (e) { return false; }
 }));
+let baseLayer = null;
+
+/* WebGL 이 없으면 래스터로 물러난다.
+   maplibregl.supported() 는 v3 에서 없어졌으므로 직접 확인한다. */
+const canVector = (() => {
+  let ok = null;
+  return () => {
+    if (ok !== null) return ok;
+    try {
+      if (typeof maplibregl === 'undefined' || typeof L.maplibreGL !== 'function') return (ok = false);
+      const c = document.createElement('canvas');
+      ok = !!(c.getContext('webgl2') || c.getContext('webgl'));
+    } catch (e) { ok = false; }
+    return ok;
+  };
+})();
+
 function setBasemap(i) {
   baseIdx = ((i % BASE_STYLES.length) + BASE_STYLES.length) % BASE_STYLES.length;
   const b = BASE_STYLES[baseIdx];
-  document.getElementById('map').classList.toggle('muted-tiles', b.id === 'muted');
+  if (baseLayer) { map.removeLayer(baseLayer); baseLayer = null; }
+  baseLayer = canVector()
+    ? L.maplibreGL({ style: b.style(), attribution: b.attr })
+    : L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  { maxZoom: 19, attribution: OSM_ATTR, className: 'raster-fallback' });
+  baseLayer.addTo(map);
+  if (baseLayer.bringToBack) baseLayer.bringToBack();
   try { localStorage.setItem(LS_BASE, b.id); } catch (e) {}
   const btn = document.getElementById('btnBase');
-  if (btn) { btn.textContent = b.icon; btn.title = b.label + ' (눌러서 전환)'; }
+  if (btn) { btn.textContent = b.icon; btn.title = T[b.key]; }
 }
 setBasemap(baseIdx);
 
@@ -277,6 +304,7 @@ function drawStops() {
   const served = focusGroup
     ? new Set(ROUTES.filter(r => r.group === focusGroup).flatMap(r => r.canonStops))
     : null;
+  const ringColor = focusGroup ? GROUPS.find(g => g.id === focusGroup).color : null;
 
   for (const s of mapStops()) {
     if (onTrip && !s.members.some(m => onTrip.has(m.name))) continue;
@@ -284,16 +312,14 @@ function drawStops() {
     const m = L.marker(s.ll, {
       icon: L.divIcon({
         className: '', iconSize: [14, 14], iconAnchor: [7, 7],
-        html: `<div class="stop-marker"></div><div class="stop-label">${s.name}</div>`
+        html: `<div class="stop-marker"${ringColor ? ` style="border-color:${ringColor}"` : ''}></div>` +
+              `<div class="stop-label">${stopLabel(s.name)}</div>`
       }),
       draggable: editMode && s.members.length === 1,
       zIndexOffset: 100,
     }).addTo(layerStops);
-    m.on('click', () => {
-      if ($('trip').classList.contains('show')) pointActions(s.ll, s.name);
-      else selectStop(s.name);
-    });
-    m.bindTooltip(s.name, { direction: 'right', offset: [10, 0] });
+    m.on('click', () => { selectStop(s.name); pointActions(s.ll, stopLabel(s.name)); });
+    m.bindTooltip(stopLabel(s.name), { direction: 'right', offset: [10, 0] });
     m.on('dragend', e => {
       const only = s.members[0];
       const ll = e.target.getLatLng();
@@ -327,7 +353,7 @@ function drawBuses(t) {
   for (const b of live) {
     keep.add(b.key);
     let m = busMarkers.get(b.key);
-    const label = b.route.number;
+    const label = badge(b.route);
     if (!m) {
       m = L.marker(b.ll, {
         icon: L.divIcon({
@@ -341,7 +367,7 @@ function drawBuses(t) {
       m.setLatLng(b.ll);
     }
     m.bindTooltip(
-      `<b>${b.route.name}</b><br>${b.to} 방면 · ${fmt(b.arriveAt)} 도착 예정`,
+      `<b>${routeLabel(b.route)}</b><br>${stopLabel(b.to)} · ${fmt(b.arriveAt)}`,
       { direction: 'top', offset: [0, -12] }
     );
   }
@@ -377,9 +403,9 @@ function recoverySteps() {
 /* 권한을 요청하기 전에 왜 필요한지 먼저 보여 준다 */
 function askLocation() {
   const el = $('ask');
-  $('askTitle').textContent = '가까운 정류장부터 보기';
-  $('askBody').innerHTML = '위치는 이 브라우저 안에서만 쓰입니다.';
-  $('askYes').textContent = '위치 허용';
+  $('askTitle').textContent = T.askTitle;
+  $('askBody').textContent = T.askBody;
+  $('askYes').textContent = T.askYes;
   $('askYes').onclick = () => { el.hidden = true; startLocate(); };
   el.hidden = false;
 }
@@ -387,10 +413,10 @@ function askLocation() {
 /* 이미 거부된 상태 — 복구 경로만 보여 준다 */
 function showRecovery() {
   const el = $('ask');
-  $('askTitle').textContent = '위치 권한이 꺼져 있습니다';
+  $('askTitle').textContent = T.denyTitle;
   $('askBody').innerHTML = '<ol class="ask-steps">' +
     recoverySteps().map(t => `<li>${t}</li>`).join('') + '</ol>';
-  $('askYes').textContent = '다시 시도';
+  $('askYes').textContent = T.askRetry;
   $('askYes').onclick = () => { el.hidden = true; startLocate(); };
   el.hidden = false;
 }
@@ -437,8 +463,8 @@ function startLocate() {
       if (followMe) map.setView(myLL, map.getZoom());
     }
     if ($('trip').classList.contains('show') && !tripFrom) {
-      tripFrom = { ll: myLL, label: '내 위치' };
-      $('inFrom').value = '내 위치';
+      tripFrom = { ll: myLL, label: T.here };
+      $('inFrom').value = T.here;
       runTrip();
     }
     render();
@@ -503,11 +529,12 @@ const $ = id => document.getElementById(id);
 const guiding = () => typeof tripPlans !== 'undefined' && tripPlans.length > 0;
 
 function drawFilters() {
-  const chips = [{ id: '', label: '전체', color: '#5C6470' }, ...GROUPS];
+  const chips = [{ id: '', color: '#5C6470' }, ...GROUPS];
   $('filters').innerHTML = chips.map(g => {
     const on = (g.id || null) === focusGroup;
+    const label = g.id ? groupLabel(g.id) : T.all;
     return `<button class="chip ${on ? 'on' : ''}" data-g="${g.id}"
-              style="${on ? `background:${g.color}` : `color:${g.color}`}">${g.label}</button>`;
+              style="${on ? `background:${g.color}` : `color:${g.color}`}">${label}</button>`;
   }).join('');
   $('filters').querySelectorAll('.chip').forEach(el => el.onclick = () => {
     const g = el.dataset.g || null;
@@ -518,29 +545,28 @@ function drawFilters() {
 
 const FAR_MIN = 90;                  // 이보다 멀면 남은 시간 대신 시각만
 function etaText(eta) {
-  if (eta < 0.5) return '곧 도착';
-  if (eta < 1.5) return '1분';
-  return Math.round(eta) + '분';
+  if (eta < 0.5) return T.due;
+  return T.min(Math.max(1, Math.round(eta)));
 }
 
 function stopCard(name, t, walk) {
   const arr = arrivalsForGroup(name, t);
   const rows = arr.length ? arr.slice(0, 3).map(a => `
     <div class="arr">
-      <span class="badge" style="background:${a.route.color}">${a.route.number}</span>
+      <span class="badge" style="background:${a.route.color}">${badge(a.route)}</span>
       ${a.eta >= FAR_MIN
         ? `<span class="arr-eta far">${fmt(a.at)}</span>`
         : `<span class="arr-eta ${a.eta <= 3 ? 'soon' : ''}">${etaText(a.eta)}</span>`}
-      ${a.side ? `<span class="side">${a.side}</span>` : ''}
+      ${a.side ? `<span class="side">${T.across}</span>` : ''}
       ${a.eta >= FAR_MIN ? '' : `<span class="arr-at">${fmt(a.at)}</span>`}
-      ${a.after !== null && a.eta < FAR_MIN ? `<span class="arr-next">다음 ${fmt(a.after)}</span>` : ''}
+      ${a.after !== null && a.eta < FAR_MIN ? `<span class="arr-next">${T.next(fmt(a.after))}</span>` : ''}
     </div>`).join('')
-    : `<div class="empty">오늘 남은 운행이 없습니다.</div>`;
+    : `<div class="empty">${T.noService}</div>`;
   return `
     <div class="stop ${selected === name ? 'active' : ''}" data-stop="${name}">
       <div class="stop-head">
-        <span class="stop-name">${name}</span>
-        ${walk ? `<span class="stop-dist">${humanDist(walk.m)} · 도보 ${walk.min}분</span>` : ''}
+        <span class="stop-name">${stopLabel(name)}</span>
+        ${walk ? `<span class="stop-dist">${T.dist(humanDist(walk.m), walk.min)}</span>` : ''}
       </div>
       <div class="arrivals">${rows}</div>
     </div>`;
@@ -558,7 +584,7 @@ function render() {
 
   if ($('trip').classList.contains('show')) {
     if (tripPlans.length) {
-      html += `<div class="sec-title">추천 경로</div>`;
+      html += `<div class="sec-title">${T.suggested}</div>`;
       html += tripPlans.map(planCard).join('');
       $('panelScroll').innerHTML = html;
       $('panelScroll').querySelectorAll('.itin').forEach(el => el.onclick = () => {
@@ -569,7 +595,7 @@ function render() {
       return;
     }
     if (tripFrom && tripTo) {
-      $('panelScroll').innerHTML = `<div class="notice warn">이 시각에 갈 수 있는 경로가 없습니다</div>`;
+      $('panelScroll').innerHTML = `<div class="notice warn">${T.noRoute}</div>`;
       return;
     }
     html += '';   // 입력칸 두 개가 곧 설명이다
@@ -591,7 +617,7 @@ function render() {
 
   if (selected) {
     const g = groupOfStop(selected);
-    html += `<div class="sec-title">선택한 정류장</div>`
+    html += `<div class="sec-title">${T.selected}</div>`
           + stopCard(selected, t, g ? walkTo(g) : null);
   }
 
@@ -608,11 +634,11 @@ function render() {
       for (const n of r.canonStops) if (!seq.includes(baseName(n))) seq.push(baseName(n));
     }
     near.sort((a, b) => seq.indexOf(a.name) - seq.indexOf(b.name));
-    html += `<div class="sec-title">${GROUPS.find(g => g.id === focusGroup).label} 정류장 순서</div>`;
+    html += `<div class="sec-title">${T.routeOrder(groupLabel(focusGroup))}</div>`;
     html += near.map(s => stopCard(s.name, t, s.w)).join('');
   } else if (walks) {
     near.sort((a, b) => (a.w?.min ?? 1e9) - (b.w?.min ?? 1e9));
-    html += `<div class="sec-title">내 주변 정류장</div>`;
+    html += `<div class="sec-title">${T.nearby}</div>`;
     html += near.slice(0, 6).map(s => stopCard(s.name, t, s.w)).join('');
   } else {
     near.sort((a, b) => {
@@ -620,19 +646,26 @@ function render() {
       const eb = arrivalsForGroup(b.name, t)[0]?.eta ?? 1e9;
       return ea - eb;
     });
-    html += `<div class="sec-title">곧 버스가 오는 정류장</div>`;
+    html += `<div class="sec-title">${T.comingSoon}</div>`;
     html += near.slice(0, 6).map(s => stopCard(s.name, t, null)).join('');
   }
 
   if (running === 0) {
-    html += `<div class="notice warn">운행 시간이 아닙니다 · 07:40–18:30</div>`;
+    html += `<div class="notice warn">${T.notRunning}</div>`;
   }
 
-  html += `<div class="panel-links"><a href="./timetable.html">전체 시간표</a></div>`;
+  html += `<div class="panel-links">
+    <a href="./timetable.html">${T.allTimetable}</a>
+    <span class="lang" role="group" aria-label="Language">
+      <button id="langKo" class="${LANG === 'ko' ? 'on' : ''}">한국어</button
+      ><button id="langEn" class="${LANG === 'en' ? 'on' : ''}">English</button>
+    </span>
+  </div>`;
 
   $('panelScroll').innerHTML = html;
   $('panelScroll').querySelectorAll('.stop').forEach(el =>
     el.onclick = () => selectStop(el.dataset.stop));
+  bindLangButtons();
 
 }
 
@@ -662,11 +695,11 @@ $('btnBase').onclick = () => setBasemap(baseIdx + 1);
 $('askNo').onclick = () => { $('ask').hidden = true; };
 $('btnCopy').onclick = async () => {
   const txt = JSON.stringify(STOPS, null, 2);
-  try { await navigator.clipboard.writeText(txt); alert('보정된 좌표를 클립보드에 복사했습니다.\nstops.py 의 STOPS 에 반영하세요.'); }
+  try { await navigator.clipboard.writeText(txt); alert(T.copied); }
   catch (e) { prompt('아래 좌표를 복사하세요', txt); }
 };
 $('btnResetCoords').onclick = () => {
-  if (!confirm('보정한 좌표를 모두 버리고 기본값으로 되돌릴까요?')) return;
+  if (!confirm(T.confirmReset)) return;
   try { localStorage.removeItem(LS_COORDS); } catch (e) {}
   STOPS = Object.assign({}, DATA.stops);
   STOP_LIST.forEach(s => s.ll = STOPS[s.name]);
@@ -724,17 +757,11 @@ const walkNet = (() => {
 
 const POIS = DATA.pois || [];
 /* 검색 대상: 정류장 + 캠퍼스 건물 */
-const PLACES = [
-  ...STOP_LIST.map(s => ({ name: s.name, ll: s.ll, kind: 'stop' })),
-  ...POIS.map(p => ({ name: p.n, ll: p.ll, kind: p.k })),
-];
-const KIND_LABEL = {
-  recent: '최근', stop: '정류장', university: '건물', dormitory: '기숙사', library: '도서관',
-  cafe: '카페', restaurant: '식당', fast_food: '식당', convenience: '편의점',
-  supermarket: '마트', fitness_centre: '체육', sports_centre: '체육',
-  school: '건물', commercial: '건물', bank: '은행', public: '건물',
-  clinic: '의원', pharmacy: '약국', books: '서점',
-};
+/* 검색 대상. name 은 검색용(한글/영문 모두), label 은 화면 표시용 */
+const places = () => [
+  ...STOP_LIST.map(s => ({ name: s.name, en: stopLabel(s.name), ll: s.ll, kind: 'stop' })),
+  ...POIS.map(p => ({ name: p.n, en: p.en || '', ll: p.ll, kind: p.k })),
+].map(p => ({ ...p, label: LANG === 'en' && p.en ? p.en : p.name }));
 
 let tripFrom = null, tripTo = null, tripPlans = [], activeField = null;
 
@@ -743,31 +770,31 @@ const LS_RECENT = 'postech-shuttle-recent';
 const MAX_RECENT = 6;
 let recents = [];
 try { recents = JSON.parse(localStorage.getItem(LS_RECENT) || '[]'); } catch (e) {}
-const MAP_POINT = '지도에서 선택한 지점';
 function remember(place) {
-  if (!place || place.label === '내 위치' || place.label === MAP_POINT) return;
+  if (!place || place.label === T.here || place.label === T.mapPoint) return;
   recents = [{ name: place.label, ll: place.ll },
              ...recents.filter(r => r.name !== place.label)].slice(0, MAX_RECENT);
   try { localStorage.setItem(LS_RECENT, JSON.stringify(recents)); } catch (e) {}
 }
 const layerTrip = L.layerGroup().addTo(map);
 
-function openTrip(on) {
-  const show = on ?? !$('trip').classList.contains('show');
+const wideScreen = () => window.matchMedia('(min-width:821px)').matches;
+
+function openTrip(on, suggest = true) {
+  // 데스크톱 사이드바에서는 길찾기를 닫지 않는다
+  const show = wideScreen() ? true : (on ?? !$('trip').classList.contains('show'));
   $('trip').classList.toggle('show', show);
   $('btnRoute').classList.toggle('on', show);
   sheet.goto(show ? 2 : 1);
-  if (!show) {
+  if (!show || on === false) {
     tripFrom = tripTo = null; tripPlans = []; layerTrip.clearLayers();
     $('suggest').innerHTML = ''; $('inFrom').value = $('inTo').value = '';
     collapseForm(false); simMinutes = null; whenLabel(); drawRoutes(); drawStops();
   } else {
     // 출발지는 대개 내 위치다. 이미 알고 있으면 채워 두고 커서를 도착지로 보낸다.
-    if (myLL && !tripFrom) { tripFrom = { ll: myLL, label: '내 위치' }; $('inFrom').value = '내 위치'; }
+    if (myLL && !tripFrom) { tripFrom = { ll: myLL, label: T.here }; $('inFrom').value = T.here; }
     activeField = tripFrom ? 'to' : 'from';
-    const field = $(tripFrom ? 'inTo' : 'inFrom');
-    field.focus();
-    drawSuggest(search('', myLL));
+    if (suggest) { $(tripFrom ? 'inTo' : 'inFrom').focus(); drawSuggest(search('', myLL)); }
   }
   render();
 }
@@ -777,12 +804,17 @@ $('btnRoute').onclick = () => openTrip();
 function search(q, near) {
   q = q.trim().toLowerCase();
   if (!q) return emptyState(near);
-  return PLACES
-    .map(p => ({ ...p, d: near ? dist(near, p.ll) : null }))
-    .filter(p => p.name.toLowerCase().includes(q))
-    .sort((a, b) => (a.name.toLowerCase().indexOf(q) - b.name.toLowerCase().indexOf(q))
-                 || (a.kind === 'stop' ? -1 : 1)
-                 || (a.d ?? 0) - (b.d ?? 0))
+  // 한글·영문 어느 쪽으로 쳐도 찾히게 한다
+  const hit = p => {
+    const i = p.name.toLowerCase().indexOf(q);
+    const j = (p.en || '').toLowerCase().indexOf(q);
+    if (i < 0 && j < 0) return -1;
+    return i < 0 ? j : (j < 0 ? i : Math.min(i, j));
+  };
+  return places()
+    .map(p => ({ ...p, d: near ? dist(near, p.ll) : null, at: hit(p) }))
+    .filter(p => p.at >= 0)
+    .sort((a, b) => a.at - b.at || (a.kind === 'stop' ? -1 : 1) || (a.d ?? 0) - (b.d ?? 0))
     .slice(0, 8);
 }
 
@@ -793,11 +825,13 @@ function emptyState(near) {
   for (const r of recents) {
     if (seen.has(r.name)) continue;
     seen.add(r.name);
-    out.push({ name: r.name, ll: r.ll, kind: 'recent', d: near ? dist(near, r.ll) : null });
+    out.push({ name: r.name, label: r.name, ll: r.ll, kind: 'recent',
+               d: near ? dist(near, r.ll) : null });
   }
   const stops = STOP_LIST
     .filter(s => !seen.has(s.name))
-    .map(s => ({ name: s.name, ll: s.ll, kind: 'stop', d: near ? dist(near, s.ll) : null }));
+    .map(s => ({ name: s.name, label: stopLabel(s.name), ll: s.ll, kind: 'stop',
+                 d: near ? dist(near, s.ll) : null }));
   if (near) stops.sort((a, b) => a.d - b.d);
   return out.concat(stops).slice(0, 7);
 }
@@ -805,15 +839,15 @@ function emptyState(near) {
 function drawSuggest(list) {
   $('suggest').innerHTML = list.map((p, i) => `
     <div class="sug" data-i="${i}">
-      <span class="kind ${p.kind === 'stop' ? 'stop' : ''} ${p.kind === 'recent' ? 'recent' : ''}">${KIND_LABEL[p.kind] || '장소'}</span>
-      <span>${p.name}</span>
+      <span class="kind ${p.kind === 'stop' ? 'stop' : ''} ${p.kind === 'recent' ? 'recent' : ''}">${T.kinds[p.kind] || T.kinds.place}</span>
+      <span>${p.label}</span>
       ${p.d != null ? `<span class="d">${humanDist(p.d)}</span>` : ''}
     </div>`).join('');
   $('suggest').querySelectorAll('.sug').forEach(el => el.onclick = () => {
     const p = list[+el.dataset.i];
-    const picked = { ll: p.ll, label: p.name };
-    if (activeField === 'from') { tripFrom = picked; $('inFrom').value = p.name; }
-    else                        { tripTo   = picked; $('inTo').value   = p.name; remember(picked); }
+    const picked = { ll: p.ll, label: p.label };
+    if (activeField === 'from') { tripFrom = picked; $('inFrom').value = p.label; }
+    else                        { tripTo   = picked; $('inTo').value   = p.label; remember(picked); }
     $('suggest').innerHTML = '';
     if (!tripTo) { $('inTo').focus(); return; }        // 출발지를 먼저 골랐다면 도착지로
     runTrip();
@@ -823,16 +857,19 @@ function drawSuggest(list) {
 for (const [id, field] of [['inFrom', 'from'], ['inTo', 'to']]) {
   $(id).addEventListener('input', e => { activeField = field; drawSuggest(search(e.target.value, myLL)); });
   $(id).addEventListener('focus', e => { activeField = field; drawSuggest(search(e.target.value, myLL)); });
+  $(id).addEventListener('blur', () => setTimeout(() => {
+    if (!$('trip').contains(document.activeElement)) $('suggest').innerHTML = '';
+  }, 150));
 }
 $('btnHere').onclick = () => {
   if (!myLL) { requestLocation(); return; }   // 위치를 잡으면 watchPosition 에서 채운다
-  tripFrom = { ll: myLL, label: '내 위치' };
-  $('inFrom').value = '내 위치';
+  tripFrom = { ll: myLL, label: T.here };
+  $('inFrom').value = T.here;
   runTrip();
 };
 /* 출발 시각 — 기본은 지금. 눌러야 시각 입력이 나온다. */
 function whenLabel() {
-  $('btnWhen').textContent = simMinutes === null ? '지금 출발' : `${fmt(simMinutes)} 출발`;
+  $('btnWhen').textContent = simMinutes === null ? T.now : T.departAt(fmt(simMinutes));
 }
 $('btnWhen').onclick = () => {
   const el = $('whenTime');
@@ -859,7 +896,7 @@ function collapseForm(on) {
   $('tripSummary').hidden = !on;
   if (on) {
     $('tripSummary').innerHTML =
-      `<b>${tripFrom.label}</b><span class="arrow">→</span><b>${tripTo.label}</b><span class="edit">고치기</span>`;
+      `<b>${tripFrom.label}</b><span class="arrow">→</span><b>${tripTo.label}</b><span class="edit">${T.edit}</span>`;
   }
 }
 $('tripSummary').onclick = () => { collapseForm(false); drawStops(); $('inTo').focus(); };
@@ -883,8 +920,8 @@ function pointActions(ll, label) {
     .setLatLng(ll)
     .setContent(
       `<div class="pa"><div class="pa-name">${label}</div>
-       <button data-w="from" id="${id}f">출발</button>
-       <button data-w="to" id="${id}t">도착</button></div>`)
+       <button data-w="from" id="${id}f">${T.startHere}</button>
+       <button data-w="to" id="${id}t">${T.endHere}</button></div>`)
     .openOn(map);
   const place = { ll: [ll[0] ?? ll.lat, ll[1] ?? ll.lng], label };
   setTimeout(() => {
@@ -894,7 +931,7 @@ function pointActions(ll, label) {
 }
 
 /* 지도 길게 누르기 (터치) 와 오른쪽 클릭 모두 contextmenu 로 들어온다 */
-map.on('contextmenu', e => pointActions(e.latlng, MAP_POINT));
+map.on('contextmenu', e => pointActions(e.latlng, T.mapPoint));
 
 function runTrip() {
   if (!tripFrom || !tripTo) { tripPlans = []; collapseForm(false); layerTrip.clearLayers(); render(); return; }
@@ -955,20 +992,20 @@ function planCard(plan, i) {
   const rides = plan.legs.filter(l => l.kind === 'ride');
   const legs = plan.legs.map(l => l.kind === 'walk'
     ? `<div class="leg">
-         <span class="ic">보행</span>
-         <span class="txt"><b>${l.to}</b>까지 도보 ${l.min}분
-           <span class="sub">${Math.round(l.m)}m${l.ascent >= 10 ? ` · 오르막 ${l.ascent}m` : ''}</span></span>
+         <span class="ic">${T.walkBadge}</span>
+         <span class="txt">${T.walkTo(stopLabel(l.to), l.min)}
+           <span class="sub">${T.walkSub(Math.round(l.m), l.ascent >= 10 ? l.ascent : 0)}</span></span>
        </div>`
     : `<div class="leg">
-         <span class="ic" style="background:${l.route.color}">${l.route.number}</span>
-         <span class="txt"><b>${l.from}</b> ${fmt(l.depart)} → <b>${l.to}</b> ${fmt(l.arrive)}
-           <span class="sub">${l.route.name} · ${l.stops}정거장${l.wait >= 1 ? ` · ${Math.round(l.wait)}분 대기` : ''}</span></span>
+         <span class="ic" style="background:${l.route.color}">${badge(l.route)}</span>
+         <span class="txt"><b>${stopLabel(l.from)}</b> ${fmt(l.depart)} → <b>${stopLabel(l.to)}</b> ${fmt(l.arrive)}
+           <span class="sub">${T.rideSub(routeLabel(l.route), l.stops, l.wait >= 1 ? Math.round(l.wait) : 0)}</span></span>
        </div>`).join('');
-  const tag = plan.walkOnly ? '도보' : (rides.length > 1 ? `환승 ${rides.length - 1}회` : '');
+  const tag = plan.walkOnly ? T.walkOnly : (rides.length > 1 ? T.transfers(rides.length - 1) : '');
   return `
     <div class="itin ${i === 0 ? 'best' : ''}" data-plan="${i}">
       <div class="itin-head">
-        <span class="itin-dur">${dur}분</span>
+        <span class="itin-dur">${T.min(dur)}</span>
         <span class="itin-time">${fmt(plan.depart)} → ${fmt(plan.arrive)}</span>
         ${tag ? `<span class="itin-tag">${tag}</span>` : ''}
       </div>
@@ -1058,6 +1095,8 @@ function fitWithSheet(bounds, extra = 40) {
 
 /* ---------- 시작 ---------- */
 whenLabel();
+// 데스크톱은 폼만 펴 두고 제안 목록은 입력칸을 누를 때 띄운다
+if (wideScreen()) openTrip(true, false);
 drawFilters();
 drawRoutes();
 drawStops();
@@ -1066,3 +1105,58 @@ render();
 fitWithSheet(L.latLngBounds(
   ROUTES.filter(r => r.kind === 'circulation').flatMap(r => r.path.coords)), 24);
 setInterval(() => { if (simMinutes === null) render(); }, 1000);
+
+/* ================================================================== *
+ * 언어 전환
+ * ================================================================== */
+function applyLang() {
+  setLang(LANG);
+  const set = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+  set('brandShort', T.brandShort);
+  set('brandLong', T.brandLong);
+  set('tagline', T.tagline);
+  set('btnRoute', T.route);
+  set('lnkTimetable', T.timetable);
+  set('pinFrom', T.from);
+  set('pinTo', T.to);
+  set('editHint', T.editHint);
+  set('btnCopy', T.copyJson);
+  set('btnResetCoords', T.resetCoords);
+  set('askNo', T.askNo);
+  $('inFrom').placeholder = T.fromPh;
+  $('inTo').placeholder = T.toPh;
+  $('btnHere').title = T.here;
+  $('btnSwap').title = T.swap;
+  $('btnLoc').title = T.myLocation;
+  $('btnFit').title = T.fitAll;
+  $('btnBase').title = T[BASE_STYLES[baseIdx].key];
+  if ($('btnEdit')) $('btnEdit').title = T.fixCoords;
+  // 출발·도착이 "내 위치"였다면 그 표기도 함께 바꾼다
+  for (const [pt, id] of [[tripFrom, 'inFrom'], [tripTo, 'inTo']]) {
+    if (pt && (pt.label === STRINGS.ko.here || pt.label === STRINGS.en.here)) {
+      pt.label = T.here;
+      $(id).value = T.here;
+    }
+  }
+  whenLabel();
+  for (const [k, m] of busMarkers) { layerBuses.removeLayer(m); busMarkers.delete(k); }
+  drawFilters();
+  drawStops();
+  if (tripPlans.length) collapseForm(true);
+  render();
+}
+
+function bindLangButtons() {
+  for (const [id, lang] of [['langKo', 'ko'], ['langEn', 'en']]) {
+    const el = $(id);
+    if (!el) continue;
+    el.onclick = e => {
+      e.stopPropagation();
+      if (LANG === lang) return;
+      LANG = lang;
+      applyLang();
+      setBasemap(baseIdx);       // 지도 라벨 언어도 함께 바꾼다
+    };
+  }
+}
+applyLang();

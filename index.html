@@ -6,6 +6,7 @@
 <title>POSTECH 셔틀버스 실시간 지도</title>
 <meta name="description" content="POSTECH 셔틀버스 노선·정류장을 지도에서 보고, 내 위치 기준으로 다음 버스까지 남은 시간을 확인합니다.">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.css">
 <style>
 :root{
   --postech-red:#A61955; --postech-red-700:#900048; --postech-red-050:#FCEEF3;
@@ -40,6 +41,13 @@ button{cursor:pointer}
 }
 .hdr .spacer{flex:1}
 .hdr-btn.primary{background:var(--postech-red);border-color:var(--postech-red);color:#fff}
+.lang{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;flex:0 0 auto}
+.lang button{
+  border:0;background:#fff;color:#69717d;padding:6px 10px;
+  font-size:13px;font-weight:900;line-height:1;
+}
+.lang button.on{background:var(--postech-red);color:#fff}
+.lang button:not(.on):hover{background:var(--soft);color:var(--ink)}
 .hdr-btn.primary:hover{background:var(--postech-red-700);color:#fff}
 .hdr-btn{
   border:1px solid var(--line);background:#fff;border-radius:10px;
@@ -87,6 +95,9 @@ button{cursor:pointer}
 
 @media (min-width:821px){
   :root{ --panel-w:390px; }
+  /* 세로 공간이 남으므로 길찾기를 접어 둘 이유가 없다 */
+  .trip{display:block}
+  #btnRoute{display:none}
   #map{left:var(--panel-w)}
   .panel{
     left:0;right:auto;top:var(--header-h);bottom:0;width:var(--panel-w);height:auto;
@@ -174,8 +185,9 @@ button{cursor:pointer}
 .itin-tag{margin-left:auto;font-size:13px;font-weight:900;color:var(--muted);background:var(--soft);border-radius:999px;padding:3px 8px}
 .leg{display:flex;gap:9px;font-size:14.5px;padding:4px 0;align-items:flex-start}
 .leg .ic{
-  flex:0 0 auto;width:24px;height:22px;border-radius:7px;display:grid;place-items:center;
-  font-size:13px;font-weight:900;color:#fff;background:#AAB1BB;
+  flex:0 0 auto;min-width:26px;height:22px;padding:0 6px;border-radius:7px;
+  display:grid;place-items:center;white-space:nowrap;
+  font-size:12px;font-weight:900;color:#fff;background:#AAB1BB;
 }
 .leg .txt{min-width:0}
 .leg b{font-weight:900}
@@ -231,18 +243,18 @@ button{cursor:pointer}
 
 /* ---------- map markers ---------- */
 .stop-marker{
-  width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid var(--postech-gray,#7A7772);
-  box-shadow:0 1px 4px rgba(0,0,0,.3);
+  width:15px;height:15px;border-radius:50%;background:#fff;border:3.5px solid #333A45;
+  box-shadow:0 1px 3px rgba(0,0,0,.28),0 0 0 1.5px rgba(255,255,255,.9);
 }
 #map.labels-off .stop-label{display:none}
 #map.labels-off .leaflet-marker-icon.sel .stop-label{display:block;left:24px}
 .stop-label{
-  position:absolute;left:19px;top:-4px;white-space:nowrap;font-size:13px;font-weight:900;
-  color:#2b2f36;background:rgba(255,255,255,.88);padding:1px 5px;border-radius:5px;
-  letter-spacing:-.03em;pointer-events:none;
+  position:absolute;left:20px;top:-4px;white-space:nowrap;font-size:13px;font-weight:900;
+  color:#1E232B;padding:1px 4px;border-radius:5px;letter-spacing:-.03em;pointer-events:none;
+  text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff,0 0 6px #fff;
 }
 .leaflet-marker-icon.sel .stop-marker{
-  border-color:var(--postech-red);width:20px;height:20px;margin:-3px 0 0 -3px;
+  border-color:var(--postech-red);width:21px;height:21px;margin:-3px 0 0 -3px;
   box-shadow:0 0 0 5px rgba(166,25,85,.22),0 1px 5px rgba(0,0,0,.35);
 }
 .bus{
@@ -265,10 +277,6 @@ button{cursor:pointer}
   box-shadow:0 0 0 2px rgba(26,115,232,.35),0 2px 6px rgba(0,0,0,.3);
 }
 .leaflet-container{font-family:inherit}
-/* 바탕 타일만 흐리게 — 노선·마커는 overlay/marker pane 이라 영향을 받지 않는다 */
-#map.muted-tiles .leaflet-tile-pane{
-  filter:grayscale(.92) brightness(1.07) contrast(.86);
-}
 
 .sug .kind.recent{background:#5C6470}
 
@@ -377,13 +385,13 @@ button{cursor:pointer}
 
 <header class="hdr">
   <div class="brand">
-    <strong>POSTECH 셔틀<span class="brand-long"> 버스 지도</span></strong>
-    <span class="sub">시간표 기반 운행 위치 · 실시간 GPS 아님</span>
+    <strong><span id="brandShort">POSTECH 셔틀</span><span class="brand-long" id="brandLong"> 버스 지도</span></strong>
+    <span class="sub" id="tagline">시간표 기반 운행 위치 · 실시간 GPS 아님</span>
   </div>
   <div class="spacer"></div>
   <div class="clock" id="clock">--:--</div>
   <button class="hdr-btn primary" id="btnRoute">길찾기</button>
-  <a class="hdr-btn desk" href="./timetable.html">시간표</a>
+  <a class="hdr-btn desk" id="lnkTimetable" href="./timetable.html">시간표</a>
 </header>
 
 <aside class="panel" id="panel">
@@ -392,12 +400,12 @@ button{cursor:pointer}
     <button class="trip-summary" id="tripSummary" hidden></button>
     <div class="trip-fields" id="tripFields">
       <div class="trip-row">
-        <span class="pin from">출발</span>
+        <span class="pin from" id="pinFrom">출발</span>
         <input id="inFrom" placeholder="출발지" autocomplete="off">
         <button class="mini" id="btnHere" title="내 위치로" aria-label="내 위치로">◎</button>
       </div>
       <div class="trip-row">
-        <span class="pin to">도착</span>
+        <span class="pin to" id="pinTo">도착</span>
         <input id="inTo" placeholder="도착지" autocomplete="off">
         <button class="mini" id="btnSwap" title="출발·도착 바꾸기" aria-label="출발·도착 바꾸기">⇅</button>
       </div>
@@ -414,7 +422,7 @@ button{cursor:pointer}
 
 <div id="map">
   <div class="editbar" id="editbar">
-    <span>좌표 보정 모드 — 정류장 마커를 끌어 실제 위치로 옮기세요.</span>
+    <span id="editHint">좌표 보정 모드 — 정류장 마커를 끌어 실제 위치로 옮기세요.</span>
     <button id="btnCopy">JSON 복사</button>
     <button id="btnResetCoords">되돌리기</button>
   </div>
@@ -438,7 +446,10 @@ button{cursor:pointer}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js"></script>
 <script src="./map-data.js"></script>
+<script src="./i18n.js"></script>
 <script src="./walk.js"></script>
 <script src="./planner.js"></script>
 <script src="./map.js"></script>

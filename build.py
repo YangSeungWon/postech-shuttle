@@ -1,6 +1,6 @@
 import json, os, time, urllib.request, hashlib
 from stops import STOPS, CANON
-import pois, walkgraph
+import pois, walkgraph, i18n_src
 
 DATA = json.load(open('data.json'))
 CACHE = 'osrm_cache.json'
@@ -77,9 +77,11 @@ for e in DATA['extensions']:
 
 POIS = pois.load()
 WALK = walkgraph.build()
+EN = i18n_src.load()
 json.dump({"stops": {k: list(v) for k, v in STOPS.items()},
-           "canon": CANON, "paths": paths, "routes": out_routes, "pois": POIS, "walk": WALK},
+           "canon": CANON, "paths": paths, "routes": out_routes, "pois": POIS, "walk": WALK, "en": EN},
           open('map-data.json', 'w'), ensure_ascii=False)
 print(f"\n노선 {len(out_routes)}개, 경로 {len(paths)}종, 장소 {len(POIS)}곳, "
       f"보행노드 {len(WALK['nodes'])//2}개, "
+      f"영문 정류장 {len(EN['stops'])}개, "
       f"{os.path.getsize('map-data.json')/1024:.0f}KB")

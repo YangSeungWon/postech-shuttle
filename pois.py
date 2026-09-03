@@ -1,4 +1,5 @@
 import json, re
+import names_en
 
 BBOX = (36.007, 36.028, 129.312, 129.332)
 # 목적지로 쓸 만한 종류만
@@ -24,6 +25,7 @@ def _load_json(path):
 
 def load(path='osm.json'):
     els = _load_json(path)['elements']
+    official = names_en.load()
     out, seen = [], set()
     for e in els:
         t = e.get('tags', {})
@@ -42,7 +44,12 @@ def load(path='osm.json'):
         if key in seen:
             continue
         seen.add(key)
-        out.append({"n": name, "ll": [round(lat, 6), round(lon, 6)], "k": kind.split(':')[1]})
+        # 공식 명칭이 있으면 OSM name:en 보다 우선한다
+        en = (names_en.official(name, official) or t.get('name:en') or '').strip()
+        p = {"n": name, "ll": [round(lat, 6), round(lon, 6)], "k": kind.split(':')[1]}
+        if en and en != name:
+            p["en"] = en
+        out.append(p)
     out.sort(key=lambda p: p['n'])
     return out
 
