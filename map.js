@@ -677,6 +677,38 @@ function stopCard(name, t, walk) {
     </div>`;
 }
 
+/* 접힌 상태에서 보이는 한 줄. 첫 화면의 답은 이것 하나면 된다. */
+function drawHero(t, walks, walkTo) {
+  const el = $('hero');
+  // 길찾기 중에는 입력칸이 그 자리를 쓴다
+  if (guiding() || $('trip').classList.contains('show')) { el.hidden = true; return; }
+  el.hidden = false;
+
+  if (!myLL) {
+    el.innerHTML = `<span class="hero-ask">◎ ${T.heroAsk}</span>`;
+    el.onclick = requestLocation;
+    return;
+  }
+  const near = STOP_GROUPS
+    .map(g => ({ g, w: walkTo(g) }))
+    .filter(x => x.w)
+    .sort((a, b) => a.w.min - b.w.min);
+  const best = near.find(x => arrivalsForGroup(x.g.name, t).length) || near[0];
+  if (!best) { el.innerHTML = `<span class="hero-quiet">${T.notRunning}</span>`; el.onclick = null; return; }
+
+  const a = arrivalsForGroup(best.g.name, t)[0];
+  el.onclick = () => { selectStop(best.g.name); sheet.goto(1); };
+  el.innerHTML = a
+    ? `<span class="badge" style="background:${a.route.color}">${badge(a.route)}</span>
+       <span class="hero-stop">${stopLabel(best.g.name)}</span>
+       <span class="hero-walk">${T.walkShort(best.w.min)}</span>
+       <span class="hero-eta">
+         <b class="${a.eta <= 3 ? 'soon' : ''}">${a.eta >= FAR_MIN ? fmt(a.at) : etaText(a.eta)}</b>
+         ${a.eta >= FAR_MIN ? '' : `<span class="at">${fmt(a.at)}</span>`}
+       </span>`
+    : `<span class="hero-quiet">${T.notRunning}</span><span class="hero-chev">▲</span>`;
+}
+
 function render() {
   const t = nowMin();
   $('filters').hidden = guiding();     // 안내 중에는 노선 필터가 필요 없다
@@ -692,6 +724,7 @@ function render() {
   let html = '';
 
   if ($('trip').classList.contains('show')) {
+    $('hero').hidden = true;
     if (tripPlans.length) {
       html += `<div class="sec-title">${T.suggested}</div>`;
       html += tripPlans.map(planCard).join('');
@@ -771,6 +804,7 @@ function render() {
     </span>
   </div>`;
 
+  drawHero(t, walks, walkTo);
   $('panelScroll').innerHTML = html;
   $('panelScroll').querySelectorAll('.stop').forEach(el =>
     el.onclick = () => selectStop(el.dataset.stop));
@@ -894,7 +928,8 @@ function openTrip(on, suggest = true) {
   const show = wideScreen() ? true : (on ?? !$('trip').classList.contains('show'));
   $('trip').classList.toggle('show', show);
   $('btnRoute').classList.toggle('on', show);
-  sheet.goto(show ? 2 : 1);
+  // 닫으면 첫 화면 상태(접힘)로 돌아간다. 고른 정류장이 있으면 그것만 보이게 절반.
+  sheet.goto(show ? 2 : (selected ? 1 : 0));
   if (!show || on === false) {
     tripFrom = tripTo = null; tripPlans = []; layerTrip.clearLayers();
     $('suggest').innerHTML = ''; $('inFrom').value = $('inTo').value = '';
@@ -1203,7 +1238,7 @@ const sheet = (() => {
   }, { passive: true });
 
   window.addEventListener('resize', () => { if (isMobile()) apply(snaps()[cur], false); });
-  if (isMobile()) goto(1, false);
+  if (isMobile()) goto(0, false);
   const raise = i => { if (isMobile() && cur < i) goto(i); };
   return { goto, raise, height, isMobile };
 })();

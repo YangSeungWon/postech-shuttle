@@ -113,6 +113,33 @@ button{cursor:pointer}
   .grab{display:none}
 }
 
+/* ---------- 접힌 상태의 한 줄 요약 ---------- *
+ * 첫 화면에서 필요한 답은 하나다 — 가장 가까운 정류장에 다음 버스가 언제 오는가.
+ * 목록은 올려야 나온다.
+ */
+.hero[hidden]{display:none}
+.hero{
+  display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  padding:6px 14px 14px;border:0;background:none;
+}
+.hero-stop{
+  font-size:16.5px;font-weight:900;letter-spacing:-.03em;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.hero-walk{font-size:13px;font-weight:800;color:var(--muted);white-space:nowrap}
+.hero-eta{
+  margin-left:auto;display:flex;align-items:baseline;gap:7px;white-space:nowrap;
+}
+.hero-eta b{font-size:21px;font-weight:900;letter-spacing:-.04em}
+.hero-eta b.soon{color:var(--postech-red)}
+.hero-eta .at{font-size:13.5px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}
+.hero-ask{
+  color:var(--postech-red);font-size:15px;font-weight:900;display:flex;
+  align-items:center;gap:8px;
+}
+.hero-quiet{font-size:15px;font-weight:800;color:var(--muted)}
+.hero-chev{margin-left:auto;color:#B9BFC8;font-size:14px}
+
 /* ---------- route filter ---------- */
 .filters{
   padding:4px 14px 11px;border-bottom:1px solid var(--line);
@@ -433,6 +460,7 @@ button{cursor:pointer}
 
 <aside class="panel" id="panel">
   <div class="grab" id="grab"><span></span></div>
+  <button class="hero" id="hero"></button>
   <div class="trip" id="trip">
     <button class="trip-summary" id="tripSummary" hidden></button>
     <div class="trip-fields" id="tripFields">
