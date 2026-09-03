@@ -8,6 +8,13 @@
  * 직선거리 추정보다 훨씬 정확하다. (노드 5.5천 개 규모라 즉시 끝난다)
  * ------------------------------------------------------------------ */
 
+/* 평지 기준 속도(km/h). Tobler 식을 이 값에 맞춰 정규화한다. */
+const FLAT_KMH = 4.5;
+/* Tobler 도보 함수 — 경사 S(=높이차/거리)에서의 속도(km/h).
+   내리막이라고 무한정 빨라지지 않고, -5% 부근이 가장 빠르다. */
+const toblerKmh = S => 6 * Math.exp(-3.5 * Math.abs(S + 0.05));
+const TOBLER_NORM = FLAT_KMH / toblerKmh(0);
+
 const WalkGraph = (() => {
   const W = DATA.walk;
   const N = W.nodes.length / 2;
@@ -16,6 +23,7 @@ const WalkGraph = (() => {
     lat[i] = W.lat0 + W.nodes[i * 2] / W.scale;
     lng[i] = W.lng0 + W.nodes[i * 2 + 1] / W.scale;
   }
+  const ele = Float64Array.from(W.ele || new Array(N).fill(0));
 
   /* --- 인접 리스트를 CSR로 --- */
   const E = W.edges.length / 3;
@@ -23,7 +31,9 @@ const WalkGraph = (() => {
   for (let e = 0; e < E; e++) { deg[W.edges[e * 3]]++; deg[W.edges[e * 3 + 1]]++; }
   const head = new Int32Array(N + 1);
   for (let i = 0; i < N; i++) head[i + 1] = head[i] + deg[i];
-  const to = new Int32Array(E * 2), cost = new Float64Array(E * 2), meters = new Float64Array(E * 2);
+  // cost 는 '분'. 오르막·내리막이 다르므로 두 방향을 따로 담는다.
+  const to = new Int32Array(E * 2), cost = new Float64Array(E * 2),
+        meters = new Float64Array(E * 2), climb = new Float64Array(E * 2);
   const fill = head.slice(0, N);
   const R = 6371000, D = Math.PI / 180;
   const metersBetween = (a, b) => {
@@ -31,11 +41,23 @@ const WalkGraph = (() => {
     const dLng = (lng[b] - lng[a]) * D * Math.cos((lat[a] + lat[b]) / 2 * D);
     return R * Math.hypot(dLat, dLng);
   };
+  /* 구간마다 그 방향의 경사로 속도를 따로 구한다. 출발·도착 고도차만 보면
+     "올라갔다 내려오는" 구간이 통째로 사라진다. */
+  const MAX_SLOPE = 0.35;                      // DEM 잡음으로 튀는 값을 자른다
+  const minutesFor = (m, dh, surface) => {
+    if (m < 1) return 0;
+    const S = Math.max(-MAX_SLOPE, Math.min(MAX_SLOPE, dh / m));
+    const kmh = toblerKmh(S) * TOBLER_NORM;
+    return (m / 1000) / kmh * 60 * surface;
+  };
   for (let e = 0; e < E; e++) {
     const a = W.edges[e * 3], b = W.edges[e * 3 + 1], w = W.edges[e * 3 + 2] / 10;
     const m = metersBetween(a, b);
-    to[fill[a]] = b; cost[fill[a]] = m * w; meters[fill[a]] = m; fill[a]++;
-    to[fill[b]] = a; cost[fill[b]] = m * w; meters[fill[b]] = m; fill[b]++;
+    const dh = ele[b] - ele[a];
+    to[fill[a]] = b; meters[fill[a]] = m;
+    cost[fill[a]] = minutesFor(m, dh, w); climb[fill[a]] = Math.max(0, dh); fill[a]++;
+    to[fill[b]] = a; meters[fill[b]] = m;
+    cost[fill[b]] = minutesFor(m, -dh, w); climb[fill[b]] = Math.max(0, -dh); fill[b]++;
   }
 
   /* --- 좌표 → 가장 가까운 그래프 노드 (격자 색인) --- */
@@ -102,14 +124,17 @@ const WalkGraph = (() => {
     return { dist, prev };
   }
 
-  /* --- prev 체인을 좌표열과 실제 거리로 --- */
+  /* --- prev 체인을 좌표열·거리·누적 오르막으로 --- */
   function trace(prev, dst) {
     const nodes = [];
     for (let n = dst; n >= 0; n = prev[n]) nodes.push(n);
     nodes.reverse();
-    let m = 0;
-    for (let i = 1; i < nodes.length; i++) m += metersBetween(nodes[i - 1], nodes[i]);
-    return { coords: nodes.map(n => [lat[n], lng[n]]), meters: m };
+    let m = 0, up = 0;
+    for (let i = 1; i < nodes.length; i++) {
+      m += metersBetween(nodes[i - 1], nodes[i]);
+      up += Math.max(0, ele[nodes[i]] - ele[nodes[i - 1]]);   // 오른 만큼만 더한다
+    }
+    return { coords: nodes.map(n => [lat[n], lng[n]]), meters: m, ascent: up };
   }
 
   const cache = new Map();
@@ -123,5 +148,5 @@ const WalkGraph = (() => {
     return { ...cache.get(s.node), src: s.node, offset: s.offset };
   }
 
-  return { N, snap, from, trace, lat, lng };
+  return { N, snap, from, trace, lat, lng, ele };
 })();

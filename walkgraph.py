@@ -5,6 +5,7 @@
 """
 import json, math
 from collections import defaultdict, deque
+import elevation
 
 LAT0, LNG0 = 36.0030, 129.3110
 SCALE = 1_000_000
@@ -80,12 +81,23 @@ def build(path='walk.json'):
             done.add(key)
             edges += [idx[a], idx[b], w10]
 
+    # 고도 — SRTM 30m 은 지점별로 몇 m 씩 튀므로 이웃 평균으로 한 번 다듬는다.
+    # 다듬지 않으면 없는 오르내림이 생겨 걷는 시간이 부풀려진다.
+    coords = [pos[osm] for osm in order]
+    raw = elevation.fetch([(round(a, 5), round(b, 5)) for a, b in coords])
+    nb = defaultdict(list)
+    for i in range(0, len(edges), 3):
+        a, b = edges[i], edges[i + 1]
+        nb[a].append(b); nb[b].append(a)
+    ele = [round(sum([raw[i]] + [raw[j] for j in nb[i]]) / (1 + len(nb[i])))
+           for i in range(len(raw))]
+
     return {"lat0": LAT0, "lng0": LNG0, "scale": SCALE,
-            "nodes": nodes, "edges": edges}
+            "nodes": nodes, "edges": edges, "ele": ele}
 
 
 if __name__ == '__main__':
     g = build()
     n, e = len(g['nodes']) // 2, len(g['edges']) // 3
-    print(f'노드 {n}, 엣지 {e}')
+    print(f'노드 {n}, 엣지 {e}, 고도 {min(g["ele"])}~{max(g["ele"])}m')
     print(f'JSON {len(json.dumps(g)) / 1024:.0f}KB')

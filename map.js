@@ -40,7 +40,7 @@ function dist(a, b) {                          // 미터
   return R * Math.hypot(dLat, x);
 }
 const humanDist = m => m < 1000 ? Math.round(m / 10) * 10 + 'm' : (m / 1000).toFixed(1) + 'km';
-const walkMin = m => Math.max(1, Math.round(m * 1.35 / 75));  // 목록용 어림값 (직선 + 우회 보정)
+
 
 /* ---------- 경로: 누적거리 미리 계산 ---------- */
 for (const p of Object.values(DATA.paths)) {
@@ -516,28 +516,31 @@ function drawFilters() {
   });
 }
 
+const FAR_MIN = 90;                  // 이보다 멀면 남은 시간 대신 시각만
 function etaText(eta) {
   if (eta < 0.5) return '곧 도착';
   if (eta < 1.5) return '1분';
   return Math.round(eta) + '분';
 }
 
-function stopCard(name, t, distM) {
+function stopCard(name, t, walk) {
   const arr = arrivalsForGroup(name, t);
   const rows = arr.length ? arr.slice(0, 3).map(a => `
     <div class="arr">
       <span class="badge" style="background:${a.route.color}">${a.route.number}</span>
-      <span class="arr-eta ${a.eta <= 3 ? 'soon' : ''}">${etaText(a.eta)}</span>
+      ${a.eta >= FAR_MIN
+        ? `<span class="arr-eta far">${fmt(a.at)}</span>`
+        : `<span class="arr-eta ${a.eta <= 3 ? 'soon' : ''}">${etaText(a.eta)}</span>`}
       ${a.side ? `<span class="side">${a.side}</span>` : ''}
-      <span class="arr-at">${fmt(a.at)}</span>
-      ${a.after !== null ? `<span class="arr-next">다음 ${fmt(a.after)}</span>` : ''}
+      ${a.eta >= FAR_MIN ? '' : `<span class="arr-at">${fmt(a.at)}</span>`}
+      ${a.after !== null && a.eta < FAR_MIN ? `<span class="arr-next">다음 ${fmt(a.after)}</span>` : ''}
     </div>`).join('')
     : `<div class="empty">오늘 남은 운행이 없습니다.</div>`;
   return `
     <div class="stop ${selected === name ? 'active' : ''}" data-stop="${name}">
       <div class="stop-head">
         <span class="stop-name">${name}</span>
-        ${distM != null ? `<span class="stop-dist">${humanDist(distM)} · 도보 ${walkMin(distM)}분</span>` : ''}
+        ${walk ? `<span class="stop-dist">${humanDist(walk.m)} · 도보 ${walk.min}분</span>` : ''}
       </div>
       <div class="arrivals">${rows}</div>
     </div>`;
@@ -572,18 +575,29 @@ function render() {
     html += '';   // 입력칸 두 개가 곧 설명이다
   }
 
-  if (selected) {
-    const g = groupOfStop(selected);
-    html += `<div class="sec-title">선택한 정류장</div>`
-          + stopCard(selected, t, myLL && g ? dist(myLL, g.ll) : null);
-  }
-
   const served = focusGroup
     ? new Set(ROUTES.filter(r => r.group === focusGroup).flatMap(r => r.canonStops))
     : null;
+  // 실제 보행 경로로 잰 거리·시간 (경사 반영). 스냅된 출발점 기준이라 결과가 캐시된다.
+  const walks = myLL ? walkNet.fromPoint(myLL) : null;
+  const idxOfStop = new Map(STOP_LIST.map((s, i) => [s.name, i]));
+  const walkTo = g => {
+    if (!walks) return null;
+    return g.members
+      .map(m => walks[idxOfStop.get(m.name)])
+      .filter(Boolean)
+      .sort((a, b) => a.min - b.min)[0] || null;
+  };
+
+  if (selected) {
+    const g = groupOfStop(selected);
+    html += `<div class="sec-title">선택한 정류장</div>`
+          + stopCard(selected, t, g ? walkTo(g) : null);
+  }
+
   const near = STOP_GROUPS
     .filter(g => !served || g.members.some(m => served.has(m.name)))
-    .map(g => ({ ...g, d: myLL ? dist(myLL, g.ll) : null }))
+    .map(g => ({ ...g, w: walkTo(g) }))
     .filter(g => g.name !== selected);
 
   if (focusGroup) {
@@ -595,11 +609,11 @@ function render() {
     }
     near.sort((a, b) => seq.indexOf(a.name) - seq.indexOf(b.name));
     html += `<div class="sec-title">${GROUPS.find(g => g.id === focusGroup).label} 정류장 순서</div>`;
-    html += near.map(s => stopCard(s.name, t, s.d)).join('');
-  } else if (myLL) {
-    near.sort((a, b) => a.d - b.d);
+    html += near.map(s => stopCard(s.name, t, s.w)).join('');
+  } else if (walks) {
+    near.sort((a, b) => (a.w?.min ?? 1e9) - (b.w?.min ?? 1e9));
     html += `<div class="sec-title">내 주변 정류장</div>`;
-    html += near.slice(0, 6).map(s => stopCard(s.name, t, s.d)).join('');
+    html += near.slice(0, 6).map(s => stopCard(s.name, t, s.w)).join('');
   } else {
     near.sort((a, b) => {
       const ea = arrivalsForGroup(a.name, t)[0]?.eta ?? 1e9;
@@ -667,8 +681,7 @@ $('btnResetCoords').onclick = () => {
  * 정류장은 그래프 노드에 한 번만 스냅해 두고, 정류장 간 도보는
  * 정류장 수(17)만큼의 Dijkstra로 미리 채워 둔다.
  */
-const WALK_MPM = 75;                       // 도보 4.5km/h
-const toMinutes = m => m < 40 ? 0 : Math.max(1, Math.round(m / WALK_MPM));
+const WALK_MPM = 75;                       // 평지 4.5km/h — 그래프 밖 접근거리에만 쓴다
 
 const walkNet = (() => {
   const snaps = STOP_LIST.map(s => WalkGraph.snap(s.ll));
@@ -677,8 +690,13 @@ const walkNet = (() => {
   const leg = (res, node, offset) => {
     if (!res || node < 0 || !isFinite(res.dist[node])) return null;
     const tr = WalkGraph.trace(res.prev, node);
-    const m = tr.meters + res.offset + offset;
-    return { min: toMinutes(m), m, coords: tr.coords };
+    const extra = res.offset + offset;                 // 그래프까지의 직선 접근거리
+    const m = tr.meters + extra;
+    const minutes = res.dist[node] + extra / WALK_MPM;
+    return {
+      min: m < 40 ? 0 : Math.max(1, Math.round(minutes)),
+      m, ascent: Math.round(tr.ascent), coords: tr.coords,
+    };
   };
 
   function fromPoint(ll) {
@@ -939,7 +957,7 @@ function planCard(plan, i) {
     ? `<div class="leg">
          <span class="ic">보행</span>
          <span class="txt"><b>${l.to}</b>까지 도보 ${l.min}분
-           <span class="sub">${Math.round(l.m)}m</span></span>
+           <span class="sub">${Math.round(l.m)}m${l.ascent >= 10 ? ` · 오르막 ${l.ascent}m` : ''}</span></span>
        </div>`
     : `<div class="leg">
          <span class="ic" style="background:${l.route.color}">${l.route.number}</span>

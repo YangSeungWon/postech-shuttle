@@ -19,7 +19,7 @@
 | `index.html` | 화면과 스타일 |
 | `map.js` | 지도·패널·길찾기 UI |
 | `planner.js` | 시간표 기반 경로탐색 (RAPTOR 계열) |
-| `walk.js` | OSM 보행 그래프 위의 Dijkstra |
+| `walk.js` | OSM 보행 그래프 위의 Dijkstra (경사 반영) |
 | `map-data.js` | 빌드 산출물 (노선·정류장·건물·보행 그래프) |
 
 ## 다시 빌드하기
@@ -35,10 +35,23 @@ python3 -c "print('const DATA = '+open('map-data.json').read()+';')" > map-data.
 * `stops.py` — 정류장 좌표 **(근사값)**
 * `pois.py` — OSM에서 뽑은 캠퍼스 건물 (목적지 후보)
 * `walkgraph.py` — OSM 보행 그래프
+* `elevation.py` — 그래프 노드의 고도 (SRTM 30m, `elev_cache.json.gz` 에 캐시)
 * OSRM 공개 서버 — 정류장 사이 도로 경로 (`osrm_cache.json` 에 캐시)
 
-원본 OSM 덤프는 `osm.json.gz`, `walk.json.gz` 로 보관되어 있어 네트워크
-없이도 다시 빌드할 수 있습니다 (`gunzip -k` 후 실행).
+원본 OSM 덤프(`osm.json.gz`, `walk.json.gz`)와 고도 캐시(`elev_cache.json.gz`)가
+저장소에 있어 네트워크 없이도 다시 빌드할 수 있습니다.
+
+## 도보 시간 계산
+
+캠퍼스 고저차가 40m 넘게 나서(효자시장 6m ~ 나노융합기술원 57m) 평지 가정으로는
+실제와 어긋납니다. 특히 양방향 소요시간이 같게 나오는 것이 문제였습니다.
+
+보행 그래프의 **구간마다** 그 방향의 경사로 속도를 따로 구합니다(Tobler 도보 함수,
+평지 4.5km/h 기준으로 정규화). 출발·도착 고도차만 보면 "올라갔다 내려오는" 구간이
+사라지므로 구간 단위로 계산해야 합니다. 계단은 ×1.8, 비포장 ×1.2 를 더 곱합니다.
+
+SRTM 30m 고도는 지점별로 몇 m 씩 튀므로 이웃 노드 평균으로 한 번 다듬습니다.
+다듬지 않으면 없는 오르내림이 생겨 시간이 부풀려집니다.
 
 ## 정류장 좌표 보정
 
