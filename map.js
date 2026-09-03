@@ -277,8 +277,16 @@ map.on('dragstart', () => { followMe = false; document.getElementById('btnLoc').
 function selectStop(name) {
   selected = selected === name ? null : name;
   paintSelection();
-  if (selected) map.panTo(STOPS[selected]);
+  if (selected) { sheet.raise(1); map.panTo(offsetForSheet(STOPS[selected])); }
   render();
+}
+
+/* 시트에 가리는 만큼 지도 중심을 위로 올린 좌표 */
+function offsetForSheet(ll) {
+  const h = sheet.height();
+  if (!h) return ll;
+  const p = map.latLngToContainerPoint(L.latLng(ll));
+  return map.containerPointToLatLng(L.point(p.x, p.y + h / 2));
 }
 
 /* ================================================================== *
@@ -384,9 +392,16 @@ function render() {
   }
   html += `<div class="notice">표시되는 버스 위치는 <b>공개 시간표를 보간한 예상 위치</b>이며 실제 차량 GPS가 아닙니다. 교통 상황에 따라 1~2분 차이가 날 수 있으니 <b>출발 시각 전에 도착</b>해 주세요.</div>`;
 
+  html += `<div class="panel-links">
+    <a href="./timetable.html">전체 시간표</a>
+    <button id="lnkEdit">정류장 좌표 보정</button>
+  </div>`;
+
   $('panelScroll').innerHTML = html;
   $('panelScroll').querySelectorAll('.stop').forEach(el =>
     el.onclick = () => selectStop(el.dataset.stop));
+  const lnk = $('lnkEdit');
+  if (lnk) lnk.onclick = toggleEdit;
 }
 
 /* ================================================================== *
@@ -395,7 +410,7 @@ function render() {
 $('btnLoc').onclick = startLocate;
 $('btnFit').onclick = () => {
   const on = ROUTES.filter(isOn);
-  map.fitBounds(L.latLngBounds(on.flatMap(r => r.path.coords)), { padding: [40, 40] });
+  fitWithSheet(L.latLngBounds(on.flatMap(r => r.path.coords)));
 };
 
 /* --- 시간 이동 --- */
@@ -416,12 +431,14 @@ $('simReset').onclick = () => { simMinutes = null; $('simbar').classList.remove(
 
 /* --- 좌표 보정 --- */
 let editMode = false;
-$('btnEdit').onclick = () => {
+function toggleEdit() {
   editMode = !editMode;
   $('btnEdit').classList.toggle('on', editMode);
   $('editbar').classList.toggle('show', editMode);
+  if (editMode) sheet.goto(0);
   drawStops();
-};
+}
+$('btnEdit').onclick = toggleEdit;
 $('btnCopy').onclick = async () => {
   const txt = JSON.stringify(STOPS, null, 2);
   try { await navigator.clipboard.writeText(txt); alert('보정된 좌표를 클립보드에 복사했습니다.\nstops.py 의 STOPS 에 반영하세요.'); }
@@ -501,6 +518,7 @@ function openTrip(on) {
   const show = on ?? !$('trip').classList.contains('show');
   $('trip').classList.toggle('show', show);
   $('btnRoute').classList.toggle('on', show);
+  sheet.goto(show ? 2 : 1);
   if (!show) { tripFrom = tripTo = null; tripPlans = []; layerTrip.clearLayers(); $('suggest').innerHTML = ''; }
   render();
 }
@@ -559,6 +577,8 @@ function runTrip() {
   tripPlans = planTrip(tripFrom, tripTo, t, { ROUTES, STOP_LIST, isOn, walk: walkNet });
   drawPlan(tripPlans[0]);
   render();
+  // 결과가 나오면 시트를 절반으로 낮춰 지도 위의 경로가 보이게 한다
+  if (tripPlans.length) sheet.goto(1);
 }
 
 /* --- 선택한 경로를 지도에 그린다 --- */
@@ -587,7 +607,7 @@ function drawPlan(plan) {
         html: `<div class="trip-pin ${cls}"></div>` }), zIndexOffset: 600,
     }).addTo(layerTrip);
   }
-  if (pts.length) map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 17, animate: false });
+  if (pts.length) fitWithSheet(L.latLngBounds(pts), 50);
 }
 
 function planCard(plan, i) {
@@ -616,9 +636,92 @@ function planCard(plan, i) {
     </div>`;
 }
 
+
+/* ================================================================== *
+ * 바텀시트 (모바일)
+ * ================================================================== */
+const sheet = (() => {
+  const el = $('panel'), grab = $('grab');
+  const isMobile = () => window.matchMedia('(max-width:820px)').matches;
+  const vh = () => window.innerHeight;
+  const snaps = () => [Math.round(vh() * 0.16), Math.round(vh() * 0.46), Math.round(vh() * 0.88)];
+  let cur = 1;
+
+  function apply(px, animate = true) {
+    el.classList.toggle('dragging', !animate);
+    // dvh 와 innerHeight 가 어긋나는 브라우저가 있어 높이를 전부 px 로 통일한다
+    const root = document.documentElement.style;
+    root.setProperty('--sheet-max', Math.round(vh() * 0.88) + 'px');
+    root.setProperty('--sheet', Math.round(px) + 'px');
+  }
+  function goto(i, animate = true) {
+    cur = Math.max(0, Math.min(2, i));
+    apply(snaps()[cur], animate);
+    return cur;
+  }
+  function height() { return isMobile() ? snaps()[cur] : 0; }
+
+  /* --- 드래그 --- */
+  let startY = 0, startPx = 0, dragging = false;
+  const onDown = e => {
+    if (!isMobile()) return;
+    dragging = true; startY = (e.touches ? e.touches[0] : e).clientY;
+    startPx = snaps()[cur];
+    el.classList.add('dragging');
+  };
+  const onMove = e => {
+    if (!dragging) return;
+    e.preventDefault();
+    const y = (e.touches ? e.touches[0] : e).clientY;
+    const px = Math.max(60, Math.min(vh() * 0.88, startPx + (startY - y)));
+    apply(px, false);
+  };
+  const onUp = e => {
+    if (!dragging) return;
+    dragging = false; el.classList.remove('dragging');
+    const y = (e.changedTouches ? e.changedTouches[0] : e).clientY;
+    const px = startPx + (startY - y);
+    const s = snaps();
+    // 가장 가까운 스냅 지점으로
+    let bi = 0;
+    s.forEach((v, i) => { if (Math.abs(v - px) < Math.abs(s[bi] - px)) bi = i; });
+    goto(bi);
+  };
+  grab.addEventListener('touchstart', onDown, { passive: true });
+  grab.addEventListener('mousedown', onDown);
+  window.addEventListener('touchmove', onMove, { passive: false });
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('touchend', onUp);
+  window.addEventListener('mouseup', onUp);
+  grab.addEventListener('click', () => { if (isMobile()) goto(cur === 2 ? 1 : cur + 1); });
+
+  /* 목록을 맨 위까지 올렸을 때만 시트를 끌어내린다 */
+  $('panelScroll').addEventListener('touchstart', e => {
+    if (!isMobile() || $('panelScroll').scrollTop > 0) return;
+    onDown(e);
+  }, { passive: true });
+
+  window.addEventListener('resize', () => { if (isMobile()) apply(snaps()[cur], false); });
+  if (isMobile()) goto(1, false);
+  const raise = i => { if (isMobile() && cur < i) goto(i); };
+  return { goto, raise, height, isMobile };
+})();
+
+/* 경로를 지도에 맞출 때 시트에 가리는 만큼 아래쪽 여백을 준다 */
+function fitWithSheet(bounds, extra = 40) {
+  map.fitBounds(bounds, {
+    paddingTopLeft: [extra, extra],
+    paddingBottomRight: [extra, extra + sheet.height()],
+    maxZoom: 17, animate: false,
+  });
+}
+
 /* ---------- 시작 ---------- */
 drawFilters();
 drawRoutes();
 drawStops();
 render();
+// 처음에는 캠퍼스(순환노선)에 맞춘다 — 지곡·유강까지 넣으면 캠퍼스가 너무 작아진다
+fitWithSheet(L.latLngBounds(
+  ROUTES.filter(r => r.kind === 'circulation').flatMap(r => r.path.coords)), 24);
 setInterval(() => { if (simMinutes === null) render(); }, 1000);
