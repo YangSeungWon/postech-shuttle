@@ -78,18 +78,58 @@ const GROUPS = [
 const groupOf = r => GROUPS.find(g => g.match(r));
 ROUTES.forEach(r => { const g = groupOf(r); r.color = g.color; r.group = g.id; });
 
-const active = new Set(GROUPS.map(g => g.id));
-const isOn = r => active.has(r.group);
+/* 노선 표시는 한 번에 하나만. 다섯 노선이 캠퍼스 중앙 도로를 공유해서
+   동시에 색으로 그리면 무지개 리본이 된다. 기본값은 '전체'로, 이때는
+   길 모양만 회색으로 보여 주고 색은 정류장·버스에만 쓴다. */
+let focusGroup = null;                 // null = 전체
+const isOn = r => focusGroup === null || r.group === focusGroup;
 
 /* 마커를 세울 고유 정류장 목록 */
 const STOP_LIST = [...new Set(ROUTES.flatMap(r => r.canonStops))]
   .filter(n => STOPS[n]).map(n => ({ name: n, ll: STOPS[n] }));
+
+/* "지곡회관"과 "지곡회관 건너"는 같은 장소의 양방향이고 18m 남짓 떨어져 있다.
+   낮은 배율에서는 1px 도 안 되니 한 마커로 합치고, 확대하면 갈라 놓는다. */
+const SPLIT_ZOOM = 17;
+const baseName = n => n.replace(/\s*건너$/, '');
+const STOP_GROUPS = (() => {
+  const by = new Map();
+  for (const s of STOP_LIST) {
+    const b = baseName(s.name);
+    (by.get(b) || by.set(b, []).get(b)).push(s);
+  }
+  return [...by].map(([name, members]) => ({
+    name, members,
+    ll: [members.reduce((a, m) => a + m.ll[0], 0) / members.length,
+         members.reduce((a, m) => a + m.ll[1], 0) / members.length],
+  }));
+})();
+/* 지금 배율에서 지도에 세울 지점들 */
+const mapStops = () => map.getZoom() >= SPLIT_ZOOM
+  ? STOP_LIST.map(s => ({ name: s.name, ll: s.ll, members: [s] }))
+  : STOP_GROUPS;
 
 /* ---------- 도착 예정 계산 ---------- */
 /**
  * 해당 정류장에 다음으로 오는 버스들. 같은 노선은 가장 빠른 것만.
  * @returns [{route, eta(분), at(분), after(분|null)}]
  */
+function groupOfStop(name) {
+  return STOP_GROUPS.find(g => g.name === name)
+      || STOP_GROUPS.find(g => g.members.some(m => m.name === name));
+}
+
+/** 한 지점(양방향 포함)의 다음 버스들. 방향이 둘이면 어느 쪽인지 표시한다. */
+function arrivalsForGroup(name, t) {
+  const g = groupOfStop(name);
+  if (!g) return arrivalsAt(name, t).map(a => ({ ...a, side: '' }));
+  const both = g.members.length > 1;
+  return g.members
+    .flatMap(m => arrivalsAt(m.name, t)
+      .map(a => ({ ...a, side: both && m.name !== g.name ? '건너' : '' })))
+    .sort((a, b) => a.eta - b.eta);
+}
+
 function arrivalsAt(stopName, t) {
   const out = [];
   for (const r of ROUTES) {
@@ -186,30 +226,40 @@ function offsetLine(coords, px) {
 function drawRoutes() {
   layerRoutes.clearLayers();
   const seen = new Set(), lines = [];
-  // 안내 중인 경로가 있으면 배경 노선은 방향만 알아볼 정도로 죽인다
-  const faded = typeof tripPlans !== 'undefined' && tripPlans.length > 0;
   for (const r of ROUTES) {
-    if (!isOn(r) || seen.has(r.path)) continue;   // 같은 경로는 한 번만
+    if (seen.has(r.path)) continue;             // 같은 경로는 한 번만
     seen.add(r.path);
     lines.push(r);
   }
-  if (faded) {
+  // 안내 중인 경로가 있으면 배경 노선은 방향만 알아볼 정도로 죽인다
+  const faded = typeof tripPlans !== 'undefined' && tripPlans.length > 0;
+
+  if (faded || focusGroup === null) {
     for (const r of lines) {
       L.polyline(r.path.coords, {
-        color: '#B9BFC8', weight: 2.5, opacity: .55,
-        lineCap: 'round', lineJoin: 'round', interactive: false,
+        color: faded ? '#B9BFC8' : '#9AA2AE', weight: faded ? 2.5 : 3.5,
+        opacity: faded ? .55 : .5, lineCap: 'round', lineJoin: 'round', interactive: false,
       }).addTo(layerRoutes);
     }
     return;
   }
-  const mid = (lines.length - 1) / 2;
-  const shifted = lines.map((r, i) => ({ r, line: offsetLine(r.path.coords, (i - mid) * LANE_PX) }));
-  // 흰 테두리를 먼저 전부 깔아야 나중 노선이 앞 노선 색을 지우지 않는다
+
+  // 고른 노선만 색으로. 같은 그룹 안의 여러 경로는 화면상 나란히 어긋나게 그린다.
+  const mine = lines.filter(r => r.group === focusGroup);
+  for (const r of lines) {
+    if (r.group === focusGroup) continue;
+    L.polyline(r.path.coords, {
+      color: '#C6CBD3', weight: 2.5, opacity: .45,
+      lineCap: 'round', lineJoin: 'round', interactive: false,
+    }).addTo(layerRoutes);
+  }
+  const mid = (mine.length - 1) / 2;
+  const shifted = mine.map((r, i) => ({ r, line: offsetLine(r.path.coords, (i - mid) * LANE_PX) }));
   for (const { line } of shifted) {
-    L.polyline(line, { color: '#fff', weight: 6.5, opacity: .85, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(layerRoutes);
+    L.polyline(line, { color: '#fff', weight: 9, opacity: .9, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(layerRoutes);
   }
   for (const { r, line } of shifted) {
-    L.polyline(line, { color: r.color, weight: 3.4, opacity: .95, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(layerRoutes);
+    L.polyline(line, { color: r.color, weight: 5, opacity: .95, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(layerRoutes);
   }
 }
 map.on('zoomend', drawRoutes);
@@ -219,23 +269,36 @@ let selected = null;
 const stopMarkers = new Map();
 function drawStops() {
   layerStops.clearLayers(); stopMarkers.clear();
-  const onTrip = guiding()
+  const focusing = guiding() && $('trip').classList.contains('done');
+  const onTrip = focusing
     ? new Set(tripPlans[0].legs.flatMap(l => [canon(l.from), canon(l.to)]))
     : null;
-  for (const s of STOP_LIST) {
-    if (onTrip && !onTrip.has(s.name)) continue;
+  // 노선을 하나 고른 상태면 그 노선이 서는 정류장만 남긴다
+  const served = focusGroup
+    ? new Set(ROUTES.filter(r => r.group === focusGroup).flatMap(r => r.canonStops))
+    : null;
+
+  for (const s of mapStops()) {
+    if (onTrip && !s.members.some(m => onTrip.has(m.name))) continue;
+    if (served && !s.members.some(m => served.has(m.name))) continue;
     const m = L.marker(s.ll, {
       icon: L.divIcon({
         className: '', iconSize: [14, 14], iconAnchor: [7, 7],
         html: `<div class="stop-marker"></div><div class="stop-label">${s.name}</div>`
       }),
-      draggable: editMode, zIndexOffset: 100,
+      draggable: editMode && s.members.length === 1,
+      zIndexOffset: 100,
     }).addTo(layerStops);
-    m.on('click', () => selectStop(s.name));
+    m.on('click', () => {
+      if ($('trip').classList.contains('show')) pointActions(s.ll, s.name);
+      else selectStop(s.name);
+    });
+    m.bindTooltip(s.name, { direction: 'right', offset: [10, 0] });
     m.on('dragend', e => {
+      const only = s.members[0];
       const ll = e.target.getLatLng();
-      STOPS[s.name] = s.ll = [+ll.lat.toFixed(6), +ll.lng.toFixed(6)];
-      for (const [alias, target] of Object.entries(CANON)) if (target === s.name) STOPS[alias] = STOPS[s.name];
+      STOPS[only.name] = only.ll = [+ll.lat.toFixed(6), +ll.lng.toFixed(6)];
+      for (const [alias, target] of Object.entries(CANON)) if (target === only.name) STOPS[alias] = STOPS[only.name];
       try { localStorage.setItem(LS_COORDS, JSON.stringify(STOPS)); } catch (err) {}
       render();
     });
@@ -243,6 +306,7 @@ function drawStops() {
   }
   paintSelection(); paintLabels();
 }
+
 function paintSelection() {
   for (const [name, m] of stopMarkers) m.getElement()?.classList.toggle('sel', name === selected);
 }
@@ -250,7 +314,7 @@ function paintSelection() {
 function paintLabels() {
   document.getElementById('map').classList.toggle('labels-off', map.getZoom() < 16);
 }
-map.on('zoomend', paintLabels);
+map.on('zoomend', () => { drawStops(); paintLabels(); });
 
 /* --- 버스 마커 --- */
 const busMarkers = new Map();
@@ -415,13 +479,17 @@ map.on('dragstart', () => { followMe = false; document.getElementById('btnLoc').
 function selectStop(name) {
   selected = selected === name ? null : name;
   paintSelection();
-  if (selected) { sheet.raise(1); map.panTo(offsetForSheet(STOPS[selected])); }
+  if (selected) {
+    sheet.raise(1);
+    map.panTo(offsetForSheet(groupOfStop(selected)?.ll || STOPS[selected]));
+  }
   render();
 }
 
 /* 시트에 가리는 만큼 지도 중심을 위로 올린 좌표 */
+const sheetHeight = () => (typeof sheet === 'undefined' ? 0 : sheet.height());
 function offsetForSheet(ll) {
-  const h = sheet.height();
+  const h = sheetHeight();
   if (!h) return ll;
   const p = map.latLngToContainerPoint(L.latLng(ll));
   return map.containerPointToLatLng(L.point(p.x, p.y + h / 2));
@@ -435,16 +503,16 @@ const $ = id => document.getElementById(id);
 const guiding = () => typeof tripPlans !== 'undefined' && tripPlans.length > 0;
 
 function drawFilters() {
-  $('filters').innerHTML = GROUPS.map(g => `
-    <button class="chip ${active.has(g.id) ? 'on' : ''}" data-g="${g.id}"
-            style="${active.has(g.id) ? `background:${g.color}` : `color:${g.color}`}">
-${g.label}
-    </button>`).join('');
+  const chips = [{ id: '', label: '전체', color: '#5C6470' }, ...GROUPS];
+  $('filters').innerHTML = chips.map(g => {
+    const on = (g.id || null) === focusGroup;
+    return `<button class="chip ${on ? 'on' : ''}" data-g="${g.id}"
+              style="${on ? `background:${g.color}` : `color:${g.color}`}">${g.label}</button>`;
+  }).join('');
   $('filters').querySelectorAll('.chip').forEach(el => el.onclick = () => {
-    const g = el.dataset.g;
-    active.has(g) ? active.delete(g) : active.add(g);
-    if (!active.size) active.add(g);            // 최소 1개는 켜 둠
-    drawFilters(); drawRoutes(); render();
+    const g = el.dataset.g || null;
+    focusGroup = focusGroup === g ? null : g;   // 같은 칩을 다시 누르면 전체로
+    drawFilters(); drawRoutes(); drawStops(); render();
   });
 }
 
@@ -455,11 +523,12 @@ function etaText(eta) {
 }
 
 function stopCard(name, t, distM) {
-  const arr = arrivalsAt(name, t);
+  const arr = arrivalsForGroup(name, t);
   const rows = arr.length ? arr.slice(0, 3).map(a => `
     <div class="arr">
       <span class="badge" style="background:${a.route.color}">${a.route.number}</span>
       <span class="arr-eta ${a.eta <= 3 ? 'soon' : ''}">${etaText(a.eta)}</span>
+      ${a.side ? `<span class="side">${a.side}</span>` : ''}
       <span class="arr-at">${fmt(a.at)}</span>
       ${a.after !== null ? `<span class="arr-next">다음 ${fmt(a.after)}</span>` : ''}
     </div>`).join('')
@@ -504,21 +573,37 @@ function render() {
   }
 
   if (selected) {
-    html += `<div class="sec-title">선택한 정류장</div>` + stopCard(selected, t, myLL ? dist(myLL, STOPS[selected]) : null);
+    const g = groupOfStop(selected);
+    html += `<div class="sec-title">선택한 정류장</div>`
+          + stopCard(selected, t, myLL && g ? dist(myLL, g.ll) : null);
   }
 
-  const near = STOP_LIST
-    .map(s => ({ ...s, d: myLL ? dist(myLL, s.ll) : null }))
-    .filter(s => s.name !== selected);
+  const served = focusGroup
+    ? new Set(ROUTES.filter(r => r.group === focusGroup).flatMap(r => r.canonStops))
+    : null;
+  const near = STOP_GROUPS
+    .filter(g => !served || g.members.some(m => served.has(m.name)))
+    .map(g => ({ ...g, d: myLL ? dist(myLL, g.ll) : null }))
+    .filter(g => g.name !== selected);
 
-  if (myLL) {
+  if (focusGroup) {
+    // 노선을 고르면 정류장을 운행 순서대로 세운다 — 목록이 곧 노선도가 된다
+    const seq = [];
+    for (const r of ROUTES) {
+      if (r.group !== focusGroup) continue;
+      for (const n of r.canonStops) if (!seq.includes(baseName(n))) seq.push(baseName(n));
+    }
+    near.sort((a, b) => seq.indexOf(a.name) - seq.indexOf(b.name));
+    html += `<div class="sec-title">${GROUPS.find(g => g.id === focusGroup).label} 정류장 순서</div>`;
+    html += near.map(s => stopCard(s.name, t, s.d)).join('');
+  } else if (myLL) {
     near.sort((a, b) => a.d - b.d);
     html += `<div class="sec-title">내 주변 정류장</div>`;
     html += near.slice(0, 6).map(s => stopCard(s.name, t, s.d)).join('');
   } else {
     near.sort((a, b) => {
-      const ea = arrivalsAt(a.name, t)[0]?.eta ?? 1e9;
-      const eb = arrivalsAt(b.name, t)[0]?.eta ?? 1e9;
+      const ea = arrivalsForGroup(a.name, t)[0]?.eta ?? 1e9;
+      const eb = arrivalsForGroup(b.name, t)[0]?.eta ?? 1e9;
       return ea - eb;
     });
     html += `<div class="sec-title">곧 버스가 오는 정류장</div>`;
@@ -546,29 +631,16 @@ $('btnFit').onclick = () => {
   fitWithSheet(L.latLngBounds(on.flatMap(r => r.path.coords)));
 };
 
-/* --- 시간 이동 --- */
-$('btnSim').onclick = () => {
-  const bar = $('simbar'), showing = bar.classList.toggle('show');
-  $('btnSim').classList.toggle('on', showing);
-  if (showing) {
-    const t = Math.round(nowMin());
-    $('simRange').value = Math.min(1140, Math.max(420, t));
-    setSim(+$('simRange').value);
-  } else {
-    simMinutes = null; render();
-  }
-};
-function setSim(m) { simMinutes = m; $('simLabel').textContent = fmt(m); render(); }
-$('simRange').oninput = e => setSim(+e.target.value);
-$('simReset').onclick = () => { simMinutes = null; $('simbar').classList.remove('show'); $('btnSim').classList.remove('on'); render(); };
-
 /* --- 좌표 보정 --- */
 let editMode = false;
 function toggleEdit() {
   editMode = !editMode;
   $('btnEdit').classList.toggle('on', editMode);
   $('editbar').classList.toggle('show', editMode);
-  if (editMode) sheet.goto(0);
+  if (editMode) {
+    sheet.goto(0);
+    if (map.getZoom() < SPLIT_ZOOM) map.setZoom(SPLIT_ZOOM);   // 갈라야 각각 끌 수 있다
+  }
   drawStops();
 }
 $('btnEdit').onclick = toggleEdit;
@@ -639,7 +711,7 @@ const PLACES = [
   ...POIS.map(p => ({ name: p.n, ll: p.ll, kind: p.k })),
 ];
 const KIND_LABEL = {
-  stop: '정류장', university: '건물', dormitory: '기숙사', library: '도서관',
+  recent: '최근', stop: '정류장', university: '건물', dormitory: '기숙사', library: '도서관',
   cafe: '카페', restaurant: '식당', fast_food: '식당', convenience: '편의점',
   supermarket: '마트', fitness_centre: '체육', sports_centre: '체육',
   school: '건물', commercial: '건물', bank: '은행', public: '건물',
@@ -647,6 +719,19 @@ const KIND_LABEL = {
 };
 
 let tripFrom = null, tripTo = null, tripPlans = [], activeField = null;
+
+/* 최근 목적지 — 캠퍼스 이동은 반복이 심해서 이것만으로 대부분 타이핑이 사라진다 */
+const LS_RECENT = 'postech-shuttle-recent';
+const MAX_RECENT = 6;
+let recents = [];
+try { recents = JSON.parse(localStorage.getItem(LS_RECENT) || '[]'); } catch (e) {}
+const MAP_POINT = '지도에서 선택한 지점';
+function remember(place) {
+  if (!place || place.label === '내 위치' || place.label === MAP_POINT) return;
+  recents = [{ name: place.label, ll: place.ll },
+             ...recents.filter(r => r.name !== place.label)].slice(0, MAX_RECENT);
+  try { localStorage.setItem(LS_RECENT, JSON.stringify(recents)); } catch (e) {}
+}
 const layerTrip = L.layerGroup().addTo(map);
 
 function openTrip(on) {
@@ -657,11 +742,14 @@ function openTrip(on) {
   if (!show) {
     tripFrom = tripTo = null; tripPlans = []; layerTrip.clearLayers();
     $('suggest').innerHTML = ''; $('inFrom').value = $('inTo').value = '';
-    drawRoutes(); drawStops();
+    collapseForm(false); simMinutes = null; whenLabel(); drawRoutes(); drawStops();
   } else {
     // 출발지는 대개 내 위치다. 이미 알고 있으면 채워 두고 커서를 도착지로 보낸다.
     if (myLL && !tripFrom) { tripFrom = { ll: myLL, label: '내 위치' }; $('inFrom').value = '내 위치'; }
-    (tripFrom ? $('inTo') : $('inFrom')).focus();
+    activeField = tripFrom ? 'to' : 'from';
+    const field = $(tripFrom ? 'inTo' : 'inFrom');
+    field.focus();
+    drawSuggest(search('', myLL));
   }
   render();
 }
@@ -670,7 +758,7 @@ $('btnRoute').onclick = () => openTrip();
 
 function search(q, near) {
   q = q.trim().toLowerCase();
-  if (!q) return [];
+  if (!q) return emptyState(near);
   return PLACES
     .map(p => ({ ...p, d: near ? dist(near, p.ll) : null }))
     .filter(p => p.name.toLowerCase().includes(q))
@@ -680,25 +768,43 @@ function search(q, near) {
     .slice(0, 8);
 }
 
+/* 아직 아무것도 입력하지 않았을 때 — 최근에 간 곳, 그다음 가까운 정류장 */
+function emptyState(near) {
+  const seen = new Set();
+  const out = [];
+  for (const r of recents) {
+    if (seen.has(r.name)) continue;
+    seen.add(r.name);
+    out.push({ name: r.name, ll: r.ll, kind: 'recent', d: near ? dist(near, r.ll) : null });
+  }
+  const stops = STOP_LIST
+    .filter(s => !seen.has(s.name))
+    .map(s => ({ name: s.name, ll: s.ll, kind: 'stop', d: near ? dist(near, s.ll) : null }));
+  if (near) stops.sort((a, b) => a.d - b.d);
+  return out.concat(stops).slice(0, 7);
+}
+
 function drawSuggest(list) {
   $('suggest').innerHTML = list.map((p, i) => `
     <div class="sug" data-i="${i}">
-      <span class="kind ${p.kind === 'stop' ? 'stop' : ''}">${KIND_LABEL[p.kind] || '장소'}</span>
+      <span class="kind ${p.kind === 'stop' ? 'stop' : ''} ${p.kind === 'recent' ? 'recent' : ''}">${KIND_LABEL[p.kind] || '장소'}</span>
       <span>${p.name}</span>
       ${p.d != null ? `<span class="d">${humanDist(p.d)}</span>` : ''}
     </div>`).join('');
   $('suggest').querySelectorAll('.sug').forEach(el => el.onclick = () => {
     const p = list[+el.dataset.i];
-    if (activeField === 'from') { tripFrom = { ll: p.ll, label: p.name }; $('inFrom').value = p.name; }
-    else                        { tripTo   = { ll: p.ll, label: p.name }; $('inTo').value   = p.name; }
+    const picked = { ll: p.ll, label: p.name };
+    if (activeField === 'from') { tripFrom = picked; $('inFrom').value = p.name; }
+    else                        { tripTo   = picked; $('inTo').value   = p.name; remember(picked); }
     $('suggest').innerHTML = '';
+    if (!tripTo) { $('inTo').focus(); return; }        // 출발지를 먼저 골랐다면 도착지로
     runTrip();
   });
 }
 
 for (const [id, field] of [['inFrom', 'from'], ['inTo', 'to']]) {
   $(id).addEventListener('input', e => { activeField = field; drawSuggest(search(e.target.value, myLL)); });
-  $(id).addEventListener('focus', e => { activeField = field; if (e.target.value) drawSuggest(search(e.target.value, myLL)); });
+  $(id).addEventListener('focus', e => { activeField = field; drawSuggest(search(e.target.value, myLL)); });
 }
 $('btnHere').onclick = () => {
   if (!myLL) { requestLocation(); return; }   // 위치를 잡으면 watchPosition 에서 채운다
@@ -706,19 +812,78 @@ $('btnHere').onclick = () => {
   $('inFrom').value = '내 위치';
   runTrip();
 };
+/* 출발 시각 — 기본은 지금. 눌러야 시각 입력이 나온다. */
+function whenLabel() {
+  $('btnWhen').textContent = simMinutes === null ? '지금 출발' : `${fmt(simMinutes)} 출발`;
+}
+$('btnWhen').onclick = () => {
+  const el = $('whenTime');
+  el.value = fmt(Math.round(nowMin()));
+  el.hidden = false; $('btnWhen').hidden = true;
+  el.focus(); el.showPicker?.();
+};
+$('whenTime').onchange = e => {
+  simMinutes = e.target.value ? toMin(e.target.value) : null;
+  e.target.hidden = true; $('btnWhen').hidden = false;
+  whenLabel(); runTrip(); render();
+};
+$('whenTime').onblur = e => { e.target.hidden = true; $('btnWhen').hidden = false; };
+
 $('btnSwap').onclick = () => {
   [tripFrom, tripTo] = [tripTo, tripFrom];
   $('inFrom').value = tripFrom?.label || '';
   $('inTo').value = tripTo?.label || '';
-  runTrip();
+  if (tripFrom && tripTo) runTrip(); else { collapseForm(false); render(); }
 };
 
+function collapseForm(on) {
+  $('trip').classList.toggle('done', on);
+  $('tripSummary').hidden = !on;
+  if (on) {
+    $('tripSummary').innerHTML =
+      `<b>${tripFrom.label}</b><span class="arrow">→</span><b>${tripTo.label}</b><span class="edit">고치기</span>`;
+  }
+}
+$('tripSummary').onclick = () => { collapseForm(false); drawStops(); $('inTo').focus(); };
+
+/* --- 지도에서 출발·도착 지정 --- *
+ * 정류장을 누르거나 지도를 길게 누르면 그 자리에서 출발·도착으로 삼는다.
+ * 검색으로만 입력받으면 이름을 모르는 지점은 지정할 방법이 없다.
+ */
+function setEndpoint(which, place) {
+  if (!$('trip').classList.contains('show')) openTrip(true);
+  if (which === 'from') { tripFrom = place; $('inFrom').value = place.label; }
+  else                  { tripTo = place;   $('inTo').value = place.label; remember(place); }
+  map.closePopup();
+  if (tripFrom && tripTo) runTrip();
+  else { collapseForm(false); render(); }
+}
+
+function pointActions(ll, label) {
+  const id = 'pa' + Math.random().toString(36).slice(2, 8);
+  L.popup({ closeButton: false, className: 'pa-popup', offset: [0, -8] })
+    .setLatLng(ll)
+    .setContent(
+      `<div class="pa"><div class="pa-name">${label}</div>
+       <button data-w="from" id="${id}f">출발</button>
+       <button data-w="to" id="${id}t">도착</button></div>`)
+    .openOn(map);
+  const place = { ll: [ll[0] ?? ll.lat, ll[1] ?? ll.lng], label };
+  setTimeout(() => {
+    document.getElementById(id + 'f')?.addEventListener('click', () => setEndpoint('from', place));
+    document.getElementById(id + 't')?.addEventListener('click', () => setEndpoint('to', place));
+  }, 0);
+}
+
+/* 지도 길게 누르기 (터치) 와 오른쪽 클릭 모두 contextmenu 로 들어온다 */
+map.on('contextmenu', e => pointActions(e.latlng, MAP_POINT));
+
 function runTrip() {
-  if (!tripFrom || !tripTo) { tripPlans = []; layerTrip.clearLayers(); render(); return; }
+  if (!tripFrom || !tripTo) { tripPlans = []; collapseForm(false); layerTrip.clearLayers(); render(); return; }
   const t = nowMin();
-  $('tripWhen').textContent = simMinutes === null ? '' : `${fmt(t)} 출발 기준`;
   tripPlans = planTrip(tripFrom, tripTo, t, { ROUTES, STOP_LIST, isOn, walk: walkNet });
   // 시트를 먼저 낮춰야 지도에 맞출 때 가려지는 높이를 제대로 계산한다
+  collapseForm(tripPlans.length > 0);
   if (tripPlans.length) sheet.goto(1);
   drawRoutes();
   drawStops();
@@ -868,12 +1033,13 @@ const sheet = (() => {
 function fitWithSheet(bounds, extra = 40) {
   map.fitBounds(bounds, {
     paddingTopLeft: [extra, extra],
-    paddingBottomRight: [extra, extra + sheet.height()],
+    paddingBottomRight: [extra, extra + sheetHeight()],
     maxZoom: 17, animate: false,
   });
 }
 
 /* ---------- 시작 ---------- */
+whenLabel();
 drawFilters();
 drawRoutes();
 drawStops();

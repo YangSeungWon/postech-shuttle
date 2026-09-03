@@ -133,8 +133,29 @@ button{cursor:pointer}
 }
 .mini.wide{width:auto;padding:0 11px;font-size:12px;font-weight:800}
 .mini:hover{background:var(--soft);color:var(--postech-red)}
-.trip-foot{font-size:12px;font-weight:800;color:var(--muted);text-align:right}
-.trip-foot:empty,.trip-foot span:empty{display:none}
+/* 결과가 나오면 입력칸 두 줄을 한 줄 요약으로 접는다 */
+.trip.done .trip-fields{display:none}
+.trip-summary{
+  width:100%;border:1px solid var(--line);background:#fff;border-radius:12px;
+  padding:11px 13px;font-size:14px;font-weight:800;text-align:left;color:var(--ink);
+  display:flex;align-items:center;gap:8px;
+}
+.trip-summary[hidden]{display:none}
+.trip-summary:hover{border-color:#bfc6d0;background:#fcfcfd}
+.trip-summary .arrow{color:var(--muted);font-weight:900}
+.trip-summary .edit{margin-left:auto;color:var(--muted);font-size:13px}
+.trip-summary b{font-weight:900;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* 출발 시각 */
+.trip-when{text-align:right;margin-top:2px}
+.trip-when button{
+  border:0;background:none;color:var(--muted);font-size:12.5px;font-weight:800;
+  padding:6px 2px;text-decoration:underline;text-underline-offset:3px;
+}
+.trip-when button:hover{color:var(--postech-red)}
+.trip-when input[type=time]{
+  border:1px solid var(--line);border-radius:10px;padding:7px 10px;font-size:15px;font-weight:800;
+}
 .suggest{max-height:230px;overflow-y:auto;margin:0 0 7px;border-radius:11px}
 .suggest:not(:empty){border:1px solid var(--line);background:#fff;margin-bottom:9px}
 .sug{padding:11px 12px;min-height:46px;font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px;cursor:pointer}
@@ -183,6 +204,7 @@ button{cursor:pointer}
 }
 .arr-eta{font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .arr-eta.soon{color:var(--postech-red)}
+.side{font-size:10.5px;font-weight:900;color:#8A9099;background:var(--soft);border-radius:5px;padding:2px 5px}
 .arr-at{color:var(--muted);font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums}
 .arr-next{color:#9aa1ac;font-size:11px;font-weight:700;margin-left:auto;font-variant-numeric:tabular-nums}
 .empty{color:var(--muted);font-size:12.5px;padding:10px 2px;font-weight:600}
@@ -247,6 +269,21 @@ button{cursor:pointer}
   filter:grayscale(.92) brightness(1.07) contrast(.86);
 }
 
+.sug .kind.recent{background:#5C6470}
+
+/* 지도에서 출발·도착 지정 */
+.pa-popup .leaflet-popup-content-wrapper{border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.22)}
+.pa-popup .leaflet-popup-content{margin:11px 13px;font:inherit}
+.pa{display:flex;align-items:center;gap:7px}
+.pa-name{font-size:13px;font-weight:900;letter-spacing:-.03em;margin-right:3px;max-width:150px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pa button{
+  border:1px solid var(--line);background:#fff;border-radius:9px;
+  padding:8px 12px;font-size:13px;font-weight:900;color:#444B57;
+}
+.pa button[data-w="from"]:hover{background:#1a73e8;border-color:#1a73e8;color:#fff}
+.pa button[data-w="to"]:hover{background:var(--postech-red);border-color:var(--postech-red);color:#fff}
+
 /* ---------- 위치 권한 안내 ---------- */
 .ask{
   position:fixed;inset:var(--header-h) 0 0 0;z-index:1100;
@@ -293,17 +330,6 @@ button{cursor:pointer}
 .mapbtn.on{background:var(--postech-red);border-color:var(--postech-red);color:#fff}
 
 /* ---------- sim time bar ---------- */
-.simbar{
-  position:fixed;left:max(12px, env(safe-area-inset-left));right:74px;z-index:850;background:#fff;
-  bottom:calc(var(--sheet) + 14px);transition:bottom .26s cubic-bezier(.22,.7,.3,1);
-  border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:9px 13px;
-  display:none;align-items:center;gap:11px;
-}
-.simbar.show{display:flex}
-.simbar input[type=range]{flex:1;accent-color:var(--postech-red)}
-.simbar .lbl{font-size:12px;font-weight:900;white-space:nowrap;font-variant-numeric:tabular-nums}
-.simbar .reset{border:0;background:var(--soft);border-radius:8px;padding:5px 9px;font-size:11.5px;font-weight:800;color:#555}
-
 /* ---------- edit mode ---------- */
 .editbar{
   position:fixed;left:12px;right:12px;top:calc(var(--header-h) + 12px);z-index:850;background:#FFF9EC;
@@ -357,18 +383,24 @@ button{cursor:pointer}
 <aside class="panel" id="panel">
   <div class="grab" id="grab"><span></span></div>
   <div class="trip" id="trip">
-    <div class="trip-row">
-      <span class="pin from">출발</span>
-      <input id="inFrom" placeholder="출발지 · 건물이나 정류장 이름" autocomplete="off">
-      <button class="mini" id="btnHere" title="내 위치로">◎</button>
+    <button class="trip-summary" id="tripSummary" hidden></button>
+    <div class="trip-fields" id="tripFields">
+      <div class="trip-row">
+        <span class="pin from">출발</span>
+        <input id="inFrom" placeholder="출발지" autocomplete="off">
+        <button class="mini" id="btnHere" title="내 위치로" aria-label="내 위치로">◎</button>
+      </div>
+      <div class="trip-row">
+        <span class="pin to">도착</span>
+        <input id="inTo" placeholder="도착지" autocomplete="off">
+        <button class="mini" id="btnSwap" title="출발·도착 바꾸기" aria-label="출발·도착 바꾸기">⇅</button>
+      </div>
+      <div class="suggest" id="suggest"></div>
+      <div class="trip-when">
+        <button id="btnWhen">지금 출발</button>
+        <input type="time" id="whenTime" hidden>
+      </div>
     </div>
-    <div class="trip-row">
-      <span class="pin to">도착</span>
-      <input id="inTo" placeholder="도착지 · 건물이나 정류장 이름" autocomplete="off">
-      <button class="mini" id="btnSwap" title="출발·도착 바꾸기">⇅</button>
-    </div>
-    <div class="suggest" id="suggest"></div>
-    <div class="trip-foot"><span id="tripWhen"></span></div>
   </div>
   <div class="filters" id="filters"></div>
   <div class="panel-scroll" id="panelScroll"></div>
@@ -379,11 +411,6 @@ button{cursor:pointer}
     <span>좌표 보정 모드 — 정류장 마커를 끌어 실제 위치로 옮기세요.</span>
     <button id="btnCopy">JSON 복사</button>
     <button id="btnResetCoords">되돌리기</button>
-  </div>
-  <div class="simbar" id="simbar">
-    <span class="lbl" id="simLabel">09:00</span>
-    <input type="range" id="simRange" min="420" max="1140" step="1">
-    <button class="reset" id="simReset">현재 시각</button>
   </div>
   <div class="ask" id="ask" hidden>
     <div class="ask-card">
@@ -400,7 +427,6 @@ button{cursor:pointer}
     <button class="mapbtn" id="btnLoc" title="내 위치" aria-label="내 위치">◎</button>
     <button class="mapbtn" id="btnFit" title="전체 보기" aria-label="전체 보기">⤢</button>
     <button class="mapbtn" id="btnBase" title="지도 종류" aria-label="지도 종류">◻</button>
-    <button class="mapbtn" id="btnSim" title="시간 이동" aria-label="시간 이동">◷</button>
     <button class="mapbtn desk" id="btnEdit" title="좌표 보정" aria-label="좌표 보정">✎</button>
   </div>
 </div>
