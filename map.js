@@ -133,9 +133,31 @@ function activeBuses(t) {
  * ================================================================== */
 const map = L.map('map', { center: CENTER, zoom: 15, zoomControl: false, attributionControl: true });
 L.control.zoom({ position: 'topright' }).addTo(map);
+/* 바탕 지도 — 노선 색이 묻히지 않도록 기본은 채도를 뺀 회색 톤으로 둔다.
+   별도 타일 제공자(키 필요)를 쓰는 대신 타일 레이어에만 CSS 필터를 건다.
+   벡터·마커는 다른 pane 에 있어 색이 그대로 남는다. */
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19, attribution: '&copy; OpenStreetMap 기여자'
+  maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 기여자',
 }).addTo(map);
+
+const BASE_STYLES = [
+  { id: 'muted',  label: '연한 지도', icon: '◻' },
+  { id: 'detail', label: '상세 지도', icon: '▦' },
+];
+const LS_BASE = 'postech-shuttle-basemap';
+let baseIdx = Math.max(0, BASE_STYLES.findIndex(b => {
+  try { return b.id === localStorage.getItem(LS_BASE); } catch (e) { return false; }
+}));
+function setBasemap(i) {
+  baseIdx = ((i % BASE_STYLES.length) + BASE_STYLES.length) % BASE_STYLES.length;
+  const b = BASE_STYLES[baseIdx];
+  document.getElementById('map').classList.toggle('muted-tiles', b.id === 'muted');
+  try { localStorage.setItem(LS_BASE, b.id); } catch (e) {}
+  const btn = document.getElementById('btnBase');
+  if (btn) { btn.textContent = b.icon; btn.title = b.label + ' (눌러서 전환)'; }
+}
+setBasemap(baseIdx);
 
 const layerRoutes = L.layerGroup().addTo(map);
 const layerStops  = L.layerGroup().addTo(map);
@@ -164,10 +186,21 @@ function offsetLine(coords, px) {
 function drawRoutes() {
   layerRoutes.clearLayers();
   const seen = new Set(), lines = [];
+  // 안내 중인 경로가 있으면 배경 노선은 방향만 알아볼 정도로 죽인다
+  const faded = typeof tripPlans !== 'undefined' && tripPlans.length > 0;
   for (const r of ROUTES) {
     if (!isOn(r) || seen.has(r.path)) continue;   // 같은 경로는 한 번만
     seen.add(r.path);
     lines.push(r);
+  }
+  if (faded) {
+    for (const r of lines) {
+      L.polyline(r.path.coords, {
+        color: '#B9BFC8', weight: 2.5, opacity: .55,
+        lineCap: 'round', lineJoin: 'round', interactive: false,
+      }).addTo(layerRoutes);
+    }
+    return;
   }
   const mid = (lines.length - 1) / 2;
   const shifted = lines.map((r, i) => ({ r, line: offsetLine(r.path.coords, (i - mid) * LANE_PX) }));
@@ -186,7 +219,11 @@ let selected = null;
 const stopMarkers = new Map();
 function drawStops() {
   layerStops.clearLayers(); stopMarkers.clear();
+  const onTrip = guiding()
+    ? new Set(tripPlans[0].legs.flatMap(l => [canon(l.from), canon(l.to)]))
+    : null;
   for (const s of STOP_LIST) {
+    if (onTrip && !onTrip.has(s.name)) continue;
     const m = L.marker(s.ll, {
       icon: L.divIcon({
         className: '', iconSize: [14, 14], iconAnchor: [7, 7],
@@ -218,7 +255,11 @@ map.on('zoomend', paintLabels);
 /* --- 버스 마커 --- */
 const busMarkers = new Map();
 function drawBuses(t) {
-  const live = activeBuses(t), keep = new Set();
+  const routeIds = guiding()
+    ? new Set(tripPlans[0].legs.filter(l => l.kind === 'ride').map(l => l.route.id))
+    : null;
+  const live = activeBuses(t).filter(b => !routeIds || routeIds.has(b.route.id));
+  const keep = new Set();
   for (const b of live) {
     keep.add(b.key);
     let m = busMarkers.get(b.key);
@@ -246,32 +287,129 @@ function drawBuses(t) {
 
 /* --- 내 위치 --- */
 let myLL = null, myMarker = null, myCircle = null, watchId = null, followMe = false;
+let geoError = null;                         // 실패 사유를 패널에 안내한다
+
+/* 브라우저 권한 상태 — 알 수 없으면 null */
+async function geoPermission() {
+  try { return (await navigator.permissions.query({ name: 'geolocation' })).state; }
+  catch (e) { return null; }
+}
+
+/* 거부된 뒤에는 JS 로 프롬프트를 다시 띄울 수 없다. 기기별 복구 경로를 알려 준다. */
+function recoverySteps() {
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/.test(ua)) {
+    return ['주소창 왼쪽 <b>ᴀA</b> → 웹사이트 설정 → 위치 → 허용',
+            '설정 앱 → 개인정보 보호 → 위치 서비스 → Safari 확인'];
+  }
+  if (/Android/.test(ua)) {
+    return ['주소창 왼쪽 <b>자물쇠</b> → 권한 → 위치 → 허용',
+            '기기 설정 → 위치 켜기'];
+  }
+  return ['주소창 <b>자물쇠</b> → 위치 → 허용으로 바꾸고 새로고침',
+          '기기의 위치 서비스가 켜져 있는지 확인'];
+}
+
+/* 권한을 요청하기 전에 왜 필요한지 먼저 보여 준다 */
+function askLocation() {
+  const el = $('ask');
+  $('askTitle').textContent = '가까운 정류장부터 보기';
+  $('askBody').innerHTML = '위치는 이 브라우저 안에서만 쓰입니다.';
+  $('askYes').textContent = '위치 허용';
+  $('askYes').onclick = () => { el.hidden = true; startLocate(); };
+  el.hidden = false;
+}
+
+/* 이미 거부된 상태 — 복구 경로만 보여 준다 */
+function showRecovery() {
+  const el = $('ask');
+  $('askTitle').textContent = '위치 권한이 꺼져 있습니다';
+  $('askBody').innerHTML = '<ol class="ask-steps">' +
+    recoverySteps().map(t => `<li>${t}</li>`).join('') + '</ol>';
+  $('askYes').textContent = '다시 시도';
+  $('askYes').onclick = () => { el.hidden = true; startLocate(); };
+  el.hidden = false;
+}
+
+/* ◎ 버튼의 진입점 */
+async function requestLocation() {
+  if (myLL) { followMe = true; $('btnLoc').classList.add('on'); map.setView(myLL, 16); return; }
+  const state = await geoPermission();
+  if (state === 'granted') startLocate();
+  else if (state === 'denied') showRecovery();
+  else askLocation();
+}
+
 function startLocate() {
-  if (!navigator.geolocation) { alert('이 브라우저에서는 위치 기능을 쓸 수 없습니다.'); return; }
+  if (!navigator.geolocation) {
+    geoError = { title: '이 브라우저에서는 위치 기능을 쓸 수 없습니다.', how: null };
+    render(); return;
+  }
+  if (!window.isSecureContext) {
+    geoError = {
+      title: '보안 연결에서만 위치를 쓸 수 있습니다.',
+      how: 'https:// 주소로 열어 주세요.',
+    };
+    render(); return;
+  }
   followMe = true;
-  document.getElementById('btnLoc').classList.add('on');
+  geoError = null;
+  $('btnLoc').classList.add('on');
   if (watchId !== null) { if (myLL) map.setView(myLL, 16); return; }
+
   watchId = navigator.geolocation.watchPosition(pos => {
     const { latitude, longitude, accuracy } = pos.coords;
     myLL = [latitude, longitude];
+    geoError = null;
     if (!myMarker) {
       myMarker = L.marker(myLL, {
         icon: L.divIcon({ className: '', iconSize: [16, 16], iconAnchor: [8, 8], html: '<div class="me"></div>' }),
         zIndexOffset: 500, interactive: false,
       }).addTo(map);
       myCircle = L.circle(myLL, { radius: accuracy, color: '#1a73e8', weight: 1, fillOpacity: .08, interactive: false }).addTo(map);
-      map.setView(myLL, 16);
+      map.setView(offsetForSheet(myLL), 16);
     } else {
       myMarker.setLatLng(myLL); myCircle.setLatLng(myLL).setRadius(accuracy);
       if (followMe) map.setView(myLL, map.getZoom());
     }
+    if ($('trip').classList.contains('show') && !tripFrom) {
+      tripFrom = { ll: myLL, label: '내 위치' };
+      $('inFrom').value = '내 위치';
+      runTrip();
+    }
     render();
   }, err => {
     followMe = false;
-    document.getElementById('btnLoc').classList.remove('on');
-    alert('위치를 가져오지 못했습니다: ' + err.message + '\n(HTTPS 또는 localhost에서만 동작합니다)');
+    watchId = null;
+    $('btnLoc').classList.remove('on');
+    geoError = explainGeoError(err);
+    if (err.code === 1) showRecovery();
+    render();
   }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 });
 }
+
+/** 위치 실패 사유를 사용자가 할 수 있는 행동으로 옮겨 준다 */
+function explainGeoError(err) {
+  if (err.code === 1) {          // PERMISSION_DENIED
+    return {
+      title: '위치 권한이 거부되었습니다.',
+      how: '주소창의 자물쇠(또는 ⓘ) → 위치 → 허용으로 바꾼 뒤 다시 눌러 주세요. ' +
+           '기기 설정에서 위치 서비스가 꺼져 있어도 같은 메시지가 나옵니다.',
+    };
+  }
+  if (err.code === 2) {          // POSITION_UNAVAILABLE
+    return {
+      title: '현재 위치를 확인할 수 없습니다.',
+      how: '실내라 GPS 신호가 약하거나, 데스크톱 브라우저의 측위 서비스가 막혀 있을 수 있습니다. ' +
+           '휴대폰에서 열면 대개 잘 잡힙니다.',
+    };
+  }
+  if (err.code === 3) {          // TIMEOUT
+    return { title: '위치를 가져오는 데 시간이 너무 오래 걸립니다.', how: '잠시 후 다시 시도해 주세요.' };
+  }
+  return { title: '위치를 가져오지 못했습니다.', how: err.message || null };
+}
+
 map.on('dragstart', () => { followMe = false; document.getElementById('btnLoc').classList.remove('on'); });
 
 function selectStop(name) {
@@ -293,12 +431,14 @@ function offsetForSheet(ll) {
  * 패널
  * ================================================================== */
 const $ = id => document.getElementById(id);
+/* 길찾기 결과를 안내하는 중인가 — 이때는 관계없는 정보를 감춘다 */
+const guiding = () => typeof tripPlans !== 'undefined' && tripPlans.length > 0;
 
 function drawFilters() {
   $('filters').innerHTML = GROUPS.map(g => `
     <button class="chip ${active.has(g.id) ? 'on' : ''}" data-g="${g.id}"
             style="${active.has(g.id) ? `background:${g.color}` : `color:${g.color}`}">
-      <span class="dot"></span>${g.label}
+${g.label}
     </button>`).join('');
   $('filters').querySelectorAll('.chip').forEach(el => el.onclick = () => {
     const g = el.dataset.g;
@@ -336,6 +476,7 @@ function stopCard(name, t, distM) {
 
 function render() {
   const t = nowMin();
+  $('filters').hidden = guiding();     // 안내 중에는 노선 필터가 필요 없다
   const running = drawBuses(t);
 
   $('clock').textContent = fmt(t);
@@ -345,9 +486,8 @@ function render() {
 
   if ($('trip').classList.contains('show')) {
     if (tripPlans.length) {
-      html += `<div class="sec-title">추천 경로 <span class="count">${tripPlans.length}개</span></div>`;
+      html += `<div class="sec-title">추천 경로</div>`;
       html += tripPlans.map(planCard).join('');
-      html += `<div class="notice">도보 구간은 <b>OSM 실제 보행로</b>를 따라 계산했고(4.5km/h, 계단 가중), 승·하차 시각은 <b>공개 시간표 기준 예상</b>입니다.</div>`;
       $('panelScroll').innerHTML = html;
       $('panelScroll').querySelectorAll('.itin').forEach(el => el.onclick = () => {
         $('panelScroll').querySelectorAll('.itin').forEach(x => x.classList.remove('best'));
@@ -357,11 +497,10 @@ function render() {
       return;
     }
     if (tripFrom && tripTo) {
-      $('panelScroll').innerHTML =
-        `<div class="notice warn">이 시각에 <b>${tripFrom.label}</b>에서 <b>${tripTo.label}</b>까지 가는 셔틀 경로를 찾지 못했습니다. 운행 시간대(07:40–18:30)인지 확인해 보세요.</div>`;
+      $('panelScroll').innerHTML = `<div class="notice warn">이 시각에 갈 수 있는 경로가 없습니다</div>`;
       return;
     }
-    html += `<div class="notice">출발지와 도착지를 입력하면 <b>도보 → 승차 → 환승 → 하차</b> 순서로 경로를 안내합니다.</div>`;
+    html += '';   // 입력칸 두 개가 곧 설명이다
   }
 
   if (selected) {
@@ -374,7 +513,7 @@ function render() {
 
   if (myLL) {
     near.sort((a, b) => a.d - b.d);
-    html += `<div class="sec-title">내 주변 정류장 <span class="count">가까운 순</span></div>`;
+    html += `<div class="sec-title">내 주변 정류장</div>`;
     html += near.slice(0, 6).map(s => stopCard(s.name, t, s.d)).join('');
   } else {
     near.sort((a, b) => {
@@ -384,30 +523,24 @@ function render() {
     });
     html += `<div class="sec-title">곧 버스가 오는 정류장</div>`;
     html += near.slice(0, 6).map(s => stopCard(s.name, t, null)).join('');
-    html += `<div class="notice">◎ 버튼을 누르면 <b>내 위치</b> 기준으로 가까운 정류장부터 정렬합니다.</div>`;
   }
 
   if (running === 0) {
-    html += `<div class="notice warn">지금은 운행 중인 셔틀이 없습니다. 상단 <b>시간 이동</b>으로 운행 시간대(07:40–18:30)를 확인해 보세요.</div>`;
+    html += `<div class="notice warn">운행 시간이 아닙니다 · 07:40–18:30</div>`;
   }
-  html += `<div class="notice">표시되는 버스 위치는 <b>공개 시간표를 보간한 예상 위치</b>이며 실제 차량 GPS가 아닙니다. 교통 상황에 따라 1~2분 차이가 날 수 있으니 <b>출발 시각 전에 도착</b>해 주세요.</div>`;
 
-  html += `<div class="panel-links">
-    <a href="./timetable.html">전체 시간표</a>
-    <button id="lnkEdit">정류장 좌표 보정</button>
-  </div>`;
+  html += `<div class="panel-links"><a href="./timetable.html">전체 시간표</a></div>`;
 
   $('panelScroll').innerHTML = html;
   $('panelScroll').querySelectorAll('.stop').forEach(el =>
     el.onclick = () => selectStop(el.dataset.stop));
-  const lnk = $('lnkEdit');
-  if (lnk) lnk.onclick = toggleEdit;
+
 }
 
 /* ================================================================== *
  * 조작
  * ================================================================== */
-$('btnLoc').onclick = startLocate;
+$('btnLoc').onclick = requestLocation;
 $('btnFit').onclick = () => {
   const on = ROUTES.filter(isOn);
   fitWithSheet(L.latLngBounds(on.flatMap(r => r.path.coords)));
@@ -439,6 +572,8 @@ function toggleEdit() {
   drawStops();
 }
 $('btnEdit').onclick = toggleEdit;
+$('btnBase').onclick = () => setBasemap(baseIdx + 1);
+$('askNo').onclick = () => { $('ask').hidden = true; };
 $('btnCopy').onclick = async () => {
   const txt = JSON.stringify(STOPS, null, 2);
   try { await navigator.clipboard.writeText(txt); alert('보정된 좌표를 클립보드에 복사했습니다.\nstops.py 의 STOPS 에 반영하세요.'); }
@@ -519,11 +654,19 @@ function openTrip(on) {
   $('trip').classList.toggle('show', show);
   $('btnRoute').classList.toggle('on', show);
   sheet.goto(show ? 2 : 1);
-  if (!show) { tripFrom = tripTo = null; tripPlans = []; layerTrip.clearLayers(); $('suggest').innerHTML = ''; }
+  if (!show) {
+    tripFrom = tripTo = null; tripPlans = []; layerTrip.clearLayers();
+    $('suggest').innerHTML = ''; $('inFrom').value = $('inTo').value = '';
+    drawRoutes(); drawStops();
+  } else {
+    // 출발지는 대개 내 위치다. 이미 알고 있으면 채워 두고 커서를 도착지로 보낸다.
+    if (myLL && !tripFrom) { tripFrom = { ll: myLL, label: '내 위치' }; $('inFrom').value = '내 위치'; }
+    (tripFrom ? $('inTo') : $('inFrom')).focus();
+  }
   render();
 }
 $('btnRoute').onclick = () => openTrip();
-$('btnCloseTrip').onclick = () => openTrip(false);
+
 
 function search(q, near) {
   q = q.trim().toLowerCase();
@@ -558,7 +701,7 @@ for (const [id, field] of [['inFrom', 'from'], ['inTo', 'to']]) {
   $(id).addEventListener('focus', e => { activeField = field; if (e.target.value) drawSuggest(search(e.target.value, myLL)); });
 }
 $('btnHere').onclick = () => {
-  if (!myLL) { startLocate(); alert('위치 권한을 허용하면 출발지에 내 위치가 들어갑니다.'); return; }
+  if (!myLL) { requestLocation(); return; }   // 위치를 잡으면 watchPosition 에서 채운다
   tripFrom = { ll: myLL, label: '내 위치' };
   $('inFrom').value = '내 위치';
   runTrip();
@@ -573,12 +716,14 @@ $('btnSwap').onclick = () => {
 function runTrip() {
   if (!tripFrom || !tripTo) { tripPlans = []; layerTrip.clearLayers(); render(); return; }
   const t = nowMin();
-  $('tripWhen').textContent = `${fmt(t)} 출발 기준`;
+  $('tripWhen').textContent = simMinutes === null ? '' : `${fmt(t)} 출발 기준`;
   tripPlans = planTrip(tripFrom, tripTo, t, { ROUTES, STOP_LIST, isOn, walk: walkNet });
+  // 시트를 먼저 낮춰야 지도에 맞출 때 가려지는 높이를 제대로 계산한다
+  if (tripPlans.length) sheet.goto(1);
+  drawRoutes();
+  drawStops();
   drawPlan(tripPlans[0]);
   render();
-  // 결과가 나오면 시트를 절반으로 낮춰 지도 위의 경로가 보이게 한다
-  if (tripPlans.length) sheet.goto(1);
 }
 
 /* --- 선택한 경로를 지도에 그린다 --- */
@@ -601,6 +746,18 @@ function drawPlan(plan) {
       pts.push(...seg);
     }
   }
+  for (const leg of plan.legs) {
+    if (leg.kind !== 'ride') continue;
+    for (const [nm, cls] of [[leg.from, 'board'], [leg.to, 'alight']]) {
+      const ll = STOPS[canon(nm)];
+      if (!ll) continue;
+      L.marker(ll, {
+        icon: L.divIcon({ className: '', iconSize: [16, 16], iconAnchor: [8, 8],
+          html: `<div class="trip-stop ${cls}" style="border-color:${leg.route.color}"></div>` }),
+        zIndexOffset: 550,
+      }).addTo(layerTrip);
+    }
+  }
   for (const [pt, cls] of [[tripFrom.ll, 'from'], [tripTo.ll, 'to']]) {
     L.marker(pt, {
       icon: L.divIcon({ className: '', iconSize: [18, 18], iconAnchor: [9, 9],
@@ -617,20 +774,20 @@ function planCard(plan, i) {
     ? `<div class="leg">
          <span class="ic">보행</span>
          <span class="txt"><b>${l.to}</b>까지 도보 ${l.min}분
-           <span class="sub">${Math.round(l.m)}m · ${fmt(l.depart)} → ${fmt(l.arrive)}</span></span>
+           <span class="sub">${Math.round(l.m)}m</span></span>
        </div>`
     : `<div class="leg">
          <span class="ic" style="background:${l.route.color}">${l.route.number}</span>
-         <span class="txt"><b>${l.from}</b>에서 승차 → <b>${l.to}</b> 하차
-           <span class="sub">${l.route.name} · ${fmt(l.depart)} 출발${l.wait >= 1 ? ` (${Math.round(l.wait)}분 대기)` : ''} · ${l.stops}정거장 · ${fmt(l.arrive)} 도착</span></span>
+         <span class="txt"><b>${l.from}</b> ${fmt(l.depart)} → <b>${l.to}</b> ${fmt(l.arrive)}
+           <span class="sub">${l.route.name} · ${l.stops}정거장${l.wait >= 1 ? ` · ${Math.round(l.wait)}분 대기` : ''}</span></span>
        </div>`).join('');
-  const tag = plan.walkOnly ? '도보만' : (rides.length > 1 ? `환승 ${rides.length - 1}회` : '환승 없음');
+  const tag = plan.walkOnly ? '도보' : (rides.length > 1 ? `환승 ${rides.length - 1}회` : '');
   return `
     <div class="itin ${i === 0 ? 'best' : ''}" data-plan="${i}">
       <div class="itin-head">
         <span class="itin-dur">${dur}분</span>
         <span class="itin-time">${fmt(plan.depart)} → ${fmt(plan.arrive)}</span>
-        <span class="itin-tag">${tag}</span>
+        ${tag ? `<span class="itin-tag">${tag}</span>` : ''}
       </div>
       ${legs}
     </div>`;
