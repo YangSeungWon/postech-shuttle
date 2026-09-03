@@ -60,6 +60,12 @@ button{cursor:pointer}
   padding:6px 10px;border-radius:9px;background:var(--soft);color:#333;
 }
 .clock.sim{background:#FFF4D6;color:#8a6100}
+.clock .colon{animation:blink 1s step-end infinite;animation-delay:var(--blink-delay,0s)}
+.clock.sim .colon{animation:none}          /* 옮겨 둔 시각은 지금이 아니다 */
+@keyframes blink{50%{opacity:.15}}
+@media (prefers-reduced-motion:reduce){
+  .clock .colon{animation:none}
+}
 
 /* ---------- layout ---------- *
  * 모바일이 기본. 지도는 화면 전체를 채우고 패널이 바텀시트로 그 위에 뜬다.
@@ -309,6 +315,21 @@ button{cursor:pointer}
 .pa button[data-w="from"]:hover{background:#1a73e8;border-color:#1a73e8;color:#fff}
 .pa button[data-w="to"]:hover{background:var(--postech-red);border-color:var(--postech-red);color:#fff}
 
+/* 내 위치 직접 지정 */
+.pick-hint{
+  position:fixed;left:12px;right:12px;top:calc(var(--header-h) + 12px);z-index:900;
+  background:#1a73e8;color:#fff;border-radius:14px;box-shadow:var(--shadow);
+  padding:12px 14px;display:flex;align-items:center;gap:10px;
+  font-size:14px;font-weight:800;
+}
+.pick-hint[hidden]{display:none}
+.pick-hint button{
+  margin-left:auto;border:0;background:rgba(255,255,255,.2);color:#fff;
+  border-radius:9px;padding:7px 12px;font-size:13px;font-weight:800;
+}
+#map.picking{cursor:crosshair}
+@media (min-width:821px){ .pick-hint{left:calc(var(--panel-w) + 12px);right:74px} }
+
 /* ---------- 위치 권한 안내 ---------- */
 .ask{
   position:fixed;inset:var(--header-h) 0 0 0;z-index:1100;
@@ -405,7 +426,7 @@ button{cursor:pointer}
     <span class="sub" id="tagline">시간표 기반 운행 위치 · 실시간 GPS 아님</span>
   </div>
   <div class="spacer"></div>
-  <div class="clock" id="clock">--:--</div>
+  <div class="clock" id="clock"><span id="clockH">--</span><span class="colon">:</span><span id="clockM">--</span></div>
   <button class="hdr-btn primary" id="btnRoute">길찾기</button>
   <a class="hdr-btn desk" id="lnkTimetable" href="./timetable.html">시간표</a>
 </header>
@@ -441,6 +462,10 @@ button{cursor:pointer}
     <span id="editHint">좌표 보정 모드 — 정류장 마커를 끌어 실제 위치로 옮기세요.</span>
     <button id="btnCopy">JSON 복사</button>
     <button id="btnResetCoords">되돌리기</button>
+  </div>
+  <div class="pick-hint" id="pickHint" hidden>
+    <span id="pickHintText">지도에서 지금 계신 곳을 눌러 주세요</span>
+    <button id="pickCancel">취소</button>
   </div>
   <div class="ask" id="ask" hidden>
     <div class="ask-card">

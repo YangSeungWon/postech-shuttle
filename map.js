@@ -5,6 +5,7 @@
  * 위치는 공개 시간표를 보간해 계산한 "예상" 위치입니다 (실시간 GPS 아님).
  * ------------------------------------------------------------------ */
 
+const $ = id => document.getElementById(id);
 const CENTER = [36.0175, 129.3235];
 const CANON = DATA.canon || {};
 const canon = n => CANON[n] || n;
@@ -436,6 +437,48 @@ async function geoPermission() {
   catch (e) { return null; }
 }
 
+/* 사이트가 권한을 켜 줄 수는 없다. 다만 사용자가 설정에서 풀면
+   새로고침 없이 바로 잡히도록 상태 변화를 지켜본다. */
+(async () => {
+  try {
+    const st = await navigator.permissions.query({ name: 'geolocation' });
+    st.onchange = () => {
+      if (st.state === 'granted') { $('ask').hidden = true; geoError = null; startLocate(); }
+    };
+  } catch (e) { /* Permissions API 없음 — 그냥 넘어간다 */ }
+})();
+
+/* 권한을 못 얻을 때의 대비책 — 지도를 눌러 내 위치를 직접 찍는다 */
+let pickingMe = false;
+function pickMyLocation() {
+  pickingMe = true;
+  $('ask').hidden = true;
+  document.getElementById('map').classList.add('picking');
+  $('pickHint').hidden = false;
+}
+map.on('click', e => {
+  if (!pickingMe) return;
+  pickingMe = false;
+  document.getElementById('map').classList.remove('picking');
+  $('pickHint').hidden = true;
+  setMyLocation([e.latlng.lat, e.latlng.lng], 0);
+});
+$('pickCancel').onclick = () => {
+  pickingMe = false;
+  document.getElementById('map').classList.remove('picking');
+  $('pickHint').hidden = true;
+};
+
+/* 지도 위에 얹힌 UI 는 #map 안에 있어 클릭이 지도까지 전파된다.
+   막지 않으면 버튼을 누른 자리가 지도 클릭으로도 잡힌다. */
+for (const id of ['ask', 'pickHint', 'editbar']) {
+  const el = $(id);
+  if (el) { L.DomEvent.disableClickPropagation(el); L.DomEvent.disableScrollPropagation(el); }
+}
+for (const el of document.querySelectorAll('.mapbtns')) {
+  L.DomEvent.disableClickPropagation(el); L.DomEvent.disableScrollPropagation(el);
+}
+
 /* 거부된 뒤에는 JS 로 프롬프트를 다시 띄울 수 없다. 기기별 복구 경로를 알려 준다. */
 function recoverySteps() {
   const ua = navigator.userAgent;
@@ -458,6 +501,8 @@ function askLocation() {
   $('askBody').textContent = T.askBody;
   $('askYes').textContent = T.askYes;
   $('askYes').onclick = () => { el.hidden = true; startLocate(); };
+  $('askNo').textContent = T.askNo;
+  $('askNo').onclick = () => { el.hidden = true; };
   el.hidden = false;
 }
 
@@ -469,6 +514,8 @@ function showRecovery() {
     recoverySteps().map(t => `<li>${t}</li>`).join('') + '</ol>';
   $('askYes').textContent = T.askRetry;
   $('askYes').onclick = () => { el.hidden = true; startLocate(); };
+  $('askNo').textContent = T.pickOnMap;
+  $('askNo').onclick = pickMyLocation;
   el.hidden = false;
 }
 
@@ -500,8 +547,23 @@ function startLocate() {
 
   watchId = navigator.geolocation.watchPosition(pos => {
     const { latitude, longitude, accuracy } = pos.coords;
-    myLL = [latitude, longitude];
+    setMyLocation([latitude, longitude], accuracy);
+  }, err => {
+    followMe = false;
+    watchId = null;
+    $('btnLoc').classList.remove('on');
+    geoError = explainGeoError(err);
+    if (err.code === 1) showRecovery();
+    render();
+  }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 });
+}
+
+function setMyLocation(ll, accuracy) {
+  {
+    myLL = ll;
+    const [latitude, longitude] = ll;
     geoError = null;
+    $('btnLoc').classList.add('on');
     if (!myMarker) {
       myMarker = L.marker(myLL, {
         icon: L.divIcon({ className: '', iconSize: [16, 16], iconAnchor: [8, 8], html: '<div class="me"></div>' }),
@@ -519,14 +581,7 @@ function startLocate() {
       runTrip();
     }
     render();
-  }, err => {
-    followMe = false;
-    watchId = null;
-    $('btnLoc').classList.remove('on');
-    geoError = explainGeoError(err);
-    if (err.code === 1) showRecovery();
-    render();
-  }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 });
+  }
 }
 
 /** 위치 실패 사유를 사용자가 할 수 있는 행동으로 옮겨 준다 */
@@ -575,7 +630,6 @@ function offsetForSheet(ll) {
 /* ================================================================== *
  * 패널
  * ================================================================== */
-const $ = id => document.getElementById(id);
 /* 길찾기 결과를 안내하는 중인가 — 이때는 관계없는 정보를 감춘다 */
 const guiding = () => typeof tripPlans !== 'undefined' && tripPlans.length > 0;
 
@@ -628,7 +682,11 @@ function render() {
   $('filters').hidden = guiding();     // 안내 중에는 노선 필터가 필요 없다
   const running = drawBuses(t);
 
-  $('clock').textContent = fmt(t);
+  // 콜론을 깜빡여 지금 시각임을 드러낸다. 시각을 옮겨 둔 상태에서는 멈춘다.
+  // 매초 다시 만들면 애니메이션이 리셋되므로 숫자만 갈아 끼운다.
+  const [hh, mm] = fmt(t).split(':');
+  if ($('clockH').textContent !== hh) $('clockH').textContent = hh;
+  if ($('clockM').textContent !== mm) $('clockM').textContent = mm;
   $('clock').classList.toggle('sim', simMinutes !== null);
 
   let html = '';
@@ -846,7 +904,7 @@ function openTrip(on, suggest = true) {
     // 출발지는 대개 내 위치다. 이미 알고 있으면 채워 두고 커서를 도착지로 보낸다.
     if (myLL && !tripFrom) { tripFrom = { ll: myLL, label: T.here }; $('inFrom').value = T.here; }
     activeField = tripFrom ? 'to' : 'from';
-    if (suggest) { $(tripFrom ? 'inTo' : 'inFrom').focus(); drawSuggest(search('', myLL)); }
+    if (suggest) focusEmptyField();
   }
   render();
 }
@@ -901,7 +959,7 @@ function drawSuggest(list) {
     if (activeField === 'from') { tripFrom = picked; $('inFrom').value = p.label; }
     else                        { tripTo   = picked; $('inTo').value   = p.label; remember(picked); }
     $('suggest').innerHTML = '';
-    if (!tripTo) { $('inTo').focus(); return; }        // 출발지를 먼저 골랐다면 도착지로
+    if (!tripFrom || !tripTo) { focusEmptyField(); return; }
     runTrip();
   });
 }
@@ -958,12 +1016,23 @@ $('tripSummary').onclick = () => { collapseForm(false); drawStops(); $('inTo').f
  * 검색으로만 입력받으면 이름을 모르는 지점은 지정할 방법이 없다.
  */
 function setEndpoint(which, place) {
-  if (!$('trip').classList.contains('show')) openTrip(true);
+  // openTrip 이 먼저 포커스를 잡아 버리므로 제안 목록은 여기서 직접 그린다
+  if (!$('trip').classList.contains('show')) openTrip(true, false);
   if (which === 'from') { tripFrom = place; $('inFrom').value = place.label; }
   else                  { tripTo = place;   $('inTo').value = place.label; remember(place); }
   map.closePopup();
-  if (tripFrom && tripTo) runTrip();
-  else { collapseForm(false); render(); }
+  if (tripFrom && tripTo) { runTrip(); return; }
+  collapseForm(false);
+  focusEmptyField();
+  render();
+}
+
+/* 아직 비어 있는 칸으로 포커스를 옮긴다.
+   방금 채운 칸에 포커스가 남아 있으면 목록에서 고른 것이 그 칸을 덮어쓴다. */
+function focusEmptyField() {
+  activeField = tripFrom ? 'to' : 'from';
+  $(tripFrom ? 'inTo' : 'inFrom').focus();
+  drawSuggest(search('', myLL));
 }
 
 function pointActions(ll, label) {
@@ -1178,6 +1247,8 @@ function applyLang() {
   set('btnCopy', T.copyJson);
   set('btnResetCoords', T.resetCoords);
   set('askNo', T.askNo);
+  set('pickHintText', T.pickHint);
+  set('pickCancel', T.cancel);
   $('inFrom').placeholder = T.fromPh;
   $('inTo').placeholder = T.toPh;
   $('btnHere').title = T.here;
