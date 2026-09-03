@@ -233,6 +233,18 @@ button{cursor:pointer}
 .leg b{font-weight:900}
 .leg .sub{display:block;color:var(--muted);font-size:13.5px;font-weight:700;font-variant-numeric:tabular-nums}
 
+/* 출근·퇴근 전환 — 알약이 아니라 밑줄로 구분한다 */
+.period{display:flex;align-items:baseline;gap:14px;margin:16px 0 2px}
+.period button{
+  border:0;background:none;padding:4px 0;font-size:16px;font-weight:900;
+  color:#9AA1AC;letter-spacing:-.03em;border-bottom:2.5px solid transparent;
+}
+.period button.on{color:var(--ink);border-bottom-color:var(--postech-red)}
+.period-time{
+  margin-left:auto;font-size:12.5px;font-weight:800;color:var(--muted);
+  font-variant-numeric:tabular-nums;
+}
+
 /* ---------- sections ---------- */
 .sec-title{
   font-size:13.5px;font-weight:900;letter-spacing:.06em;color:var(--muted);

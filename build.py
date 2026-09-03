@@ -1,38 +1,24 @@
 import json, os, time, urllib.request, hashlib
 from stops import STOPS, CANON, VIA
-import pois, walkgraph, i18n_src
+import pois, walkgraph, i18n_src, driveroute
 
 DATA = json.load(open('data.json'))
-CACHE = 'osrm_cache.json'
-cache = json.load(open(CACHE)) if os.path.exists(CACHE) else {}
+_graph = driveroute.Graph()
+
 
 def leg(a, b):
-    """도로를 따라가는 a→b 경로 좌표열 [[lat,lng],...]"""
+    """도로를 따라가는 a→b 경로 좌표열 [[lat,lng],...]
+
+    OSRM 공개 서버 대신 같은 OSM 추출본으로 직접 계산한다. 서버 쪽 도로
+    데이터가 달라 경유지가 엉뚱한 길에 스냅되는 문제가 있었다.
+    """
     pts = [STOPS[a]] + [tuple(p) for p in VIA.get((a, b), [])] + [STOPS[b]]
-    # 좌표를 키에 넣어야 정류장을 옮기거나 경유지를 바꿨을 때 옛 경로가 남지 않는다
-    key = "|".join(f"{p[0]:.6f},{p[1]:.6f}" for p in pts)
-    if key in cache:
-        return cache[key]
-    coords = ";".join(f"{p[1]},{p[0]}" for p in pts)
-    url = (f"https://router.project-osrm.org/route/v1/driving/"
-           f"{coords}?overview=full&geometries=geojson")
-    for attempt in range(4):
-        try:
-            with urllib.request.urlopen(url, timeout=30) as r:
-                j = json.load(r)
-            if j.get('code') == 'Ok':
-                coords = [[round(c[1], 6), round(c[0], 6)]
-                          for c in j['routes'][0]['geometry']['coordinates']]
-                cache[key] = coords
-                json.dump(cache, open(CACHE, 'w'))
-                time.sleep(0.35)
-                return coords
-        except Exception as e:
-            print('  retry', a, '->', b, e)
-            time.sleep(2)
-    print('  !! OSRM 실패, 직선 대체:', a, '->', b)
-    cache[key] = [list(p) for p in pts]
-    return cache[key]
+    coords = _graph.route(pts)
+    if not coords:
+        print('  !! 경로 없음, 직선 대체:', a, '->', b)
+        return [list(p) for p in pts]
+    return coords
+
 
 def path_for(stop_names):
     """정류장 순서 → {coords, idx} (idx[i] = coords에서 i번째 정류장의 위치)"""

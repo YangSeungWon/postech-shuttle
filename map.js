@@ -90,7 +90,12 @@ const badge = r => BADGE[r.group]?.[LANG] || r.number;
    동시에 색으로 그리면 무지개 리본이 된다. 기본값은 '전체'로, 이때는
    길 모양만 회색으로 보여 주고 색은 정류장·버스에만 쓴다. */
 let focusGroup = null;                 // null = 전체
-const isOn = r => focusGroup === null || r.group === focusGroup;
+/* 지곡·유강은 출퇴근 단방향 노선이라 오전·오후가 서로 다른 경로다.
+   한쪽만 보여 주지 않으면 왕복 노선처럼 읽힌다. */
+let focusPeriod = null;                // '오전' | '오후'
+const isExt = g => g === 'jigok' || g === 'yugang';
+const isOn = r => focusGroup === null
+  || (r.group === focusGroup && (!focusPeriod || r.period === focusPeriod));
 
 /* 마커를 세울 고유 정류장 목록 */
 const STOP_LIST = [...new Set(ROUTES.flatMap(r => r.canonStops))]
@@ -323,7 +328,8 @@ function drawRoutes() {
   }
 
   // 고른 노선만 색으로. 같은 그룹 안의 여러 경로는 화면상 나란히 어긋나게 그린다.
-  const mine = lines.filter(r => r.group === focusGroup);
+  const mine = lines.filter(r => r.group === focusGroup
+    && (!focusPeriod || r.period === focusPeriod));
   for (const r of lines) {
     if (r.group === focusGroup) continue;
     L.polyline(r.path.coords, {
@@ -354,7 +360,7 @@ function drawStops() {
     : null;
   // 노선을 하나 고른 상태면 그 노선이 서는 정류장만 남긴다
   const served = focusGroup
-    ? new Set(ROUTES.filter(r => r.group === focusGroup).flatMap(r => r.canonStops))
+    ? new Set(ROUTES.filter(isOn).flatMap(r => r.canonStops))
     : null;
   const ringColor = focusGroup ? GROUPS.find(g => g.id === focusGroup).color : null;
 
@@ -644,6 +650,7 @@ function drawFilters() {
   $('filters').querySelectorAll('.chip').forEach(el => el.onclick = () => {
     const g = el.dataset.g || null;
     focusGroup = focusGroup === g ? null : g;   // 같은 칩을 다시 누르면 전체로
+    focusPeriod = isExt(focusGroup) ? (nowMin() < 12 * 60 ? '오전' : '오후') : null;
     drawFilters(); drawRoutes(); drawStops(); render();
   });
 }
@@ -744,7 +751,7 @@ function render() {
   }
 
   const served = focusGroup
-    ? new Set(ROUTES.filter(r => r.group === focusGroup).flatMap(r => r.canonStops))
+    ? new Set(ROUTES.filter(isOn).flatMap(r => r.canonStops))
     : null;
   // 실제 보행 경로로 잰 거리·시간 (경사 반영). 스냅된 출발점 기준이라 결과가 캐시된다.
   const walks = myLL ? walkNet.fromPoint(myLL) : null;
@@ -772,10 +779,11 @@ function render() {
     // 노선을 고르면 정류장을 운행 순서대로 세운다 — 목록이 곧 노선도가 된다
     const seq = [];
     for (const r of ROUTES) {
-      if (r.group !== focusGroup) continue;
+      if (!isOn(r)) continue;
       for (const n of r.canonStops) if (!seq.includes(baseName(n))) seq.push(baseName(n));
     }
     near.sort((a, b) => seq.indexOf(a.name) - seq.indexOf(b.name));
+    if (isExt(focusGroup)) html += periodSwitch();
     html += `<div class="sec-title">${T.routeOrder(groupLabel(focusGroup))}</div>`;
     html += near.map(s => stopCard(s.name, t, s.w)).join('');
   } else if (walks) {
@@ -809,6 +817,10 @@ function render() {
   $('panelScroll').querySelectorAll('.stop').forEach(el =>
     el.onclick = () => selectStop(el.dataset.stop));
   bindLangButtons();
+  $('panelScroll').querySelectorAll('.period button').forEach(el => el.onclick = () => {
+    focusPeriod = el.dataset.p;
+    drawRoutes(); drawStops(); render();
+  });
 
 }
 
@@ -1144,6 +1156,20 @@ function drawPlan(plan) {
   }
   drawCrossings(tripXings);
   if (pts.length) fitWithSheet(L.latLngBounds(pts), 50);
+}
+
+/* 출근·퇴근 전환. 그 시간대에 실제로 언제 출발하는지 함께 보여 준다. */
+function periodSwitch() {
+  const runs = p => ROUTES
+    .filter(r => r.group === focusGroup && r.period === p)
+    .map(r => fmt(r.tripsMin[0][0]))
+    .sort();
+  const btn = (p, label) =>
+    `<button class="${focusPeriod === p ? 'on' : ''}" data-p="${p}">${label}</button>`;
+  return `<div class="period">
+    ${btn('오전', T.commuteAm)}${btn('오후', T.commutePm)}
+    <span class="period-time">${T.departsAt(runs(focusPeriod).join(' · '))}</span>
+  </div>`;
 }
 
 function planCard(plan, i) {
