@@ -276,6 +276,30 @@ function offsetLine(coords, px) {
   return out;
 }
 
+/* 진행 방향 화살표. 지곡·유강은 단방향이고 순환도 도는 방향이 있어,
+   선만 그려서는 어느 쪽으로 가는지 알 수 없다. */
+function arrowsAlong(coords, color, everyPx = 110) {
+  const pts = coords.map(c => map.latLngToLayerPoint(L.latLng(c)));
+  let acc = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const dx = pts[i].x - pts[i - 1].x, dy = pts[i].y - pts[i - 1].y;
+    const len = Math.hypot(dx, dy);
+    if (!len) continue;
+    acc += len;
+    if (acc < everyPx) continue;
+    acc = 0;
+    const deg = Math.atan2(dy, dx) * 180 / Math.PI;
+    L.marker(map.layerPointToLatLng(L.point((pts[i].x + pts[i - 1].x) / 2,
+                                            (pts[i].y + pts[i - 1].y) / 2)), {
+      icon: L.divIcon({
+        className: 'arrow-icon', iconSize: null, iconAnchor: [0, 0],
+        html: `<div class="arrow" style="transform:translate(-50%,-50%) rotate(${deg}deg);color:${color}">➤</div>`,
+      }),
+      interactive: false, zIndexOffset: 50,
+    }).addTo(layerRoutes);
+  }
+}
+
 function drawRoutes() {
   layerRoutes.clearLayers();
   const seen = new Set(), lines = [];
@@ -314,6 +338,7 @@ function drawRoutes() {
   for (const { r, line } of shifted) {
     L.polyline(line, { color: r.color, weight: 5, opacity: .95, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(layerRoutes);
   }
+  for (const { r, line } of shifted) arrowsAlong(line, r.color);
 }
 map.on('zoomend', drawRoutes);
 

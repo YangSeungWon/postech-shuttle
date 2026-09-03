@@ -1,5 +1,5 @@
 import json, os, time, urllib.request, hashlib
-from stops import STOPS, CANON
+from stops import STOPS, CANON, VIA
 import pois, walkgraph, i18n_src
 
 DATA = json.load(open('data.json'))
@@ -8,13 +8,14 @@ cache = json.load(open(CACHE)) if os.path.exists(CACHE) else {}
 
 def leg(a, b):
     """도로를 따라가는 a→b 경로 좌표열 [[lat,lng],...]"""
-    (la, ga), (lb, gb) = STOPS[a], STOPS[b]
-    # 좌표를 키에 넣어야 정류장을 옮겼을 때 옛 경로가 재사용되지 않는다
-    key = f"{la:.6f},{ga:.6f}|{lb:.6f},{gb:.6f}"
+    pts = [STOPS[a]] + [tuple(p) for p in VIA.get((a, b), [])] + [STOPS[b]]
+    # 좌표를 키에 넣어야 정류장을 옮기거나 경유지를 바꿨을 때 옛 경로가 남지 않는다
+    key = "|".join(f"{p[0]:.6f},{p[1]:.6f}" for p in pts)
     if key in cache:
         return cache[key]
+    coords = ";".join(f"{p[1]},{p[0]}" for p in pts)
     url = (f"https://router.project-osrm.org/route/v1/driving/"
-           f"{ga},{la};{gb},{lb}?overview=full&geometries=geojson")
+           f"{coords}?overview=full&geometries=geojson")
     for attempt in range(4):
         try:
             with urllib.request.urlopen(url, timeout=30) as r:
@@ -30,7 +31,7 @@ def leg(a, b):
             print('  retry', a, '->', b, e)
             time.sleep(2)
     print('  !! OSRM 실패, 직선 대체:', a, '->', b)
-    cache[key] = [[la, ga], [lb, gb]]
+    cache[key] = [list(p) for p in pts]
     return cache[key]
 
 def path_for(stop_names):
