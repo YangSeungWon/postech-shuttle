@@ -100,6 +100,30 @@ class Graph:
         return [[round(a, 6), round(b, 6)] for a, b in coords]
 
 
+BIG = ('motorway', 'trunk', 'primary', 'motorway_link', 'trunk_link', 'primary_link')
+
+
+def big_road_edges(path='walk.json'):
+    """큰길의 연속한 두 점 묶음. 셔틀은 큰길로 나가지 않으므로 검사에 쓴다."""
+    out = set()
+    for w in _load(path):
+        if w['tags'].get('highway') not in BIG:
+            continue
+        g = w['geometry']
+        for a, b in zip(g, g[1:]):
+            k = (round(a['lat'], 6), round(a['lon'], 6),
+                 round(b['lat'], 6), round(b['lon'], 6))
+            out.add(k)
+            out.add(k[2:] + k[:2])
+    return out
+
+
+def uses_big_road(coords, edges):
+    """경로가 큰길 구간을 실제로 지나는지 (근접이 아니라 통행)"""
+    return [a for a, b in zip(coords, coords[1:])
+            if (round(a[0], 6), round(a[1], 6), round(b[0], 6), round(b[1], 6)) in edges]
+
+
 if __name__ == '__main__':
     g = Graph()
     print(f'차량 노드 {len(g.pos)}개')

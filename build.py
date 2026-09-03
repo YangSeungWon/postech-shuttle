@@ -66,6 +66,13 @@ for e in DATA['extensions']:
 POIS = pois.load()
 WALK = walkgraph.build()
 EN = i18n_src.load()
+# 셔틀은 큰길로 나가지 않는다. 경유지를 고치다 실수로 올라타면 여기서 잡힌다.
+_big = driveroute.big_road_edges()
+for _r in out_routes:
+    _hit = driveroute.uses_big_road(paths[_r["path"]]["coords"], _big)
+    if _hit:
+        print(f'  !! 큰길 통행 {len(_hit)}구간: {_r["name"]} — {_hit[0]}')
+
 json.dump({"stops": {k: list(v) for k, v in STOPS.items()},
            "canon": CANON, "paths": paths, "routes": out_routes, "pois": POIS, "walk": WALK, "en": EN},
           open('map-data.json', 'w'), ensure_ascii=False)
