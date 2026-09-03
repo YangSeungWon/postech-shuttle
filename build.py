@@ -8,10 +8,11 @@ cache = json.load(open(CACHE)) if os.path.exists(CACHE) else {}
 
 def leg(a, b):
     """도로를 따라가는 a→b 경로 좌표열 [[lat,lng],...]"""
-    key = f"{a}|{b}"
+    (la, ga), (lb, gb) = STOPS[a], STOPS[b]
+    # 좌표를 키에 넣어야 정류장을 옮겼을 때 옛 경로가 재사용되지 않는다
+    key = f"{la:.6f},{ga:.6f}|{lb:.6f},{gb:.6f}"
     if key in cache:
         return cache[key]
-    (la, ga), (lb, gb) = STOPS[a], STOPS[b]
     url = (f"https://router.project-osrm.org/route/v1/driving/"
            f"{ga},{la};{gb},{lb}?overview=full&geometries=geojson")
     for attempt in range(4):
