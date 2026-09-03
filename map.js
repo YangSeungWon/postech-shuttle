@@ -232,6 +232,29 @@ setBasemap(baseIdx);
 const layerRoutes = L.layerGroup().addTo(map);
 const layerStops  = L.layerGroup().addTo(map);
 const layerBuses  = L.layerGroup().addTo(map);
+const layerXing   = L.layerGroup().addTo(map);
+
+/* 횡단보도 — 129개를 늘 그리면 소음이라 가까이 봤을 때만 옅게 깔고,
+   길찾기 중에는 그 경로가 실제로 건너는 곳만 진하게 보여 준다. */
+const XING_ZOOM = 17;
+function drawCrossings(routeXings) {
+  layerXing.clearLayers();
+  if (map.getZoom() >= XING_ZOOM) {
+    for (const c of DATA.walk.crossings || []) {
+      L.polyline(c, { color: '#9AA1AC', weight: 7, opacity: .45,
+                      dashArray: '2 3', lineCap: 'butt', interactive: false }).addTo(layerXing);
+    }
+  }
+  // 건널목 선은 도로를 가로지르므로, 굵게 깔고 흰 줄무늬를 얹으면 얼룩말 무늬로 읽힌다
+  for (const c of routeXings || []) {
+    L.polyline(c, { color: '#2F3540', weight: 13, opacity: .95,
+                    lineCap: 'butt', interactive: false }).addTo(layerXing);
+    L.polyline(c, { color: '#fff', weight: 13, opacity: .95, dashArray: '3 4',
+                    lineCap: 'butt', interactive: false }).addTo(layerXing);
+  }
+}
+map.on('zoomend', () => drawCrossings(tripXings));
+let tripXings = [];
 
 /* --- 노선 폴리라인 --- */
 /* 노선들이 같은 도로를 공유하므로 화면상 나란히 어긋나게 그린다.
@@ -731,7 +754,7 @@ const walkNet = (() => {
     const minutes = res.dist[node] + extra / WALK_MPM;
     return {
       min: m < 40 ? 0 : Math.max(1, Math.round(minutes)),
-      m, ascent: Math.round(tr.ascent), coords: tr.coords,
+      m, ascent: Math.round(tr.ascent), coords: tr.coords, crossings: tr.crossings,
     };
   };
 
@@ -792,7 +815,8 @@ function openTrip(on, suggest = true) {
   if (!show || on === false) {
     tripFrom = tripTo = null; tripPlans = []; layerTrip.clearLayers();
     $('suggest').innerHTML = ''; $('inFrom').value = $('inTo').value = '';
-    collapseForm(false); simMinutes = null; whenLabel(); drawRoutes(); drawStops();
+    collapseForm(false); simMinutes = null; whenLabel();
+    tripXings = []; drawCrossings(tripXings); drawRoutes(); drawStops();
   } else {
     // 출발지는 대개 내 위치다. 이미 알고 있으면 채워 두고 커서를 도착지로 보낸다.
     if (myLL && !tripFrom) { tripFrom = { ll: myLL, label: T.here }; $('inFrom').value = T.here; }
@@ -952,7 +976,9 @@ function runTrip() {
 /* --- 선택한 경로를 지도에 그린다 --- */
 function drawPlan(plan) {
   layerTrip.clearLayers();
-  if (!plan) return;
+  tripXings = [];
+  if (!plan) { drawCrossings(tripXings); return; }
+  for (const leg of plan.legs) if (leg.kind === 'walk' && leg.crossings) tripXings.push(...leg.crossings);
   const pts = [];
   for (const leg of plan.legs) {
     if (leg.kind === 'walk') {
@@ -987,6 +1013,7 @@ function drawPlan(plan) {
         html: `<div class="trip-pin ${cls}"></div>` }), zIndexOffset: 600,
     }).addTo(layerTrip);
   }
+  drawCrossings(tripXings);
   if (pts.length) fitWithSheet(L.latLngBounds(pts), 50);
 }
 

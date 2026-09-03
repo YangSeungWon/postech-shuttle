@@ -26,14 +26,15 @@ const WalkGraph = (() => {
   const ele = Float64Array.from(W.ele || new Array(N).fill(0));
 
   /* --- 인접 리스트를 CSR로 --- */
-  const E = W.edges.length / 3;
+  const E = W.edges.length / 4;
   const deg = new Int32Array(N);
-  for (let e = 0; e < E; e++) { deg[W.edges[e * 3]]++; deg[W.edges[e * 3 + 1]]++; }
+  for (let e = 0; e < E; e++) { deg[W.edges[e * 4]]++; deg[W.edges[e * 4 + 1]]++; }
   const head = new Int32Array(N + 1);
   for (let i = 0; i < N; i++) head[i + 1] = head[i] + deg[i];
   // cost 는 '분'. 오르막·내리막이 다르므로 두 방향을 따로 담는다.
   const to = new Int32Array(E * 2), cost = new Float64Array(E * 2),
-        meters = new Float64Array(E * 2), climb = new Float64Array(E * 2);
+        meters = new Float64Array(E * 2), climb = new Float64Array(E * 2),
+        xing = new Uint8Array(E * 2);            // 횡단보도 구간인가
   const fill = head.slice(0, N);
   const R = 6371000, D = Math.PI / 180;
   const metersBetween = (a, b) => {
@@ -50,13 +51,16 @@ const WalkGraph = (() => {
     const kmh = toblerKmh(S) * TOBLER_NORM;
     return (m / 1000) / kmh * 60 * surface;
   };
+  const isXing = new Map();                    // "a,b" → 횡단보도 여부
   for (let e = 0; e < E; e++) {
-    const a = W.edges[e * 3], b = W.edges[e * 3 + 1], w = W.edges[e * 3 + 2] / 10;
+    const a = W.edges[e * 4], b = W.edges[e * 4 + 1],
+          w = W.edges[e * 4 + 2] / 10, x = W.edges[e * 4 + 3];
     const m = metersBetween(a, b);
     const dh = ele[b] - ele[a];
-    to[fill[a]] = b; meters[fill[a]] = m;
+    if (x) { isXing.set(a + ',' + b, 1); isXing.set(b + ',' + a, 1); }
+    to[fill[a]] = b; meters[fill[a]] = m; xing[fill[a]] = x;
     cost[fill[a]] = minutesFor(m, dh, w); climb[fill[a]] = Math.max(0, dh); fill[a]++;
-    to[fill[b]] = a; meters[fill[b]] = m;
+    to[fill[b]] = a; meters[fill[b]] = m; xing[fill[b]] = x;
     cost[fill[b]] = minutesFor(m, -dh, w); climb[fill[b]] = Math.max(0, -dh); fill[b]++;
   }
 
@@ -130,11 +134,14 @@ const WalkGraph = (() => {
     for (let n = dst; n >= 0; n = prev[n]) nodes.push(n);
     nodes.reverse();
     let m = 0, up = 0;
+    const crossings = [];
     for (let i = 1; i < nodes.length; i++) {
-      m += metersBetween(nodes[i - 1], nodes[i]);
-      up += Math.max(0, ele[nodes[i]] - ele[nodes[i - 1]]);   // 오른 만큼만 더한다
+      const a = nodes[i - 1], b = nodes[i];
+      m += metersBetween(a, b);
+      up += Math.max(0, ele[b] - ele[a]);                     // 오른 만큼만 더한다
+      if (isXing.has(a + ',' + b)) crossings.push([[lat[a], lng[a]], [lat[b], lng[b]]]);
     }
-    return { coords: nodes.map(n => [lat[n], lng[n]]), meters: m, ascent: up };
+    return { coords: nodes.map(n => [lat[n], lng[n]]), meters: m, ascent: up, crossings };
   }
 
   const cache = new Map();

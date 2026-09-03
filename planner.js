@@ -40,8 +40,9 @@ function planTrip(from, to, depart, ctx) {
     reachable++;
     best[i] = {
       t: depart + w.min,
-      via: { kind: 'walk', from: from.label, to: n, min: w.min, m: w.m,
-             coords: w.coords, depart, arrive: depart + w.min },
+      // 도보 결과(오르막·횡단보도 등)를 그대로 실어 보낸다
+      via: { ...w, kind: 'walk', from: from.label, to: n,
+             depart, arrive: depart + w.min },
     };
   });
 
@@ -50,8 +51,7 @@ function planTrip(from, to, depart, ctx) {
   if (directWalk && directWalk.min <= MAX_WALK_MIN * 2) {
     results.push({
       depart, arrive: depart + directWalk.min, transfers: 0, walkOnly: true,
-      legs: [{ kind: 'walk', from: from.label, to: to.label, min: directWalk.min,
-               m: directWalk.m, coords: directWalk.coords,
+      legs: [{ ...directWalk, kind: 'walk', from: from.label, to: to.label,
                depart, arrive: depart + directWalk.min }],
     });
   }
@@ -105,8 +105,8 @@ function planTrip(from, to, depart, ctx) {
         if (t < best[b].t) {
           best[b] = {
             t,
-            via: { kind: 'walk', from: names[a], to: names[b], min: w.min, m: w.m,
-                   coords: w.coords, depart: snapshot[a].t, arrive: t, prev: snapshot[a].via },
+            via: { ...w, kind: 'walk', from: names[a], to: names[b],
+                   depart: snapshot[a].t, arrive: t, prev: snapshot[a].via },
           };
           improved = true;
         }
@@ -120,7 +120,7 @@ function planTrip(from, to, depart, ctx) {
       if (!w || w.min > MAX_WALK_MIN) return;
       const arrive = best[i].t + w.min;
       const tail = w.min > 0
-        ? [{ kind: 'walk', from: n, to: to.label, min: w.min, m: w.m,
+        ? [{ ...w, kind: 'walk', from: n, to: to.label,
              coords: w.coords ? [...w.coords].reverse() : null,
              depart: best[i].t, arrive }]
         : [];
