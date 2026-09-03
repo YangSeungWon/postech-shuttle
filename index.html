@@ -172,9 +172,9 @@ button{cursor:pointer}
 .sug{padding:11px 12px;min-height:46px;font-size:15.5px;font-weight:700;display:flex;align-items:center;gap:8px;cursor:pointer}
 .sug+.sug{border-top:1px solid #EFF1F4}
 .sug:hover{background:var(--postech-red-050)}
-.sug .kind{font-size:12.5px;font-weight:900;color:#fff;background:#B9BEC7;border-radius:5px;padding:2px 5px;flex:0 0 auto}
-.sug .kind.stop{background:var(--postech-red)}
-.sug .d{margin-left:auto;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.sug-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sug-kind{flex:0 0 auto;margin-left:auto;font-size:12.5px;font-weight:800;color:#9AA1AC}
+.sug .d{flex:0 0 auto;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 
 /* ---------- itinerary ---------- */
 .itin{border:1px solid var(--line);border-radius:16px;padding:13px;margin-bottom:9px;background:#fff}
@@ -182,12 +182,19 @@ button{cursor:pointer}
 .itin-head{display:flex;align-items:baseline;gap:8px;margin-bottom:9px}
 .itin-dur{font-size:20px;font-weight:900;letter-spacing:-.04em}
 .itin-time{font-size:14px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}
-.itin-tag{margin-left:auto;font-size:13px;font-weight:900;color:var(--muted);background:var(--soft);border-radius:999px;padding:3px 8px}
+.itin-tag{margin-left:auto;font-size:13px;font-weight:800;color:var(--muted)}
 .leg{display:flex;gap:9px;font-size:14.5px;padding:4px 0;align-items:flex-start}
 .leg .ic{
-  flex:0 0 auto;min-width:26px;height:22px;padding:0 6px;border-radius:7px;
+  flex:0 0 auto;min-width:26px;height:23px;padding:0 6px;border-radius:7px;
   display:grid;place-items:center;white-space:nowrap;
-  font-size:12px;font-weight:900;color:#fff;background:#AAB1BB;
+  font-size:12.5px;font-weight:900;color:#fff;background:#AAB1BB;
+}
+/* 도보 구간은 글자로 이미 "도보"라고 말하고 있으니, 자리만 잡아 정렬을 맞춘다 */
+.leg .ic.walk{
+  background:none;position:relative;
+}
+.leg .ic.walk::before{
+  content:"";width:3px;height:15px;border-left:3px dotted #C2C8D0;border-radius:2px;
 }
 .leg .txt{min-width:0}
 .leg b{font-weight:900}
@@ -211,13 +218,14 @@ button{cursor:pointer}
 .arrivals{margin-top:9px;display:flex;flex-direction:column;gap:6px}
 .arr{display:flex;align-items:center;gap:8px;font-size:15px}
 .badge{
-  flex:0 0 auto;min-width:26px;height:22px;padding:0 7px;border-radius:7px;color:#fff;
-  font-size:13.5px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;
+  flex:0 0 auto;min-width:26px;height:23px;padding:0 7px;border-radius:7px;color:#fff;
+  font-size:12.5px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;
+  white-space:nowrap;letter-spacing:-.03em;
 }
 .arr-eta{font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .arr-eta.soon{color:var(--postech-red)}
 .arr-eta.far{color:var(--muted);font-weight:800}
-.side{font-size:12.5px;font-weight:900;color:#8A9099;background:var(--soft);border-radius:5px;padding:2px 5px}
+.side{font-size:12.5px;font-weight:800;color:#8A9099}
 .arr-at{color:var(--muted);font-size:13.5px;font-weight:700;font-variant-numeric:tabular-nums}
 .arr-next{color:#9aa1ac;font-size:13px;font-weight:700;margin-left:auto;font-variant-numeric:tabular-nums}
 .empty{color:var(--muted);font-size:14.5px;padding:10px 2px;font-weight:600}
@@ -257,8 +265,11 @@ button{cursor:pointer}
   border-color:var(--postech-red);width:21px;height:21px;margin:-3px 0 0 -3px;
   box-shadow:0 0 0 5px rgba(166,25,85,.22),0 1px 5px rgba(0,0,0,.35);
 }
+.bus-icon{width:0!important;height:0!important;overflow:visible}
+.bus-icon .bus{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
 .bus{
-  width:30px;height:22px;border-radius:8px;color:#fff;font-size:13px;font-weight:900;
+  min-width:30px;height:23px;padding:0 7px;border-radius:8px;color:#fff;
+  font-size:12.5px;font-weight:900;white-space:nowrap;
   display:flex;align-items:center;justify-content:center;letter-spacing:-.04em;
   box-shadow:0 2px 7px rgba(0,0,0,.35);border:2px solid #fff;
 }
@@ -278,7 +289,6 @@ button{cursor:pointer}
 }
 .leaflet-container{font-family:inherit}
 
-.sug .kind.recent{background:#5C6470}
 
 /* 지도에서 출발·도착 지정 */
 .pa-popup .leaflet-popup-content-wrapper{border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.22)}

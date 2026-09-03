@@ -78,9 +78,12 @@ const GROUPS = [
 const groupLabel = id => { const g = GROUPS.find(x => x.id === id); return g ? g[LANG] || g.ko : id; };
 const groupOf = r => GROUPS.find(g => g.match(r));
 ROUTES.forEach(r => { const g = groupOf(r); r.color = g.color; r.group = g.id; });
-/* 배지 글자 — 확장노선은 언어에 따라 지/유, J/Y */
-const BADGE_EN = { jigok: 'J', yugang: 'Y' };
-const badge = r => (LANG === 'en' && BADGE_EN[r.group]) || r.number;
+/* 배지 글자. 순환은 번호로 충분하지만 확장노선은 한 글자로는 알 수 없다. */
+const BADGE = {
+  jigok:  { ko: '지곡', en: 'Jigok' },
+  yugang: { ko: '유강', en: 'Yugang' },
+};
+const badge = r => BADGE[r.group]?.[LANG] || r.number;
 
 /* 노선 표시는 한 번에 하나만. 다섯 노선이 캠퍼스 중앙 도로를 공유해서
    동시에 색으로 그리면 무지개 리본이 된다. 기본값은 '전체'로, 이때는
@@ -357,7 +360,7 @@ function drawBuses(t) {
     if (!m) {
       m = L.marker(b.ll, {
         icon: L.divIcon({
-          className: '', iconSize: [30, 22], iconAnchor: [15, 11],
+          className: 'bus-icon', iconSize: null, iconAnchor: [0, 0],
           html: `<div class="bus" style="background:${b.route.color}">${label}</div>`
         }),
         zIndexOffset: 400,
@@ -839,8 +842,8 @@ function emptyState(near) {
 function drawSuggest(list) {
   $('suggest').innerHTML = list.map((p, i) => `
     <div class="sug" data-i="${i}">
-      <span class="kind ${p.kind === 'stop' ? 'stop' : ''} ${p.kind === 'recent' ? 'recent' : ''}">${T.kinds[p.kind] || T.kinds.place}</span>
-      <span>${p.label}</span>
+      <span class="sug-name">${p.label}</span>
+      <span class="sug-kind">${T.kinds[p.kind] || T.kinds.place}</span>
       ${p.d != null ? `<span class="d">${humanDist(p.d)}</span>` : ''}
     </div>`).join('');
   $('suggest').querySelectorAll('.sug').forEach(el => el.onclick = () => {
@@ -992,7 +995,7 @@ function planCard(plan, i) {
   const rides = plan.legs.filter(l => l.kind === 'ride');
   const legs = plan.legs.map(l => l.kind === 'walk'
     ? `<div class="leg">
-         <span class="ic">${T.walkBadge}</span>
+         <span class="ic walk"></span>
          <span class="txt">${T.walkTo(stopLabel(l.to), l.min)}
            <span class="sub">${T.walkSub(Math.round(l.m), l.ascent >= 10 ? l.ascent : 0)}</span></span>
        </div>`
