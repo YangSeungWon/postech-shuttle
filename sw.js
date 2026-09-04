@@ -7,7 +7,7 @@
  * 오프라인으로 동작한다. 캠퍼스 실내나 신호가 약한 곳에서 쓸모가 있다.
  * ------------------------------------------------------------------ */
 
-const VERSION = 'd169df45cf4f';
+const VERSION = '71afe9802ad5';
 const SHELL = `shuttle-shell-${VERSION}`;
 const TILES = 'shuttle-tiles';
 const TILE_LIMIT = 600;
