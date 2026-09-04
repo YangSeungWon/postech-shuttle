@@ -589,7 +589,13 @@ function selectBus(key) {
   map.closePopup();
   if (selected) { selected = null; paintSelection(); }
   selectedBus = selectedBus === key ? null : key;
-  if (selectedBus && sheet.isMobile() && tab === 'near') sheet.raise(1);
+  if (selectedBus) {
+    if (sheet.isMobile() && tab === 'near') sheet.raise(1);
+    /* 시트가 올라오면서 방금 누른 버스를 덮는다. 정류장과 같이, 가려질
+       때만 가려지지 않을 만큼 민다. */
+    const b = activeBuses(nowMin()).find(x => x.key === selectedBus);
+    if (b) reveal(b.ll);
+  }
   render();
 }
 
@@ -2198,6 +2204,7 @@ const sheet = (() => {
   function apply(px, animate = true) {
     el.classList.toggle('dragging', !animate);
     // dvh 와 innerHeight 가 어긋나는 브라우저가 있어 높이를 전부 px 로 통일한다
+    sheetHCache.at = -1e9;               // 높이가 달라졌다
     const root = document.documentElement.style;
     root.setProperty('--kb', kb() + 'px');
     /* 탭바 높이는 안전영역만큼 기기마다 다르다 — 재서 쓴다.
