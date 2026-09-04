@@ -300,8 +300,12 @@ button{cursor:pointer}
 .sug .d{flex:0 0 auto;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 
 /* ---------- itinerary ---------- */
+/* button 은 브라우저가 내용을 세로 가운데로 놓는다. 가로 띠에서 카드가
+   가장 높은 것에 맞춰 늘어나면 글자가 한복판에 뜬다 — 세로 흐름으로
+   못 박아 위에서부터 쌓이게 한다. */
 .itin{
-  display:block;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;
+  display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;
+  width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;
   border:1px solid var(--line);border-radius:16px;padding:13px;margin-bottom:9px;background:#fff;
 }
 .itin.best{border-color:var(--postech-red);box-shadow:0 0 0 3px rgba(166,25,85,.08)}
@@ -711,6 +715,7 @@ button{cursor:pointer}
 }
 .plan-strip::-webkit-scrollbar{display:none}
 .plan-strip[hidden]{display:none}
+.plan-strip{align-items:flex-end}      /* 카드마다 제 높이로, 아래를 맞춰 선다 */
 .plan-strip .itin{
   flex:0 0 86vw;scroll-snap-align:center;margin:0;
   max-height:44dvh;overflow-y:auto;
