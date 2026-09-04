@@ -1311,12 +1311,31 @@ $('btnSwap').onclick = () => {
 function collapseForm(on) {
   $('trip').classList.toggle('done', on);
   $('tripSummary').hidden = !on;
-  if (on) {
-    $('tripSummary').innerHTML =
-      `<b>${tripFrom.label}</b><span class="arrow">→</span><b>${tripTo.label}</b><span class="edit">${T.edit}</span>`;
-  }
+  if (!on) return;
+  const end = (which, pin, label) =>
+    `<button type="button" class="ts-end" data-end="${which}"
+             aria-label="${which === 'from' ? T.editFrom : T.editTo}">
+       <span class="pin ${which}">${pin}</span><span>${label}</span>
+     </button>`;
+  $('tripSummary').innerHTML =
+    end('from', T.from, tripFrom.label)
+    + `<span class="arrow" aria-hidden="true">→</span>`
+    + end('to', T.to, tripTo.label)
+    + `<button type="button" class="mini" id="tsSwap" aria-label="${T.swap}">⇅</button>`;
+  $('tripSummary').querySelectorAll('.ts-end').forEach(el => el.onclick = () => editEnd(el.dataset.end));
+  $('tsSwap').onclick = () => $('btnSwap').click();
 }
-$('tripSummary').onclick = () => { collapseForm(false); drawStops(); $('inTo').focus(); };
+
+/* 고칠 칸을 눌러 연다. 글자를 다 선택해 두어 바로 새로 칠 수 있게 한다. */
+function editEnd(which) {
+  collapseForm(false);
+  drawStops();
+  activeField = which;
+  const field = $(which === 'from' ? 'inFrom' : 'inTo');
+  field.focus();
+  field.select();
+  drawSuggest(search('', myLL));
+}
 
 /* --- 지도에서 출발·도착 지정 --- *
  * 정류장을 누르거나 지도를 길게 누르면 그 자리에서 출발·도착으로 삼는다.
@@ -1509,6 +1528,8 @@ const sheet = (() => {
   function goto(i, animate = true) {
     cur = Math.max(0, Math.min(2, i));
     apply(snaps()[cur], animate);
+    // 시트를 끝까지 올리면 지도가 거의 가려진다. 버튼 열이 헤더 뒤로 밀리므로 감춘다.
+    document.body.classList.toggle('sheet-full', isMobile() && cur === 2);
     grab.setAttribute('aria-expanded', String(cur > 0));
     grab.setAttribute('aria-label', cur === 0 ? T.sheetOpen : T.sheetClose);
     return cur;

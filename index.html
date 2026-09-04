@@ -194,16 +194,20 @@ button{cursor:pointer}
 .mini:hover{background:var(--soft);color:var(--postech-red)}
 /* 결과가 나오면 입력칸 두 줄을 한 줄 요약으로 접는다 */
 .trip.done .trip-fields{display:none}
-.trip-summary{
-  width:100%;overflow:hidden;border:1px solid var(--line);background:#fff;border-radius:12px;
-  padding:11px 13px;font-size:15.5px;font-weight:800;text-align:left;color:var(--ink);
-  display:flex;align-items:center;gap:8px;
-}
+.trip-summary{display:flex;align-items:center;gap:6px}
 .trip-summary[hidden]{display:none}
-.trip-summary:hover{border-color:#bfc6d0;background:#fcfcfd}
-.trip-summary .arrow{flex:0 0 auto;color:var(--muted);font-weight:900}
-.trip-summary .edit{flex:0 0 auto;margin-left:auto;color:var(--muted);font-size:15px}
-.trip-summary b{font-weight:900;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 출발지·도착지를 각각 눌러 고친다. 길찾기 앱들의 방식이고,
+   "고치기" 같은 딱지를 따로 둘 필요가 없다. */
+.ts-end{
+  flex:1 1 0;min-width:0;display:flex;align-items:center;gap:7px;
+  border:1px solid var(--line);background:#fff;border-radius:12px;
+  padding:11px 12px;font:inherit;font-size:15px;font-weight:900;
+  color:var(--ink);text-align:left;letter-spacing:-.03em;
+}
+.ts-end:hover{border-color:#bfc6d0;background:#fcfcfd}
+.ts-end .pin{padding:3px 5px;font-size:10.5px}
+.ts-end span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trip-summary .arrow{flex:0 0 auto;color:var(--muted);font-weight:900;font-size:14px}
 
 /* 출발 시각 */
 .trip-when{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:2px}
@@ -370,7 +374,8 @@ button{cursor:pointer}
   box-shadow:0 0 0 5px rgba(166,25,85,.22),0 1px 5px rgba(0,0,0,.35);
 }
 .arrow-icon{width:0!important;height:0!important;overflow:visible}
-.arrow{
+/* 지도 위 진행 방향 화살표. 요약 줄의 화살표와 이름이 겹치지 않게 한정한다. */
+.arrow-icon .arrow{
   position:absolute;left:0;top:0;font-size:19px;line-height:1;
   -webkit-text-stroke:2.5px #fff;paint-order:stroke fill;
   text-shadow:0 0 4px rgba(255,255,255,.9);
@@ -496,6 +501,7 @@ button{cursor:pointer}
 @media (min-width:821px){
   .mapbtns{bottom:26px;transition:none}
 }
+body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
 .mapbtn.on{background:var(--postech-red);border-color:var(--postech-red);color:#fff}
 .mapbtn:disabled{color:#C6CBD3;cursor:default}
 
@@ -568,7 +574,7 @@ button{cursor:pointer}
   <button class="grab" id="grab" aria-expanded="false" aria-controls="panelScroll"><span aria-hidden="true"></span></button>
   <button class="hero" id="hero" aria-live="polite" aria-atomic="true"></button>
   <div class="trip" id="trip">
-    <button class="trip-summary" id="tripSummary" hidden></button>
+    <div class="trip-summary" id="tripSummary" hidden></div>
     <div class="trip-fields" id="tripFields">
       <div class="trip-row">
         <span class="pin from" id="pinFrom">출발</span>
