@@ -478,7 +478,7 @@ function drawStops() {
       // 다시 찍을 일이 없으므로 표지를 띄우지 않는다.
       if (guiding()) return;
       selectStop(s.name);
-      pointActions(s.ll, stopLabel(s.name));
+      pointActions(s.ll, stopLabel(s.name), false);
     });
     m.bindTooltip(stopLabel(s.name), { direction: 'right', offset: [10, 0] });
     m.on('dragend', e => {
@@ -987,11 +987,18 @@ const sheetHeight = () => {
   if (document.body.classList.contains('strip-on')) return $('planStrip').offsetHeight + tabs;
   return (typeof sheet === 'undefined' ? 0 : sheet.height()) + tabs;
 };
+/* 화면 위(길찾기 입력칸)와 아래(시트·카드 띠·탭)에 가려지는 높이 */
+function topInset() {
+  const t = $('tripTop');
+  return t && !t.hidden ? t.offsetHeight : 0;
+}
+/* 지도의 '보이는 가운데'로 옮긴다. 컨테이너 한가운데로 옮기면 아래쪽
+   절반이 시트에 덮여 있어, 고른 정류장이 시트 뒤로 들어간다. */
 function offsetForSheet(ll) {
-  const h = sheetHeight();
-  if (!h) return ll;
+  const bot = sheetHeight(), top = topInset();
+  if (!bot && !top) return ll;
   const p = map.latLngToContainerPoint(L.latLng(ll));
-  return map.containerPointToLatLng(L.point(p.x, p.y + h / 2));
+  return map.containerPointToLatLng(L.point(p.x, p.y + (bot - top) / 2));
 }
 
 /* ================================================================== *
@@ -1800,9 +1807,17 @@ function focusEmptyField() {
   drawSuggest(search('', myLL));
 }
 
-function pointActions(ll, label) {
+/* autoPan: 정류장을 눌러서 뜨는 경우는 selectStop 이 이미 보이는 가운데로
+   옮기므로 끈다 — 켜 두면 둘이 서로 지도를 끌어당긴다. 지도를 길게 눌러
+   띄우는 경우에는 옮겨 주는 것이 없으니 켠다. */
+function pointActions(ll, label, autoPan = true) {
   const id = 'pa' + Math.random().toString(36).slice(2, 8);
-  L.popup({ closeButton: false, className: 'pa-popup', offset: [0, -8] })
+  L.popup({
+    closeButton: false, className: 'pa-popup', offset: [0, -8], autoPan,
+    // 표지가 시트·탭 뒤로 들어가지 않도록 가려지는 만큼 비워 둔다
+    autoPanPaddingTopLeft: L.point(14, topInset() + 14),
+    autoPanPaddingBottomRight: L.point(14, sheetHeight() + 14),
+  })
     .setLatLng(ll)
     .setContent(
       `<div class="pa"><div class="pa-name">${label}</div>
