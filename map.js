@@ -2092,6 +2092,7 @@ function drawSuggest(list) {
     if (p.kind === 'pick') { $('suggest').innerHTML = ''; pickOnMap(activeField); return; }
     if (p.kind === 'here' && !p.ll) { $('suggest').innerHTML = ''; requestLocation(); return; }
     const picked = { ll: p.ll, label: p.label };
+    held = null;
     if (activeField === 'from') { tripFrom = picked; $('inFrom').value = p.label; }
     else                        { tripTo   = picked; $('inTo').value   = p.label; remember(picked); }
     $('suggest').innerHTML = '';
@@ -2101,22 +2102,43 @@ function drawSuggest(list) {
   });
 }
 
+/* 칸을 고치는 동안 잠시 물러나 있는 자리 */
+let held = null;
 for (const [id, field] of [['inFrom', 'from'], ['inTo', 'to']]) {
   $(id).addEventListener('input', e => { activeField = field; drawSuggest(search(e.target.value, myLL)); });
   $(id).addEventListener('focus', e => {
     activeField = field;
+    /* 이 칸을 고치는 중이라는 뜻이다. 그 자리와 지난 경로는 지도에서 치운다 —
+       바꾸는 중인 것이 남아 있으면 무엇이 지금 정해진 것인지 헷갈린다.
+       반대쪽은 그대로 둔다. 고르지 않고 나가면 blur 에서 되돌린다. */
+    held = { field, place: field === 'from' ? tripFrom : tripTo };
+    if (field === 'from') tripFrom = null; else tripTo = null;
+    tripPlans = [];
+    layerTrip.clearLayers();
+    tripXings = []; drawCrossings(tripXings);
+    drawEnds();
     /* "내 위치" 는 우리가 채워 넣은 것이지 사용자가 친 것이 아니다. 다른 데를
-       고르려고 누른 것이니 비켜 준다 — 안 그러면 지우고 시작해야 한다.
-       되돌리려면 옆의 ◎ 를 누르면 되고, 빈 채로 나가면 도로 채운다. */
-    if (e.target.value === T.here) {
-      e.target.value = '';
-      if (field === 'from') tripFrom = null; else tripTo = null;
-    }
+       고르려고 누른 것이니 비켜 준다 — 안 그러면 지우고 시작해야 한다. */
+    if (e.target.value === T.here) e.target.value = '';
     drawSuggest(search(e.target.value, myLL));
+    render();
   });
   $(id).addEventListener('blur', () => setTimeout(() => {
     if ($('trip').contains(document.activeElement)) return;
     $('suggest').innerHTML = '';
+    /* 고르지 않고 나갔으면 원래대로 돌려놓는다 — 잠깐 눌렀다고 지워질 일은
+       아니다. 새로 골랐으면 held 는 이미 비워져 있다. */
+    if (held && held.field === field) {
+      const cur = field === 'from' ? tripFrom : tripTo;
+      if (!cur && held.place) {
+        if (field === 'from') tripFrom = held.place; else tripTo = held.place;
+        $(id).value = held.place.label;
+        held = null;
+        runTrip();
+        return;
+      }
+      held = null;
+    }
     // 출발지를 빈 채로 두고 나갔으면 원래대로
     if (field === 'from' && !tripFrom && !$('inFrom').value && myLL) {
       tripFrom = { ll: myLL, label: T.here };
@@ -2207,6 +2229,7 @@ function setEndpoint(which, place) {
   if (which === 'from') { tripFrom = place; $('inFrom').value = place.label; }
   else                  { tripTo = place;   $('inTo').value = place.label; remember(place); }
   map.closePopup();
+  held = null;                         // 새로 골랐으니 되돌릴 것이 없다
   drawEnds();                          // 한쪽만 찍혀도 그 자리는 바로 세운다
   if (tripFrom && tripTo) { runTrip(); return; }
   collapseForm(false);
