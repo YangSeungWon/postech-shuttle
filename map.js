@@ -724,11 +724,22 @@ function pickMyLocation() {
   $('pickHint').hidden = false;
 }
 map.on('click', e => {
-  if (!pickingMe) return;
-  pickingMe = false;
-  document.getElementById('map').classList.remove('picking');
-  $('pickHint').hidden = true;
-  setMyLocation([e.latlng.lat, e.latlng.lng], 0);
+  if (pickingMe) {
+    pickingMe = false;
+    document.getElementById('map').classList.remove('picking');
+    $('pickHint').hidden = true;
+    setMyLocation([e.latlng.lat, e.latlng.lng], 0);
+    return;
+  }
+  /* 빈 곳을 누르면 고른 것을 놓는다. 손잡이를 없앤 뒤로 시트를 접을 길이
+     없었다 — 지도 앱들이 쓰는 몸짓이고 화면을 차지하지도 않는다. */
+  if (selected || selectedBus) {
+    selected = null; selectedBus = null; followBus = false;
+    map.closePopup();
+    paintSelection();
+    render();
+  }
+  if (sheet.isMobile() && tab === 'near') sheet.goto(0);
 });
 $('pickCancel').onclick = () => {
   pickingMe = false;
