@@ -620,14 +620,16 @@ button{cursor:pointer}
   bottom:calc(var(--sheet) + var(--kb) + var(--tabs-h) + 22px);
   transition:bottom .26s cubic-bezier(.22,.7,.3,1);
 }
+/* 지도 위에서 엄지로 누르는 버튼이라 넉넉해야 한다 (권장 최소가 44px 인데
+   그 자리에 딱 맞춰 두면 지도를 끌다가 스치기 쉽다) */
 .mapbtn{
-  width:46px;height:46px;border-radius:14px;border:1px solid var(--line);background:#fff;
-  box-shadow:var(--shadow);display:grid;place-items:center;font-size:20px;line-height:1;
+  width:54px;height:54px;border-radius:17px;border:1px solid var(--line);background:#fff;
+  box-shadow:var(--shadow);display:grid;place-items:center;font-size:22px;line-height:1;
   color:#3d434c;padding:0;
 }
 .mapbtn svg{
-  width:23px;height:23px;fill:none;stroke:currentColor;
-  stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;
+  width:27px;height:27px;fill:none;stroke:currentColor;
+  stroke-width:1.85;stroke-linecap:round;stroke-linejoin:round;
 }
 .mapbtn[hidden]{display:none}
 .plan-strip{
@@ -705,7 +707,7 @@ body.trip-top-on{--tabs-h:0px}
 .when-pop{
   position:absolute;left:calc(100% + 9px);bottom:0;
   /* 오른쪽 버튼 열(46px + 여백)까지 비켜 준다 */
-  max-width:min(320px, calc(100vw - 79px - 58px));
+  max-width:min(320px, calc(100vw - 87px - 66px));
   background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);
   padding:8px 10px;display:flex;align-items:center;gap:9px;white-space:nowrap;
 }
@@ -716,7 +718,7 @@ body.trip-top-on{--tabs-h:0px}
   box-shadow:var(--shadow);
 }
 .zoomer .mapbtn{
-  border-radius:0;box-shadow:none;height:44px;
+  border-radius:0;box-shadow:none;height:50px;
 }
 .zoomer .mapbtn+.mapbtn{border-top:0}
 @media (min-width:821px){
