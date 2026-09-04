@@ -62,20 +62,40 @@ function planTrip(from, to, depart, ctx) {
     let improved = false;
 
     /* --- 승차 --- */
-    // 도착 시각은 시간표로 고정이므로, 탈 수 있는 첫 정류장에서 타는 것이
-    // 그 이후 모든 정류장에 대해 항상 최선이다.
+    // 도착 시각은 시간표로 고정이다. 그러니 탈 수 있는 정류장 중 가장
+    // '나중' 것에서 타는 게 항상 낫다 — 도착은 같은데 그만큼 늦게 나가면
+    // 된다. 첫 정류장에 붙박아 두면, 무은재삼거리에서 17:18 에 탈 수
+    // 있는데도 체육관까지 12분 걸어가 17:12 에 타라고 하게 된다.
     for (const r of ROUTES) {
       if (!isOn(r)) continue;
       for (const trip of r.tripsMin) {
-        let boardAt = -1;
+        let boardAt = -1, boardSlack = -Infinity, boardCost = Infinity;
         for (let k = 0; k < trip.length; k++) {
           const si = ix.get(r.canonStops[k]);
           if (si === undefined) continue;
-          if (boardAt < 0) {
-            if (snapshot[si].via && snapshot[si].t <= trip[k]) boardAt = k;
+          // 버스보다 먼저 가 있을 수 있는 곳이면 탈 수 있다. (그런 곳에
+          // 버스로 가 봐야 이미 걸어서 도착해 있으니 하차 후보는 아니다)
+          if (snapshot[si].via && snapshot[si].t <= trip[k]) {
+            // 여유가 가장 큰 곳에서 탄다 = 가장 늦게 나가도 되는 곳.
+            // 뒤쪽 정류장이라고 늘 나은 게 아니다 — 효자시장까지 14분
+            // 걸어가 17:25 에 타는 것보다, 무은재삼거리에서 17:18 에
+            // 타는 쪽이 7분 더 늦게 나가도 된다.
+            const slack = trip[k] - snapshot[si].t;
+            if (slack > boardSlack ||
+                (slack === boardSlack && snapshot[si].t < boardCost)) {
+              boardAt = k; boardSlack = slack; boardCost = snapshot[si].t;
+            }
             continue;
           }
-          if (trip[k] < best[si].t) {
+          if (boardAt < 0) continue;
+          /* 도착이 같으면 늦게 타는 쪽을 남긴다. 더 이르게만 갱신하면
+             먼저 찾은 승차 지점이 눌러앉아, 무은재삼거리에서 17:18 에
+             탈 수 있는데도 체육관까지 12분 걸어가 17:12 에 타라고 한다. */
+          const tie = trip[k] === best[si].t &&
+                      trip[boardAt] > (best[si].via?.kind === 'ride'
+                                        ? best[si].via.depart : -Infinity);
+          if (trip[k] < best[si].t || tie) {
+            if (trip[k] < best[si].t) improved = true;
             best[si] = {
               t: trip[k],
               via: {
@@ -87,7 +107,6 @@ function planTrip(from, to, depart, ctx) {
                 prev: snapshot[ix.get(r.canonStops[boardAt])].via,
               },
             };
-            improved = true;
           }
         }
       }
@@ -201,7 +220,16 @@ function rank(all, limit) {
   if (!sorted.length) return [];
   // 최선보다 45분 넘게 늦는 후보는 사실상 쓸모가 없다
   const cut = sorted[0].arrive + 45;
-  return sorted.filter((r, i) => i === 0 || r.arrive <= cut).slice(0, limit);
+  const out = sorted.filter((r, i) => i === 0 || r.arrive <= cut).slice(0, limit);
+  /* 다만 버스가 하나도 안 남으면 안 된다. 유강·지곡은 출퇴근에만 다녀서
+     낮에는 다음 차가 몇 시간 뒤인데, 그걸 잘라 버리면 "걸어가세요" 만
+     남는다. 걸을지 기다릴지는 타는 사람이 정할 일이다. */
+  const hasRide = r => r.legs.some(l => l.kind === 'ride');
+  if (!out.some(hasRide)) {
+    const bus = sorted.find(hasRide);
+    if (bus) out.push(bus);
+  }
+  return out;
 }
 
 /** via 체인을 출발→도착 순 배열로 편다 */
