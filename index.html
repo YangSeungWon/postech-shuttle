@@ -311,10 +311,11 @@ button{cursor:pointer}
   display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;
   font-size:12px;font-weight:900;color:#fff;background:#AAB1BB;letter-spacing:-.03em;
 }
-/* 도보는 테두리만 두른 알약에 "도보 13분", 버스는 노선 색을 채운 배지에
-   노선 이름. 그림을 그려 넣어 봤지만 이 크기에서는 뭉개지기만 했다 —
-   글자가 짧으니 글자로 말하는 편이 낫다. */
-.lc.walk{background:none;color:#5C6470;border:1px solid var(--line);font-weight:800}
+/* 도보는 테두리만 두른 알약, 버스는 노선 색을 채운 배지.
+   아이콘은 채운 글리프를 쓴다 — 선으로 그린 사람은 12px 에서 뭉갰다.
+   채운 모양은 작아져도 실루엣이 남는다. */
+.lc.walk{background:none;color:#5C6470;border:1px solid var(--line);font-weight:800;gap:2px}
+.lc-ic{flex:0 0 auto;width:13px;height:13px;fill:currentColor;margin-left:-1px}
 /* 고른 항목에서만 펼쳐지는 구간 목록 */
 .itin-legs-detail{margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
 .itin-legs-detail .leg{padding:3px 0;font-size:13.5px;align-items:center}

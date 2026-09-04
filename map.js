@@ -2408,7 +2408,7 @@ function planCard(plan, i) {
   const rides = plan.legs.filter(l => l.kind === 'ride');
   // 구성: 걷기 분 · 노선 배지 를 순서대로
   const chips = plan.legs.map(l => l.kind === 'walk'
-    ? `<span class="lc walk">${T.walkChip(Math.round(l.min))}</span>`
+    ? `<span class="lc walk"><svg class="lc-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9 7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7z"/></svg>${T.min(Math.round(l.min))}</span>`
     : `<span class="lc" style="background:${l.route.color}">${badge(l.route)}</span>`).join('');
   // 언제 타나 — 첫 승차의 정류장과 시각. 걷기만이면 그럴 것이 없다.
   const first = rides[0];
@@ -2421,7 +2421,7 @@ function planCard(plan, i) {
      말해 주지 않는다 — 그렇다고 모두 펼치면 다시 긴 목록이 된다. */
   const open = i === planIdx;
   const legs = !open ? '' : `<div class="itin-legs-detail">` + plan.legs.map(l => l.kind === 'walk'
-    ? `<div class="leg"><span class="lc walk">${T.walkChip(Math.round(l.min))}</span>
+    ? `<div class="leg"><span class="lc walk"><svg class="lc-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9 7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7z"/></svg>${T.min(Math.round(l.min))}</span>
          <span class="txt">${T.walkTo(stopLabel(l.to), l.min)}</span></div>`
     : `<div class="leg"><span class="lc" style="background:${l.route.color}">${badge(l.route)}</span>
          <span class="txt"><b>${stopLabel(l.from)}</b> ${fmt(l.depart)}
