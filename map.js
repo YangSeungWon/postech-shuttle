@@ -650,6 +650,16 @@ function drawBusPath(b) {
 /* 진행 방향은 버스가 스스로 달고 다닌다. 선 위에 화살표를 뿌려 봤지만
    작아서 알아보기 어려웠고, 고리 노선에서는 오가는 방향이 한 줄에 겹쳤다. */
 
+/* 마커(DOM)와 캔버스(GL)가 어긋나는지 눈으로 가리는 자리.
+   주소에 ?debug 를 붙이면 정류장마다 같은 좌표에 GL 원을 그린다. 원은
+   노선·배경과 같은 캔버스에 그려지므로, 마커가 원 위에 정확히 앉아 있으면
+   배치는 맞는 것이고 아니면 마커 쪽이 어긋난 것이다. */
+if (new URLSearchParams(location.search).has('debug')) {
+  const dbg = L.layerGroup().addTo(map);
+  for (const s of STOP_LIST) L.circle(s.ll, { radius: 6, color: '#00E5FF', fillOpacity: .9 }).addTo(dbg);
+  console.log('[debug] 정류장', STOP_LIST.length, '곳에 GL 원을 그렸다');
+}
+
 /* --- 내 위치 --- */
 let myLL = null, myMarker = null, myCircle = null, watchId = null, followMe = false;
 let geoError = null;                         // 실패 사유를 패널에 안내한다
