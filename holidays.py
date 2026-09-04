@@ -2,39 +2,86 @@
 
 셔틀은 평일만 운행한다. 원본 시간표에 요일 정보가 없어 확인한 내용을 여기에 둔다.
 
-날짜가 고정된 공휴일은 계산할 수 있지만, 설날·추석·부처님오신날은 음력이라
-해마다 달라 손으로 넣어야 한다. 넣지 않은 해는 그날도 평일로 취급되므로
-연말에 한 번 갱신이 필요하다.
+공휴일은 hyunbinseo/holidays-kr (MIT) 을 쓴다. 우주항공청 월력요항을 가공한
+자료라 설날·추석·부처님오신날 같은 음력 공휴일과 대체공휴일까지 들어 있다.
+공공데이터포털 특일 API 와 달리 인증키가 필요 없어 빌드 때 받아 구워 넣는다.
 """
+import gzip, json, os, urllib.request
 
-# 매년 같은 날
-FIXED = [
-    (1, 1),    # 신정
-    (3, 1),    # 삼일절
-    (5, 5),    # 어린이날
-    (6, 6),    # 현충일
-    (8, 15),   # 광복절
-    (10, 3),   # 개천절
-    (10, 9),   # 한글날
-    (12, 25),  # 성탄절
-]
+BASE = 'https://raw.githubusercontent.com/hyunbinseo/holidays-kr/main/public/{}'
+CACHE = 'holidays_kr.json.gz'
+YEARS = range(2025, 2031)
 
-# 음력 기반 공휴일과 대체공휴일 — 확인한 해만 적는다 (YYYY-MM-DD)
-LUNAR = {
-    2026: [],   # 설날·추석·부처님오신날 미확인
-}
+# 공휴일 목록은 자료를 그대로 따른다.
+#
+# 처음에는 노동절·제헌절을 "관공서 공휴일이 아니다"라며 뺐는데, 제헌절은
+# 공휴일로 다시 지정됐고 노동절도 쉬는 날이다. 우주항공청 월력요항을 가공한
+# 자료가 제 판단보다 근거가 낫다. 예외를 두려면 근거를 확인하고 여기에 적는다.
+
+
+def _get(name):
+    """JSON 이 없는 해는 CSV 로 온다 — 둘 다 받아 같은 모양으로 돌려준다"""
+    try:
+        req = urllib.request.Request(BASE.format(name),
+                                     headers={'User-Agent': 'postech-shuttle/1.0'})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            body = r.read().decode('utf-8-sig')
+    except Exception:
+        return None
+    if name.endswith('.json'):
+        return json.loads(body)
+    out = {}
+    for line in body.splitlines()[1:]:          # 첫 줄은 머리글
+        if ',' not in line:
+            continue
+        date, subject = line.split(',', 1)
+        out.setdefault(date.strip(), []).append(subject.strip())
+    return out or None
+
+
+def _load_cache():
+    if os.path.exists(CACHE):
+        with gzip.open(CACHE, 'rt', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+
+def fetch(years=YEARS):
+    """{'YYYY-MM-DD': ['이름', ...]} — 캐시에 없는 해만 받아 온다"""
+    cache = _load_cache()
+    for y in years:
+        if str(y) in cache:
+            continue
+        got = _get(f'{y}.json') or _get(f'{y}.csv')
+        if got:
+            cache[str(y)] = got
+            print(f'  공휴일 {y} 받음 ({len(got)}일)')
+        else:
+            print(f'  공휴일 {y} 자료 없음 — 건너뜀')
+    with gzip.open(CACHE, 'wt', encoding='utf-8') as f:
+        json.dump(cache, f, ensure_ascii=False)
+    return cache
 
 
 def build():
+    raw = fetch()
+    days = {}
+    for year, table in raw.items():
+        for date, names in table.items():
+            if names:
+                days[date] = names[0]
+    years = sorted(int(y) for y in raw)
     return {
         "weekdaysOnly": True,
-        "fixed": [[m, d] for m, d in FIXED],
-        "lunar": {str(y): v for y, v in LUNAR.items()},
-        # 음력 공휴일이 확인된 연도 (그 밖의 해는 공휴일 판정이 불완전하다)
-        "lunarKnown": [y for y, v in LUNAR.items() if v],
+        "holidays": days,
+        # 자료가 있는 기간. 이 밖의 날짜는 공휴일 판정을 할 수 없다.
+        "from": f'{min(years)}-01-01' if years else None,
+        "to": f'{max(years)}-12-31' if years else None,
     }
 
 
 if __name__ == '__main__':
-    import json
-    print(json.dumps(build(), ensure_ascii=False, indent=1))
+    b = build()
+    print(f"공휴일 {len(b['holidays'])}일  ({b['from']} ~ {b['to']})")
+    for d, n in sorted(b['holidays'].items())[:6]:
+        print(f'  {d}  {n}')

@@ -26,16 +26,14 @@ const fmt = min => {
 };
 /* 운행일 판단 — 셔틀은 평일만 운행한다.
    시각을 옮겨 보는 중에는(simMinutes) 날짜는 그대로 오늘로 둔다. */
-const SERVICE = DATA.service || { weekdaysOnly: true, fixed: [], lunar: {} };
+const SERVICE = DATA.service || { weekdaysOnly: true, holidays: {} };
 function serviceDay(d = new Date()) {
   const dow = d.getDay();
   if (SERVICE.weekdaysOnly && (dow === 0 || dow === 6)) return { runs: false, why: 'weekend' };
-  const m = d.getMonth() + 1, day = d.getDate();
-  if ((SERVICE.fixed || []).some(([fm, fd]) => fm === m && fd === day))
-    return { runs: false, why: 'holiday' };
-  const iso = `${d.getFullYear()}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-  if ((SERVICE.lunar?.[d.getFullYear()] || []).includes(iso))
-    return { runs: false, why: 'holiday' };
+  const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-`
+            + `${String(d.getDate()).padStart(2, '0')}`;
+  const name = SERVICE.holidays?.[iso];
+  if (name) return { runs: false, why: 'holiday', name };
   return { runs: true };
 }
 const today = () => serviceDay();
@@ -87,11 +85,13 @@ const ROUTES = DATA.routes.map(r => ({
   tripsMin: r.trips.map(t => t.map(toMin)),
   canonStops: r.stops.map(canon),
 }));
+/* 노선 색. 배지·칩에 흰 글씨나 색 글씨를 얹으므로 흰색 대비 4.5:1 이상으로 잡았다.
+   색만으로 구분하지는 않는다 — 배지에 번호·이름이 있고 지도는 한 번에 한 노선만 칠한다. */
 const GROUPS = [
-  { id: 'route1', ko: '순환 1', en: 'Loop 1',  color: '#2674d9', match: r => r.id === 'route1' },
-  { id: 'route2', ko: '순환 2', en: 'Loop 2',  color: '#e0632a', match: r => r.id === 'route2' },
-  { id: 'route3', ko: '순환 3', en: 'Loop 3',  color: '#2f9e6e', match: r => r.id === 'route3' },
-  { id: 'jigok',  ko: '지곡',   en: 'Jigok',   color: '#DAB765', match: r => r.id.startsWith('jigok:') },
+  { id: 'route1', ko: '순환 1', en: 'Loop 1',  color: '#1F68C4', match: r => r.id === 'route1' },
+  { id: 'route2', ko: '순환 2', en: 'Loop 2',  color: '#C2521C', match: r => r.id === 'route2' },
+  { id: 'route3', ko: '순환 3', en: 'Loop 3',  color: '#1B7A52', match: r => r.id === 'route3' },
+  { id: 'jigok',  ko: '지곡',   en: 'Jigok',   color: '#8A6A16', match: r => r.id.startsWith('jigok:') },
   { id: 'yugang', ko: '유강',   en: 'Yugang',  color: '#A61955', match: r => r.id.startsWith('yugang:') },
 ];
 const groupLabel = id => { const g = GROUPS.find(x => x.id === id); return g ? g[LANG] || g.ko : id; };
@@ -328,7 +328,7 @@ function arrowsAlong(coords, color, everyPx = 110) {
         className: 'arrow-icon', iconSize: null, iconAnchor: [0, 0],
         html: `<div class="arrow" style="transform:translate(-50%,-50%) rotate(${deg}deg);color:${color}">➤</div>`,
       }),
-      interactive: false, zIndexOffset: 50,
+      interactive: false, keyboard: false, zIndexOffset: 50,
     }).addTo(layerRoutes);
   }
 }
@@ -402,7 +402,10 @@ function drawStops() {
       }),
       draggable: editMode && s.members.length === 1,
       zIndexOffset: 100,
+      alt: stopLabel(s.name),
     }).addTo(layerStops);
+    m.getElement()?.setAttribute('aria-label', stopLabel(s.name));
+    m.getElement()?.setAttribute('role', 'button');
     m.on('click', () => { selectStop(s.name); pointActions(s.ll, stopLabel(s.name)); });
     m.bindTooltip(stopLabel(s.name), { direction: 'right', offset: [10, 0] });
     m.on('dragend', e => {
@@ -443,10 +446,14 @@ function drawBuses(t) {
       m = L.marker(b.ll, {
         icon: L.divIcon({
           className: 'bus-icon', iconSize: null, iconAnchor: [0, 0],
-          html: `<div class="bus" style="background:${b.route.color}">${label}</div>`
+          html: `<div class="bus" style="--c:${b.route.color}">
+                   <span class="bus-body"><span class="bus-win"></span>${label}</span>
+                   <i class="wheel"></i><i class="wheel r"></i>
+                 </div>`
         }),
-        zIndexOffset: 400,
+        zIndexOffset: 400, keyboard: false, interactive: false,
       }).addTo(layerBuses);
+      m.getElement()?.setAttribute('aria-hidden', 'true');
       busMarkers.set(b.key, m);
     } else {
       m.setLatLng(b.ll);
@@ -485,7 +492,7 @@ async function geoPermission() {
 let pickingMe = false;
 function pickMyLocation() {
   pickingMe = true;
-  $('ask').hidden = true;
+  closeAsk();
   document.getElementById('map').classList.add('picking');
   $('pickHint').hidden = false;
 }
@@ -528,15 +535,27 @@ function recoverySteps() {
 }
 
 /* 권한을 요청하기 전에 왜 필요한지 먼저 보여 준다 */
+let askReturn = null;                 // 카드를 닫은 뒤 초점을 돌려줄 곳
+function openAsk(el) {
+  askReturn = document.activeElement;
+  el.hidden = false;
+  $('askYes').focus();
+}
+function closeAsk() {
+  $('ask').hidden = true;
+  askReturn?.focus?.();
+  askReturn = null;
+}
+
 function askLocation() {
   const el = $('ask');
   $('askTitle').textContent = T.askTitle;
   $('askBody').textContent = T.askBody;
   $('askYes').textContent = T.askYes;
-  $('askYes').onclick = () => { el.hidden = true; startLocate(); };
+  $('askYes').onclick = () => { closeAsk(); startLocate(); };
   $('askNo').textContent = T.askNo;
-  $('askNo').onclick = () => { el.hidden = true; };
-  el.hidden = false;
+  $('askNo').onclick = closeAsk;
+  openAsk(el);
 }
 
 /* 이미 거부된 상태 — 복구 경로만 보여 준다 */
@@ -546,10 +565,10 @@ function showRecovery() {
   $('askBody').innerHTML = '<ol class="ask-steps">' +
     recoverySteps().map(t => `<li>${t}</li>`).join('') + '</ol>';
   $('askYes').textContent = T.askRetry;
-  $('askYes').onclick = () => { el.hidden = true; startLocate(); };
+  $('askYes').onclick = () => { closeAsk(); startLocate(); };
   $('askNo').textContent = T.pickOnMap;
   $('askNo').onclick = pickMyLocation;
-  el.hidden = false;
+  openAsk(el);
 }
 
 /* ◎ 버튼의 진입점 */
@@ -600,7 +619,7 @@ function setMyLocation(ll, accuracy) {
     if (!myMarker) {
       myMarker = L.marker(myLL, {
         icon: L.divIcon({ className: '', iconSize: [16, 16], iconAnchor: [8, 8], html: '<div class="me"></div>' }),
-        zIndexOffset: 500, interactive: false,
+        zIndexOffset: 500, interactive: false, keyboard: false,
       }).addTo(map);
       myCircle = L.circle(myLL, { radius: accuracy, color: '#1a73e8', weight: 1, fillOpacity: .08, interactive: false }).addTo(map);
       map.setView(offsetForSheet(myLL), 16);
@@ -671,7 +690,8 @@ function drawFilters() {
   $('filters').innerHTML = chips.map(g => {
     const on = (g.id || null) === focusGroup;
     const label = g.id ? groupLabel(g.id) : T.all;
-    return `<button class="chip ${on ? 'on' : ''}" data-g="${g.id}"
+    return `<button type="button" class="chip ${on ? 'on' : ''}" data-g="${g.id}"
+              aria-pressed="${on}"
               style="${on ? `background:${g.color}` : `color:${g.color}`}">${label}</button>`;
   }).join('');
   $('filters').querySelectorAll('.chip').forEach(el => el.onclick = () => {
@@ -702,16 +722,27 @@ function stopCard(name, t, walk) {
     </div>`).join('')
     : `<div class="empty">${T.noService}</div>`;
   return `
-    <div class="stop ${selected === name ? 'active' : ''}" data-stop="${name}">
+    <button type="button" class="stop ${selected === name ? 'active' : ''}"
+            data-stop="${name}" aria-pressed="${selected === name}">
       <div class="stop-head">
         <span class="stop-name">${stopLabel(name)}</span>
         ${walk ? `<span class="stop-dist">${T.dist(humanDist(walk.m), walk.min)}</span>` : ''}
       </div>
       <div class="arrivals">${rows}</div>
-    </div>`;
+    </button>`;
 }
 
 /* 접힌 상태에서 보이는 한 줄. 첫 화면의 답은 이것 하나면 된다. */
+let heroHTML = '';
+function setHero(el, html, onclick, label) {
+  if (html !== heroHTML) {
+    el.innerHTML = html;
+    heroHTML = html;
+    // 화면에 보이는 조각들을 그대로 읽으면 뜻이 안 통한다. 문장으로 준다.
+    if (label) el.setAttribute('aria-label', label); else el.removeAttribute('aria-label');
+  }
+  el.onclick = onclick;
+}
 function drawHero(t, walks, walkTo) {
   const el = $('hero');
   // 길찾기 중에는 입력칸이 그 자리를 쓴다
@@ -719,8 +750,8 @@ function drawHero(t, walks, walkTo) {
   el.hidden = false;
 
   if (!myLL) {
-    el.innerHTML = `<span class="hero-ask">◎ ${T.heroAsk}</span>`;
-    el.onclick = requestLocation;
+    setHero(el, `<span class="hero-ask"><span aria-hidden="true">◎</span> ${T.heroAsk}</span>`,
+            requestLocation, T.heroAsk);
     return;
   }
   const near = STOP_GROUPS
@@ -730,15 +761,14 @@ function drawHero(t, walks, walkTo) {
   const best = near.find(x => arrivalsForGroup(x.g.name, t).length) || near[0];
   const day = today();
   if (!day.runs) {
-    el.innerHTML = `<span class="hero-quiet">${day.why === 'weekend' ? T.noWeekend : T.noHoliday}</span>`;
-    el.onclick = () => sheet.goto(1);
+    const quiet = day.why === 'weekend' ? T.noWeekend : T.noHoliday(day.name);
+    setHero(el, `<span class="hero-quiet">${quiet}</span>`, () => sheet.goto(1), quiet);
     return;
   }
-  if (!best) { el.innerHTML = `<span class="hero-quiet">${T.notRunning}</span>`; el.onclick = null; return; }
+  if (!best) { setHero(el, `<span class="hero-quiet">${T.notRunning}</span>`, null, T.notRunning); return; }
 
   const a = arrivalsForGroup(best.g.name, t)[0];
-  el.onclick = () => { selectStop(best.g.name); sheet.goto(1); };
-  el.innerHTML = a
+  const html = a
     ? `<span class="badge" style="background:${a.route.color}">${badge(a.route)}</span>
        <span class="hero-stop">${stopLabel(best.g.name)}</span>
        <span class="hero-walk">${T.walkShort(best.w.min)}</span>
@@ -746,7 +776,12 @@ function drawHero(t, walks, walkTo) {
          <b class="${a.eta <= 3 ? 'soon' : ''}">${a.eta >= FAR_MIN ? fmt(a.at) : etaText(a.eta)}</b>
          ${a.eta >= FAR_MIN ? '' : `<span class="at">${fmt(a.at)}</span>`}
        </span>`
-    : `<span class="hero-quiet">${T.notRunning}</span><span class="hero-chev">▲</span>`;
+    : `<span class="hero-quiet">${T.notRunning}</span><span class="hero-chev" aria-hidden="true">▲</span>`;
+  const label = a
+    ? T.heroLabel(stopLabel(best.g.name), best.w.min, routeLabel(a.route),
+                  a.eta >= FAR_MIN ? fmt(a.at) : etaText(a.eta))
+    : T.notRunning;
+  setHero(el, html, () => { selectStop(best.g.name); sheet.goto(1); }, label);
 }
 
 function render() {
@@ -758,7 +793,10 @@ function render() {
   // 매초 다시 만들면 애니메이션이 리셋되므로 숫자만 갈아 끼운다.
   const [hh, mm] = fmt(tripMode === 'arrive' ? realNow() : t).split(':');
   if ($('clockH').textContent !== hh) $('clockH').textContent = hh;
-  if ($('clockM').textContent !== mm) $('clockM').textContent = mm;
+  if ($('clockM').textContent !== mm) {
+    $('clockM').textContent = mm;
+    $('clock').setAttribute('aria-label', T.clockLabel(hh, mm));
+  }
   $('clock').classList.toggle('sim', simMinutes !== null);
 
   let html = '';
@@ -836,7 +874,7 @@ function render() {
 
   const day = today();
   if (!day.runs) {
-    html += `<div class="notice warn">${day.why === 'weekend' ? T.noWeekend : T.noHoliday}</div>`;
+    html += `<div class="notice warn">${day.why === 'weekend' ? T.noWeekend : T.noHoliday(day.name)}</div>`;
   } else if (running === 0) {
     html += `<div class="notice warn">${T.notRunning}</div>`;
   }
@@ -844,8 +882,10 @@ function render() {
   html += `<div class="panel-links">
     <a href="./timetable.html">${T.allTimetable}</a>
     <span class="lang" role="group" aria-label="Language">
-      <button id="langKo" class="${LANG === 'ko' ? 'on' : ''}">한국어</button
-      ><button id="langEn" class="${LANG === 'en' ? 'on' : ''}">English</button>
+      <button type="button" id="langKo" class="${LANG === 'ko' ? 'on' : ''}"
+              aria-pressed="${LANG === 'ko'}" lang="ko">한국어</button
+      ><button type="button" id="langEn" class="${LANG === 'en' ? 'on' : ''}"
+              aria-pressed="${LANG === 'en'}" lang="en">English</button>
     </span>
   </div>`;
 
@@ -884,7 +924,26 @@ function toggleEdit() {
 }
 $('btnEdit').onclick = toggleEdit;
 $('btnBase').onclick = () => setBasemap(baseIdx + 1);
-$('askNo').onclick = () => { $('ask').hidden = true; };
+$('askNo').onclick = closeAsk;
+
+/* Esc 로 지금 열려 있는 것을 닫는다 */
+addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!$('ask').hidden) { closeAsk(); return; }
+  if (pickingMe) { $('pickCancel').click(); return; }
+  if (map.getPane('popupPane')?.querySelector('.leaflet-popup')) { map.closePopup(); return; }
+  if (!wideScreen() && $('trip').classList.contains('show')) openTrip(false);
+});
+/* 카드 안에서 Tab 이 밖으로 새지 않게 */
+$('ask').addEventListener('keydown', e => {
+  if (e.key !== 'Tab') return;
+  const f = [$('askNo'), $('askYes')];
+  const i = f.indexOf(document.activeElement);
+  if (i < 0) return;
+  const next = e.shiftKey ? (i + f.length - 1) % f.length : (i + 1) % f.length;
+  e.preventDefault();
+  f[next].focus();
+});
 $('btnCopy').onclick = async () => {
   const txt = JSON.stringify(STOPS, null, 2);
   try { await navigator.clipboard.writeText(txt); alert(T.copied); }
@@ -977,6 +1036,7 @@ function openTrip(on, suggest = true) {
   const show = wideScreen() ? true : (on ?? !$('trip').classList.contains('show'));
   $('trip').classList.toggle('show', show);
   $('btnRoute').classList.toggle('on', show);
+  $('btnRoute').setAttribute('aria-expanded', String(show));
   // 닫으면 첫 화면 상태(접힘)로 돌아간다. 고른 정류장이 있으면 그것만 보이게 절반.
   sheet.goto(show ? 2 : (selected ? 1 : 0));
   if (!show || on === false) {
@@ -1032,12 +1092,16 @@ function emptyState(near) {
 
 function drawSuggest(list) {
   $('suggest').innerHTML = list.map((p, i) => `
-    <div class="sug" data-i="${i}">
+    <div class="sug" data-i="${i}" role="option" tabindex="0" aria-selected="false">
       <span class="sug-name">${p.label}</span>
       <span class="sug-kind">${T.kinds[p.kind] || T.kinds.place}</span>
       ${p.d != null ? `<span class="d">${humanDist(p.d)}</span>` : ''}
     </div>`).join('');
-  $('suggest').querySelectorAll('.sug').forEach(el => el.onclick = () => {
+  $('suggest').querySelectorAll('.sug').forEach(el => {
+    el.onkeydown = e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+    };
+    el.onclick = () => {
     const p = list[+el.dataset.i];
     const picked = { ll: p.ll, label: p.label };
     if (activeField === 'from') { tripFrom = picked; $('inFrom').value = p.label; }
@@ -1045,6 +1109,7 @@ function drawSuggest(list) {
     $('suggest').innerHTML = '';
     if (!tripFrom || !tripTo) { focusEmptyField(); return; }
     runTrip();
+    };
   });
 }
 
@@ -1197,14 +1262,15 @@ function drawPlan(plan) {
       L.marker(ll, {
         icon: L.divIcon({ className: '', iconSize: [16, 16], iconAnchor: [8, 8],
           html: `<div class="trip-stop ${cls}" style="border-color:${leg.route.color}"></div>` }),
-        zIndexOffset: 550,
+        zIndexOffset: 550, interactive: false, keyboard: false,
       }).addTo(layerTrip);
     }
   }
   for (const [pt, cls] of [[tripFrom.ll, 'from'], [tripTo.ll, 'to']]) {
     L.marker(pt, {
       icon: L.divIcon({ className: '', iconSize: [18, 18], iconAnchor: [9, 9],
-        html: `<div class="trip-pin ${cls}"></div>` }), zIndexOffset: 600,
+        html: `<div class="trip-pin ${cls}"></div>` }),
+      zIndexOffset: 600, interactive: false, keyboard: false,
     }).addTo(layerTrip);
   }
   drawCrossings(tripXings);
@@ -1218,7 +1284,8 @@ function periodSwitch() {
     .map(r => fmt(r.tripsMin[0][0]))
     .sort();
   const btn = (p, label) =>
-    `<button class="${focusPeriod === p ? 'on' : ''}" data-p="${p}">${label}</button>`;
+    `<button type="button" class="${focusPeriod === p ? 'on' : ''}"
+             data-p="${p}" aria-pressed="${focusPeriod === p}">${label}</button>`;
   return `<div class="period">
     ${btn('오전', T.commuteAm)}${btn('오후', T.commutePm)}
     <span class="period-time">${T.departsAt(runs(focusPeriod).join(' · '))}</span>
@@ -1241,14 +1308,15 @@ function planCard(plan, i) {
        </div>`).join('');
   const tag = plan.walkOnly ? T.walkOnly : (rides.length > 1 ? T.transfers(rides.length - 1) : '');
   return `
-    <div class="itin ${i === 0 ? 'best' : ''}" data-plan="${i}">
+    <button type="button" class="itin ${i === 0 ? 'best' : ''}" data-plan="${i}"
+            aria-pressed="${i === 0}">
       <div class="itin-head">
         <span class="itin-dur">${T.min(dur)}</span>
         <span class="itin-time">${fmt(plan.depart)} → ${fmt(plan.arrive)}</span>
         ${tag ? `<span class="itin-tag">${tag}</span>` : ''}
       </div>
       ${legs}
-    </div>`;
+    </button>`;
 }
 
 
@@ -1272,6 +1340,8 @@ const sheet = (() => {
   function goto(i, animate = true) {
     cur = Math.max(0, Math.min(2, i));
     apply(snaps()[cur], animate);
+    grab.setAttribute('aria-expanded', String(cur > 0));
+    grab.setAttribute('aria-label', cur === 0 ? T.sheetOpen : T.sheetClose);
     return cur;
   }
   function height() { return isMobile() ? snaps()[cur] : 0; }
@@ -1309,6 +1379,10 @@ const sheet = (() => {
   window.addEventListener('touchend', onUp);
   window.addEventListener('mouseup', onUp);
   grab.addEventListener('click', () => { if (isMobile()) goto(cur === 2 ? 1 : cur + 1); });
+  grab.addEventListener('keydown', e => {
+    if (e.key === 'ArrowUp') { e.preventDefault(); goto(cur + 1); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); goto(cur - 1); }
+  });
 
   /* 목록을 맨 위까지 올렸을 때만 시트를 끌어내린다 */
   $('panelScroll').addEventListener('touchstart', e => {
@@ -1319,7 +1393,7 @@ const sheet = (() => {
   window.addEventListener('resize', () => { if (isMobile()) apply(snaps()[cur], false); });
   if (isMobile()) goto(0, false);
   const raise = i => { if (isMobile() && cur < i) goto(i); };
-  return { goto, raise, height, isMobile };
+  return { goto, raise, height, isMobile, relabel: () => goto(cur, false) };
 })();
 
 /* 경로를 지도에 맞출 때 시트에 가리는 만큼 아래쪽 여백을 준다 */
@@ -1361,18 +1435,21 @@ function applyLang() {
   set('btnCopy', T.copyJson);
   set('btnResetCoords', T.resetCoords);
   set('askNo', T.askNo);
+  set('skipLink', T.skip);
+  $('btnMode').ariaLabel = T.modeSwitch;
+  sheet.relabel();
   set('pickHintText', T.pickHint);
   set('updateText', T.updateReady);
   set('updateNow', T.reload);
   set('pickCancel', T.cancel);
-  $('inFrom').placeholder = T.fromPh;
-  $('inTo').placeholder = T.toPh;
-  $('btnHere').title = T.here;
-  $('btnSwap').title = T.swap;
-  $('btnLoc').title = T.myLocation;
-  $('btnFit').title = T.fitAll;
-  $('btnBase').title = T[BASE_STYLES[baseIdx].key];
-  if ($('btnEdit')) $('btnEdit').title = T.fixCoords;
+  $('inFrom').placeholder = $('inFrom').ariaLabel = T.fromPh;
+  $('inTo').placeholder = $('inTo').ariaLabel = T.toPh;
+  $('btnHere').title = $('btnHere').ariaLabel = T.here;
+  $('btnSwap').title = $('btnSwap').ariaLabel = T.swap;
+  $('btnLoc').title = $('btnLoc').ariaLabel = T.myLocation;
+  $('btnFit').title = $('btnFit').ariaLabel = T.fitAll;
+  $('btnBase').title = $('btnBase').ariaLabel = T[BASE_STYLES[baseIdx].key];
+  if ($('btnEdit')) $('btnEdit').title = $('btnEdit').ariaLabel = T.fixCoords;
   // 출발·도착이 "내 위치"였다면 그 표기도 함께 바꾼다
   for (const [pt, id] of [[tripFrom, 'inFrom'], [tripTo, 'inTo']]) {
     if (pt && (pt.label === STRINGS.ko.here || pt.label === STRINGS.en.here)) {

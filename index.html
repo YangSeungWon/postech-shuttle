@@ -22,6 +22,14 @@
   --panel-w:390px; --header-h:58px;
 }
 *{box-sizing:border-box}
+/* 키보드로 옮겨 다닐 때 지금 어디인지 보여야 한다 */
+:focus-visible{
+  outline:3px solid var(--postech-red);outline-offset:2px;border-radius:6px;
+}
+.leaflet-container :focus-visible{outline-offset:1px}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
 html,body{height:100%}
 body{
   margin:0;background:var(--bg);color:var(--ink);overflow:hidden;
@@ -31,6 +39,13 @@ body{
 a{color:inherit;text-decoration:none}
 button,input,select{font:inherit}
 button{cursor:pointer}
+
+/* 키보드 사용자가 헤더를 건너뛸 수 있게 */
+.skip{
+  position:fixed;left:-999px;top:8px;z-index:2000;background:var(--postech-red);
+  color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;font-weight:900;
+}
+.skip:focus{left:8px}
 
 /* ---------- header ---------- */
 .hdr{
@@ -100,8 +115,8 @@ button{cursor:pointer}
 }
 /* 시트 손잡이 */
 .grab{
-  height:22px;display:grid;place-items:center;flex:0 0 auto;cursor:grab;
-  touch-action:none;
+  height:22px;width:100%;border:0;background:none;padding:0;
+  display:grid;place-items:center;flex:0 0 auto;cursor:grab;touch-action:none;
 }
 .grab span{width:38px;height:4px;border-radius:99px;background:#D3D7DE}
 .grab:active{cursor:grabbing}
@@ -145,7 +160,7 @@ button{cursor:pointer}
   align-items:center;gap:8px;
 }
 .hero-quiet{font-size:15px;font-weight:800;color:var(--muted)}
-.hero-chev{margin-left:auto;color:#B9BFC8;font-size:14px}
+.hero-chev{margin-left:auto;color:var(--muted);font-size:14px}
 
 /* ---------- route filter ---------- */
 .filters{
@@ -218,11 +233,14 @@ button{cursor:pointer}
 .sug+.sug{border-top:1px solid #EFF1F4}
 .sug:hover{background:var(--postech-red-050)}
 .sug-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sug-kind{flex:0 0 auto;margin-left:auto;font-size:12.5px;font-weight:800;color:#9AA1AC}
+.sug-kind{flex:0 0 auto;margin-left:auto;font-size:12.5px;font-weight:800;color:var(--muted)}
 .sug .d{flex:0 0 auto;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 
 /* ---------- itinerary ---------- */
-.itin{border:1px solid var(--line);border-radius:16px;padding:13px;margin-bottom:9px;background:#fff}
+.itin{
+  display:block;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;
+  border:1px solid var(--line);border-radius:16px;padding:13px;margin-bottom:9px;background:#fff;
+}
 .itin.best{border-color:var(--postech-red);box-shadow:0 0 0 3px rgba(166,25,85,.08)}
 .itin-head{display:flex;align-items:baseline;gap:8px;margin-bottom:9px}
 .itin-dur{font-size:20px;font-weight:900;letter-spacing:-.04em}
@@ -249,7 +267,7 @@ button{cursor:pointer}
 .period{display:flex;align-items:baseline;gap:14px;margin:16px 0 2px}
 .period button{
   border:0;background:none;padding:4px 0;font-size:16px;font-weight:900;
-  color:#9AA1AC;letter-spacing:-.03em;border-bottom:2.5px solid transparent;
+  color:#69717d;letter-spacing:-.03em;border-bottom:2.5px solid transparent;
 }
 .period button.on{color:var(--ink);border-bottom-color:var(--postech-red)}
 .period-time{
@@ -265,6 +283,7 @@ button{cursor:pointer}
 
 /* ---------- stop cards ---------- */
 .stop{
+  display:block;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;
   border:1px solid var(--line);border-radius:16px;padding:12px 13px;margin-bottom:8px;background:#fff;
 }
 .stop:hover{border-color:#bfc6d0;background:#fcfcfd}
@@ -282,11 +301,11 @@ button{cursor:pointer}
 .arr-eta{font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .arr-eta.soon{color:var(--postech-red)}
 .arr-eta.far{color:var(--muted);font-weight:800}
-.side{font-size:12.5px;font-weight:800;color:#8A9099}
+.side{font-size:12.5px;font-weight:800;color:var(--muted)}
 .arr-at{color:var(--muted);font-size:13.5px;font-weight:700;font-variant-numeric:tabular-nums}
-.arr-next{color:#9aa1ac;font-size:13px;font-weight:700;margin-left:auto;font-variant-numeric:tabular-nums}
+.arr-next{color:var(--muted);font-size:13px;font-weight:700;margin-left:auto;font-variant-numeric:tabular-nums}
 .arr-toward{
-  margin-left:auto;font-size:13px;font-weight:800;color:#7A818C;
+  margin-left:auto;font-size:13px;font-weight:800;color:var(--muted);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:45%;
 }
 .empty{color:var(--muted);font-size:14.5px;padding:10px 2px;font-weight:600}
@@ -334,22 +353,26 @@ button{cursor:pointer}
 }
 .bus-icon{width:0!important;height:0!important;overflow:visible}
 .bus-icon .bus{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
-.bus{
-  min-width:30px;height:23px;padding:0 7px;border-radius:8px;color:#fff;
-  font-size:12.5px;font-weight:900;white-space:nowrap;
-  display:flex;align-items:center;justify-content:center;letter-spacing:-.04em;
-  box-shadow:0 2px 7px rgba(0,0,0,.35);border:2px solid #fff;
+
+/* 지도 위를 다니는 버스. 번호만으로는 무엇인지 알기 어려워 형태를 준다. */
+.bus{position:relative;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))}
+.bus-body{
+  display:flex;align-items:flex-end;justify-content:center;
+  min-width:30px;padding:9px 7px 4px;border-radius:9px 9px 4px 4px;
+  border:2px solid #fff;background:var(--c);
+  color:#fff;font-size:12px;font-weight:900;line-height:1;
+  letter-spacing:-.04em;white-space:nowrap;
 }
-.trip-stop{
-  width:16px;height:16px;border-radius:50%;background:#fff;border:4px solid #888;
-  box-shadow:0 1px 5px rgba(0,0,0,.35);
+.bus-win{                                   /* 앞유리 */
+  position:absolute;left:5px;right:5px;top:5px;height:6px;
+  border-radius:3px;background:rgba(255,255,255,.85);
 }
-.trip-pin{
-  width:18px;height:18px;border-radius:50% 50% 50% 2px;transform:rotate(-45deg);
-  border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);
+.bus .wheel{
+  position:absolute;bottom:-3px;left:5px;width:7px;height:7px;border-radius:50%;
+  background:#2F3540;border:1.5px solid #fff;
 }
-.trip-pin.from{background:#1a73e8}
-.trip-pin.to{background:var(--postech-red)}
+.bus .wheel.r{left:auto;right:5px}
+
 .me{
   width:16px;height:16px;border-radius:50%;background:#1a73e8;border:3px solid #fff;
   box-shadow:0 0 0 2px rgba(26,115,232,.35),0 2px 6px rgba(0,0,0,.3);
@@ -476,47 +499,48 @@ button{cursor:pointer}
 </head>
 <body>
 
+<a class="skip" id="skipLink" href="#panelScroll">본문으로 건너뛰기</a>
 <header class="hdr">
   <div class="brand">
     <strong><span id="brandShort">POSTECH 셔틀</span><span class="brand-long" id="brandLong"> 버스 지도</span></strong>
     <span class="sub" id="tagline">시간표 기반 운행 위치 · 실시간 GPS 아님</span>
   </div>
   <div class="spacer"></div>
-  <div class="clock" id="clock"><span id="clockH">--</span><span class="colon">:</span><span id="clockM">--</span></div>
-  <button class="hdr-btn primary" id="btnRoute">길찾기</button>
+  <div class="clock" id="clock" role="timer" aria-atomic="true"><span id="clockH">--</span><span class="colon" aria-hidden="true">:</span><span id="clockM">--</span></div>
+  <button class="hdr-btn primary" id="btnRoute" aria-expanded="false" aria-controls="trip">길찾기</button>
   <a class="hdr-btn desk" id="lnkTimetable" href="./timetable.html">시간표</a>
 </header>
 
-<aside class="panel" id="panel">
-  <div class="grab" id="grab"><span></span></div>
-  <button class="hero" id="hero"></button>
+<aside class="panel" id="panel" aria-label="정류장과 길찾기">
+  <button class="grab" id="grab" aria-expanded="false" aria-controls="panelScroll"><span aria-hidden="true"></span></button>
+  <button class="hero" id="hero" aria-live="polite" aria-atomic="true"></button>
   <div class="trip" id="trip">
     <button class="trip-summary" id="tripSummary" hidden></button>
     <div class="trip-fields" id="tripFields">
       <div class="trip-row">
         <span class="pin from" id="pinFrom">출발</span>
-        <input id="inFrom" placeholder="출발지" autocomplete="off">
+        <input id="inFrom" placeholder="출발지" autocomplete="off" aria-label="출발지">
         <button class="mini" id="btnHere" title="내 위치로" aria-label="내 위치로">◎</button>
       </div>
       <div class="trip-row">
         <span class="pin to" id="pinTo">도착</span>
-        <input id="inTo" placeholder="도착지" autocomplete="off">
+        <input id="inTo" placeholder="도착지" autocomplete="off" aria-label="도착지">
         <button class="mini" id="btnSwap" title="출발·도착 바꾸기" aria-label="출발·도착 바꾸기">⇅</button>
       </div>
-      <div class="suggest" id="suggest"></div>
+      <div class="suggest" id="suggest" role="listbox" aria-label="검색 결과"></div>
       <div class="trip-when">
-        <button id="btnMode" class="mode">출발</button>
+        <button id="btnMode" class="mode" aria-label="출발·도착 기준 바꾸기">출발</button>
         <button id="btnWhen">지금 출발</button>
-        <input type="time" id="whenTime" hidden>
+        <input type="time" id="whenTime" hidden aria-label="시각">
       </div>
     </div>
   </div>
-  <div class="filters" id="filters"></div>
-  <div class="panel-scroll" id="panelScroll"></div>
+  <div class="filters" id="filters" role="group" aria-label="노선 선택"></div>
+  <div class="panel-scroll" id="panelScroll" tabindex="-1"></div>
 </aside>
 
-<div id="map">
-  <div class="editbar" id="editbar">
+<div id="map" role="region" aria-label="노선 지도">
+  <div class="editbar" id="editbar" role="status">
     <span id="editHint">좌표 보정 모드 — 정류장 마커를 끌어 실제 위치로 옮기세요.</span>
     <button id="btnCopy">JSON 복사</button>
     <button id="btnResetCoords">되돌리기</button>
@@ -529,9 +553,9 @@ button{cursor:pointer}
     <span id="pickHintText">지도에서 지금 계신 곳을 눌러 주세요</span>
     <button id="pickCancel">취소</button>
   </div>
-  <div class="ask" id="ask" hidden>
+  <div class="ask" id="ask" hidden role="dialog" aria-modal="true" aria-labelledby="askTitle" aria-describedby="askBody">
     <div class="ask-card">
-      <div class="ask-icon">◎</div>
+      <div class="ask-icon" aria-hidden="true">◎</div>
       <strong id="askTitle">가까운 정류장부터 보기</strong>
       <p id="askBody">위치는 이 브라우저 안에서만 쓰입니다.</p>
       <div class="ask-actions">
