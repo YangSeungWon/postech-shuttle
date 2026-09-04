@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>포스텍 셔틀버스</title>
+<meta name="description" content="포스텍 교내 셔틀버스를 지도에서 봅니다. 시간표 기준으로 버스 위치를 그리고, 정류장별 도착 시각과 길찾기를 제공합니다.">
+<link rel="icon" href="./icon-192.png">
+<style>
+:root{
+  --ink:#1E232B; --muted:#69717d; --line:#E3E6EB; --bg:#fff; --soft:#F6F7F9;
+  --red:#A61955;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:Pretendard,"Noto Sans KR",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  line-height:1.65;letter-spacing:-.015em;word-break:keep-all;overflow-wrap:break-word;
+}
+a{color:inherit}
+.wrap{max-width:900px;margin:0 auto;padding:0 22px}
+
+header{padding:64px 0 40px}
+h1{margin:0 0 14px;font-size:34px;font-weight:900;letter-spacing:-.04em}
+.lede{margin:0 0 28px;font-size:17px;color:var(--muted);max-width:30em}
+.open{
+  display:inline-block;background:var(--red);color:#fff;text-decoration:none;
+  padding:13px 22px;border-radius:12px;font-weight:900;font-size:16px;
+}
+.open:hover{background:#900048}
+
+section{
+  display:grid;grid-template-columns:1fr;gap:20px;
+  padding:30px 0;border-top:1px solid var(--line);
+}
+section h2{margin:0 0 6px;font-size:19px;font-weight:900;letter-spacing:-.03em}
+section p{margin:0;color:var(--muted);font-size:15.5px;max-width:34em}
+video{
+  display:block;width:100%;max-width:240px;border-radius:18px;
+  border:1px solid var(--line);background:var(--soft);
+}
+@media (min-width:760px){
+  /* 영상이 세로로 길다. 글을 위에 붙여 두어야 빈자리가 생기지 않는다. */
+  section{grid-template-columns:1fr 240px;align-items:start;gap:52px;padding:40px 0}
+  section .txt{padding-top:4px}
+  section.flip .txt{order:2}
+}
+
+footer{
+  border-top:1px solid var(--line);margin-top:34px;padding:30px 0 60px;
+  color:var(--muted);font-size:14px;
+}
+footer p{margin:0 0 8px}
+footer a{color:var(--red);font-weight:700}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>포스텍 셔틀버스</h1>
+    <p class="lede">
+      시간표를 지도 위에 올렸습니다. 버스가 지금 어디쯤인지, 내 앞 정류장에
+      몇 분 뒤에 오는지, 어디서 타고 어디서 내리면 되는지를 봅니다.
+    </p>
+    <a class="open" href="./">열기</a>
+  </header>
+
+  <section>
+    <div class="txt">
+      <h2>버스가 지금 어디쯤</h2>
+      <p>순환 1·2·3이 동시에 돕니다. 버스마다 어느 쪽으로 가는지 화살표가 붙습니다.</p>
+    </div>
+    <video src="./promo/midday.mp4" autoplay muted loop playsinline></video>
+  </section>
+
+  <section class="flip">
+    <div class="txt">
+      <h2>노선별로</h2>
+      <p>지곡·유강은 출근과 퇴근에 서로 다른 길로 다닙니다. 고른 노선의 정류장이 운행 순서대로 섭니다.</p>
+    </div>
+    <video src="./promo/rush.mp4" autoplay muted loop playsinline></video>
+  </section>
+
+  <section>
+    <div class="txt">
+      <h2>정류장을 누르면</h2>
+      <p>다음 차가 몇 분 뒤인지, 어느 방면인지. 도착 시각 앞뒤로는 “도착 또는 출발”이라고 적습니다.</p>
+    </div>
+    <video src="./promo/stop.mp4" autoplay muted loop playsinline></video>
+  </section>
+
+  <section class="flip">
+    <div class="txt">
+      <h2>길찾기</h2>
+      <p>정류장까지 걷는 시간을 실제 보행로와 경사로 계산해 넣습니다. 걷는 편이 빠르면 걸으라고 합니다.</p>
+    </div>
+    <video src="./promo/trip.mp4" autoplay muted loop playsinline></video>
+  </section>
+
+  <footer>
+    <p>버스 위치는 GPS가 아니라 시간표에서 계산한 값입니다. 교통 상황에 따라 앞뒤 1~2분 차이가 날 수 있습니다.</p>
+    <p>2026년 8월 3일 시행 시간표 · 평일만 운행 · 학교 안내와 다르면 학교 안내가 맞습니다.</p>
+    <p><a href="./">bus.ysw.kr</a></p>
+  </footer>
+</div>
