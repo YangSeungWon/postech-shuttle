@@ -882,39 +882,40 @@ async function geoPermission() {
   } catch (e) { /* Permissions API 없음 — 그냥 넘어간다 */ }
 })();
 
-/* 지도를 눌러 자리를 찍는다. 내 위치를 못 얻을 때의 대비책으로 만든 것을
-   출발·도착 찍기에도 같이 쓴다 — 몸짓이 같으니 안내도 하나면 된다. */
-let pickingMe = false, pickingFor = null;
+/* 지도에서 자리 고르기.
+
+   예전에는 "지도를 눌러 주세요" 였는데, 손가락으로 한 점을 정확히 찍는 것은
+   무리다. 핀을 화면 가운데 붙박아 두고 지도를 움직여 맞추게 한다 — 지도
+   앱들이 쓰는 방식이고, 확대해서 미세하게 맞출 수도 있다.
+   which: 'from' | 'to' | 'me' */
+let pickingFor = null;
 function pickOnMap(which) {
   pickingFor = which;
-  pickingMe = false;
   closeAsk();
-  document.getElementById('map').classList.add('picking');
+  $('pickHintText').textContent = which === 'me' ? T.pickHintMe : T.pickHint;
   $('pickHint').hidden = false;
+  $('pickPin').hidden = false;
   sheet.goto(0);
+  // 핀이 서는 자리는 위쪽 가림도 셈해야 한다
+  document.documentElement.style.setProperty('--pick-top', topInset() + 'px');
 }
-function pickMyLocation() {
-  pickingMe = true;
-  closeAsk();
-  document.getElementById('map').classList.add('picking');
-  $('pickHint').hidden = false;
+function endPick() {
+  pickingFor = null;
+  $('pickHint').hidden = true;
+  $('pickPin').hidden = true;
 }
+function pickMyLocation() { pickOnMap('me'); }
+$('pickOk').onclick = () => {
+  const which = pickingFor;
+  if (!which) return;
+  const c = map.getCenter();
+  endPick();
+  if (which === 'me') setMyLocation([c.lat, c.lng], 0);
+  else setEndpoint(which, { ll: [c.lat, c.lng], label: T.mapPoint });
+};
+
 map.on('click', e => {
-  if (pickingMe) {
-    pickingMe = false;
-    document.getElementById('map').classList.remove('picking');
-    $('pickHint').hidden = true;
-    setMyLocation([e.latlng.lat, e.latlng.lng], 0);
-    return;
-  }
-  if (pickingFor) {
-    const which = pickingFor;
-    pickingFor = null;
-    document.getElementById('map').classList.remove('picking');
-    $('pickHint').hidden = true;
-    setEndpoint(which, { ll: [e.latlng.lat, e.latlng.lng], label: T.mapPoint });
-    return;
-  }
+  if (pickingFor) return;              // 고르는 중에는 지도 누르기가 뜻이 없다
   /* 빈 곳을 누르면 고른 것을 놓는다. 손잡이를 없앤 뒤로 시트를 접을 길이
      없었다 — 지도 앱들이 쓰는 몸짓이고 화면을 차지하지도 않는다. */
   if (selected || selectedBus) {
@@ -926,11 +927,7 @@ map.on('click', e => {
   }
   if (sheet.isMobile() && tab === 'near') sheet.goto(0);
 });
-$('pickCancel').onclick = () => {
-  pickingMe = false; pickingFor = null;
-  document.getElementById('map').classList.remove('picking');
-  $('pickHint').hidden = true;
-};
+$('pickCancel').onclick = endPick;
 
 /* 지도 위에 얹힌 UI 는 #map 안에 있어 클릭이 지도까지 전파된다.
    막지 않으면 버튼을 누른 자리가 지도 클릭으로도 잡힌다. */
@@ -1831,7 +1828,7 @@ addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (!$('ask').hidden) { closeAsk(); return; }
   if (!$('whenPop').hidden) { closeWhen(); $('btnClock').focus(); return; }
-  if (pickingMe) { $('pickCancel').click(); return; }
+  if (pickingFor) { endPick(); return; }
   if (map._popup) { map.closePopup(); return; }
   if (!wideScreen() && $('trip').classList.contains('show')) openTrip(false);
 });
@@ -2584,6 +2581,8 @@ function applyLang() {
   $('btnClock').title = T.whenTitle;
   $('btnNow').title = $('btnNow').ariaLabel = T.resetTime;   // 라벨은 whenLabel 이 시각까지 넣어 다시 쓴다
   $('tripClose').title = $('tripClose').ariaLabel = T.close;
+  set('pickOk', T.pickHere);
+  set('pickCancel', T.askNo);
   sheet.relabel();
   set('tabNear', T.tabNear); set('tabRoutes', T.tabRoutes);
   set('tabTimetable', T.tabTimetable); set('tabTrip', T.tabTrip);

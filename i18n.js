@@ -140,7 +140,9 @@ const STRINGS = {
     heroAsk: 'Show nearby stops', walkShort: m => `${m} min walk`,
     heroLabel: (stop, walk, route, eta) =>
       `Nearest stop ${stop}, ${walk} minute walk. ${route} in ${eta}. Tap for details`,
-    pickOnMap: 'Set on map', pickHint: 'Tap where you are on the map',
+    pickOnMap: 'Set on map',
+    pickHint: 'Move the map to place the pin', pickHintMe: 'Move the map to where you are',
+    pickHere: 'Use this spot', pickHint: 'Tap where you are on the map',
     cancel: 'Cancel', close: 'Close',
     updateReady: 'A new version is available', reload: 'Reload',
     skip: 'Skip to content', back: 'Back', gotIt: 'Got it',
