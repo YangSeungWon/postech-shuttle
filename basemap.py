@@ -42,9 +42,16 @@ PAINT = {
     'boundary_3':            {'line-color': '#CDD2DA'},
 }
 # 글자는 또렷하게 — 바탕이 물러난 만큼 이름은 읽혀야 한다
-LABELS = ('highway-name-path', 'highway-name-minor', 'highway-name-major',
+LABELS = ('highway-name-minor', 'highway-name-major',
           'label_other', 'label_village', 'label_town', 'label_city',
           'water_name_point_label', 'water_name_line_label', 'waterway_line_label')
+
+# 길 이름은 우리 노선이 그려진 바로 그 길 위에 얹힌다. 캠퍼스에서는 건물과
+# 정류장으로 길을 찾지 길 이름으로 찾지 않으므로, 오솔길 이름은 빼고
+# 캠퍼스 안 도로 이름은 아주 가까이 갔을 때만 보여 준다.
+# 지곡로·청암로 같은 큰길 이름은 방향을 잡는 데 쓰이므로 남긴다.
+DROP_LABELS = ('highway-name-path',)
+LATE_LABELS = {'highway-name-minor': 17}
 
 
 def build(out='style-muted.json', lang='ko'):
@@ -67,7 +74,10 @@ def build(out='style-muted.json', lang='ko'):
             if 'ref' not in json.dumps(l['layout']['text-field']):   # 도로번호 방패는 그대로
                 l['layout']['text-field'] = ko_first
 
+    style['layers'] = [l for l in style['layers'] if l['id'] not in DROP_LABELS]
     for l in style['layers']:
+        if l['id'] in LATE_LABELS:
+            l['minzoom'] = LATE_LABELS[l['id']]
         if l['id'] in PAINT:
             l.setdefault('paint', {}).update(PAINT[l['id']])
         if l['id'] in LABELS:
