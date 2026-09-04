@@ -349,8 +349,9 @@ function drawEnds() {
     if (!pt) continue;
     L.marker(pt, {
       // 물방울 끝이 지점이다 — 가운데가 아니라 아래 끝에 맞춘다
-      icon: L.divIcon({ className: 'end-icon', iconSize: [22, 26], iconAnchor: [11, 25],
-        html: `<span class="end-tag ${cls}">${label}</span><div class="trip-pin ${cls}"></div>` }),
+      // 꼬리 끝(아래 한가운데)이 실제 지점이다: 동그라미 38 + 테두리 6 + 꼬리 11
+      icon: L.divIcon({ className: 'end-icon', iconSize: [44, 55], iconAnchor: [22, 55],
+        html: `<div class="trip-pin ${cls}">${label}</div>` }),
       zIndexOffset: 600, interactive: false, keyboard: false,
     }).addTo(layerEnds);
   }
