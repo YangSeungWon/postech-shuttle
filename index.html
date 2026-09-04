@@ -480,21 +480,8 @@ button{cursor:pointer}
   right:max(12px, env(safe-area-inset-right));
   top:calc(var(--header-h) + 12px + env(safe-area-inset-top));
 }
-.fab-route{
-  position:fixed;z-index:850;
-  left:max(12px, env(safe-area-inset-left));
-  bottom:calc(var(--sheet) + 14px);
-  transition:bottom .26s cubic-bezier(.22,.7,.3,1);
-  border:0;border-radius:14px;padding:0 18px;height:46px;
-  background:var(--postech-red);color:#fff;
-  font-size:15px;font-weight:900;letter-spacing:-.03em;
-  box-shadow:0 4px 14px rgba(166,25,85,.34);
-}
-.fab-route:hover{background:var(--postech-red-700)}
-.fab-route.on{background:#333A45;box-shadow:var(--shadow)}
-body.sheet-full .fab-route{opacity:0;pointer-events:none;transition:opacity .15s}
 @media (min-width:821px){
-  .fab-route{display:none}
+  #btnRoute{display:none}
   .map-top{top:calc(var(--header-h) + 12px)}
 }
 
@@ -529,6 +516,13 @@ body.sheet-full .fab-route{opacity:0;pointer-events:none;transition:opacity .15s
 }
 body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
 .mapbtn.on{background:var(--postech-red);border-color:var(--postech-red);color:#fff}
+/* 길찾기는 이 화면의 주된 동작이라 채워서 눈에 띄게 둔다 */
+.mapbtn.primary{
+  background:var(--postech-red);border-color:var(--postech-red);color:#fff;
+  box-shadow:0 4px 14px rgba(166,25,85,.34);
+}
+.mapbtn.primary:hover{background:var(--postech-red-700)}
+.mapbtn.primary.on{background:#333A45;border-color:#333A45;box-shadow:var(--shadow)}
 .mapbtn:disabled{color:#C6CBD3;cursor:default}
 
 /* ---------- edit mode ---------- */
@@ -655,13 +649,14 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
   </div>
   <div class="map-top">    <button class="mapbtn" id="btnBase" aria-label="지도 종류"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.5 8 12 13l9.5-5L12 3Z"/><path d="M2.5 13.5 12 18.5l9.5-5"/></svg></button>
   </div>
-  <button class="fab-route" id="btnRoute" aria-expanded="false" aria-controls="trip">길찾기</button>
   <div class="mapbtns">
     <div class="zoomer desk">
       <button class="mapbtn" id="btnZoomIn" aria-label="확대"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
       <button class="mapbtn" id="btnZoomOut" aria-label="축소"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
     </div>
     <button class="mapbtn" id="btnLoc" aria-label="내 위치"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M12 1.6v3.2M12 19.2v3.2M1.6 12h3.2M19.2 12h3.2"/></svg></button>
+    <button class="mapbtn primary" id="btnRoute" aria-expanded="false"
+            aria-controls="trip" aria-label="길찾기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.4 21.6 12 12 21.6 2.4 12 12 2.4Z"/><path d="M9.3 14.6v-2.5a1.7 1.7 0 0 1 1.7-1.7h3.7"/><path d="M12.9 8.4 15 10.4 12.9 12.4"/></svg></button>
     <button class="mapbtn desk" id="btnFit" aria-label="전체 보기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H3v6M15 3h6v6M15 21h6v-6M9 21H3v-6"/></svg></button>
     <button class="mapbtn desk" id="btnEdit" hidden aria-label="좌표 보정">✎</button>
   </div>

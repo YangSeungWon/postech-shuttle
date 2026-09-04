@@ -1625,7 +1625,8 @@ function applyLang() {
   set('brandShort', T.brandShort);
   set('brandLong', T.brandLong);
   set('tagline', T.tagline);
-  set('btnRoute', T.route);
+  // 아이콘 버튼이므로 글자를 넣지 않는다 (넣으면 아이콘이 사라진다)
+  $('btnRoute').title = $('btnRoute').ariaLabel = T.route;
   set('lnkTimetable', T.timetable);
   set('pinFrom', T.from);
   set('pinTo', T.to);
