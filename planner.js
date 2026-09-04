@@ -12,6 +12,10 @@
 const MAX_WALK_MIN = 20;      // 출발·도착 도보 허용 시간(분)
 const XFER_WALK_MIN = 7;      // 정류장 간 도보 환승 허용 시간(분)
 const MAX_ROUNDS = 3;         // 최대 환승 2회
+/* 걸어서 붙는 정류장에서는 이만큼 여유를 두고 탄다(분). 도착 시각에 딱 맞춰
+   닿는 안은 실제로는 놓치는 안이다 — 지곡회관에 서서 13:00 에 길을 건너
+   13:01 차를 타라는 말이 그렇다. 서 있던 정류장이면 여유가 필요 없다. */
+const BOARD_SLACK = 1;
 
 /**
  * @param {{ll:number[], label:string}} from 출발지
@@ -75,8 +79,10 @@ function planTrip(from, to, depart, ctx, keepRide = false) {
           if (si === undefined) continue;
           // 버스보다 먼저 가 있을 수 있는 곳이면 탈 수 있다. (그런 곳에
           // 버스로 가 봐야 이미 걸어서 도착해 있으니 하차 후보는 아니다)
-          // 버스보다 먼저 가 있을 수 있는 곳이면 탈 수 있다
-          const boardable = snapshot[si].via && snapshot[si].t <= trip[k];
+          // 버스보다 (여유를 두고) 먼저 가 있을 수 있는 곳이면 탈 수 있다
+          const via = snapshot[si].via;
+          const onFoot = via && via.kind === 'walk' && via.min > 0;
+          const boardable = via && snapshot[si].t + (onFoot ? BOARD_SLACK : 0) <= trip[k];
 
           if (boardAt >= 0) {
             const bi = ix.get(r.canonStops[boardAt]);
@@ -178,12 +184,12 @@ function planTrip(from, to, depart, ctx, keepRide = false) {
 /* 오늘 차가 끝났을 때 내미는 '다음 운행일' 안. 하나만 뽑으면 그날 가장 이른
    차 하나 — 지곡·유강 첫차 — 만 남아, 어느 목적지를 찍어도 같은 차만 뜬다.
    타는 노선 조합이 다른 것을 모아 여러 줄로 준다. */
-function firstOfDay(from, to, ctx, want) {
+function firstOfDay(from, to, ctx, want, since = 0) {
   const rides = r => r.legs.filter(l => l.kind === 'ride');
   const cands = [];
   /* 첫차만 보면 순환은 09:00 하나뿐이다. 하루를 훑어 노선 조합마다
      가장 이른 것을 모은다. */
-  for (let t = 0; t < 24 * 60; t += 30) {
+  for (let t = since; t < 24 * 60; t += 30) {
     for (const r of planTrip(from, to, t, ctx, true)) {
       if (rides(r).length) cands.push(r);
     }
@@ -198,9 +204,12 @@ function firstOfDay(from, to, ctx, want) {
   return [...byRoute.values()]
     .sort((a, b) => a.walkMin - b.walkMin || a.leave - b.leave)
     .slice(0, want)
-    .sort((a, b) => a.leave - b.leave)
-    .map(r => (r.nextDay = true, r));
+    .sort((a, b) => a.leave - b.leave);
 }
+
+/* 어느 노선을 탄 안인가 — 지곡·유강은 출발 시각마다 id 가 다르므로 무리로 본다 */
+const family = r => r.legs.filter(l => l.kind === 'ride')
+                          .map(l => l.route.group || l.route.name).join('>');
 
 function planTripSeries(from, to, depart, ctx, want = 3) {
   const hasRide = r => r.legs.some(l => l.kind === 'ride');
@@ -208,8 +217,11 @@ function planTripSeries(from, to, depart, ctx, want = 3) {
   if (!first.length) {
     /* 걸어가기엔 멀고(MAX_WALK_MIN 초과) 버스는 끝난 밤이면 여기가 빈다.
        "갈 방법이 없다" 와 "오늘은 끝났다" 는 다른 말이므로 첫차를 찾아 준다. */
-    const next = firstOfDay(from, to, ctx, want);
-    return next.length ? next : first;
+    const next = firstOfDay(from, to, ctx, want, depart);
+    if (next.length) { for (const r of next) r.later = true; return next; }
+    const tomorrow = firstOfDay(from, to, ctx, want, 0);
+    for (const r of tomorrow) r.nextDay = true;
+    return tomorrow.length ? tomorrow : first;
   }
   /* 뒤차를 붙일 때 아무거나 붙이면 안 된다. 3분이면 가는 길에 "나중에 떠나는"
      24분짜리를 끼워 넣는 일이 있었다 — 늦게 나간다는 것 하나로 살아남는다.
@@ -237,8 +249,20 @@ function planTripSeries(from, to, depart, ctx, want = 3) {
   /* 결과가 아예 없을 때도 붙여야 한다 — 걸어가기엔 멀고(20분 초과) 버스는
      끝난 밤이면 "이 시각에 갈 수 있는 경로가 없습니다" 만 남았다. 갈 방법이
      없다는 말과 오늘은 끝났다는 말은 다르다. */
+  /* 지금 목록에 없는 노선이 오늘 이따 다닐 수 있다. 순환은 09시에 시작하니
+     08시에 찍으면 통째로 빠지고, 걸어가라는 말만 남는다. 걸을지 기다릴지는
+     타는 사람이 정할 일이므로 점선으로 떼어 붙인다. */
+  const have = new Set(out.map(family));
+  for (const r of firstOfDay(from, to, ctx, want, depart)) {
+    if (have.has(family(r))) continue;
+    have.add(family(r));
+    r.later = true;
+    out.push(r);
+  }
   // 세로 목록이라 따로 두어도 눈에 들어온다 — 지금 탈 수 있는 것과 섞지 않는다
-  if (!out.some(hasRide)) out.push(...firstOfDay(from, to, ctx, want));
+  if (!out.some(hasRide)) {
+    for (const r of firstOfDay(from, to, ctx, want, 0)) { r.nextDay = true; out.push(r); }
+  }
   return out;
 }
 
@@ -261,7 +285,11 @@ function finish(results, keepRide, directMin) {
        마지막 출발 시각이라야 안끼리 비교가 된다. */
     const ride = r.legs.find(l => l.kind === 'ride');
     const head = r.legs[0];
-    r.leave = ride ? ride.depart - (head.kind === 'walk' ? head.min : 0) : r.depart;
+    /* 걸어서 붙는 차는 여유까지 빼야 실제로 나서야 하는 시각이다. 안 그러면
+       "13:05 에 나가 13:06 차" 처럼 딱 맞춰 뛰라는 말이 된다. */
+    r.leave = ride
+      ? ride.depart - (head.kind === 'walk' && head.min > 0 ? head.min + BOARD_SLACK : 0)
+      : r.depart;
   }
 
   /* 같은 시각에 집을 나서 그냥 걸었을 때보다 늦게 닿는 버스 안은 버린다.

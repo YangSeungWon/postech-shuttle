@@ -2486,7 +2486,7 @@ function planCard(plan, i) {
          <span class="txt"><b>${stopLabel(l.from)}</b> ${fmt(l.depart)}
            → <b>${stopLabel(l.to)}</b> ${fmt(l.arrive)}</span></div>`).join('') + `</div>`;
   return `
-    <button type="button" class="itin ${open && !day ? 'best' : ''} ${day ? 'later' : ''}"
+    <button type="button" class="itin ${open && !day && !plan.later ? 'best' : ''} ${day || plan.later ? 'later' : ''}"
             data-plan="${i}" aria-pressed="${open}">
       <div class="itin-main">
         <span class="itin-dur">${T.min(dur)}</span>
