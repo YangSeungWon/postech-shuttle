@@ -571,6 +571,9 @@ function drawBusPath(b) {
   }
   L.polyline(rest, { color: '#fff', weight: 11, opacity: .9, lineCap: 'round', interactive: false }).addTo(layerBusPath);
   L.polyline(rest, { color: b.route.color, weight: 6, opacity: 1, lineCap: 'round', interactive: false }).addTo(layerBusPath);
+  /* 순환노선은 길이 고리라서, 지나온 쪽을 흐리게 두는 것만으로는 어느 쪽으로
+     도는 차인지 읽기 어렵다. 남은 길 위에 진행 방향 화살표를 얹는다. */
+  drawArrows(rest);
   for (let i = b.legIdx < 0 ? 0 : b.legIdx + 1; i < b.route.stops.length; i++) {
     const ll = STOPS[canon(b.route.stops[i])];
     if (!ll) continue;
@@ -579,6 +582,31 @@ function drawBusPath(b) {
         html: `<div class="trip-stop" style="border-color:${b.route.color};width:13px;height:13px;border-width:3px"></div>` }),
       zIndexOffset: 350, interactive: false, keyboard: false,
     }).addTo(layerBusPath);
+  }
+}
+
+/* 좌표열을 따라 일정 간격으로 진행 방향 화살표를 놓는다 */
+const ARROW_EVERY_M = 130;
+function drawArrows(coords, layer = layerBusPath) {
+  let acc = ARROW_EVERY_M * 0.55;      // 첫 화살표는 조금 가서
+  let put = 0;
+  for (let i = 1; i < coords.length && put < 18; i++) {
+    const a = coords[i - 1], b = coords[i];
+    const seg = dist(a, b);
+    if (seg < 1) continue;
+    acc += seg;
+    if (acc < ARROW_EVERY_M) continue;
+    acc = 0; put++;
+    // 화면 기준 방위 — 경도차는 위도만큼 좁아진다
+    const la = (a[0] + b[0]) / 2 * Math.PI / 180;
+    const deg = Math.atan2((b[1] - a[1]) * Math.cos(la), b[0] - a[0]) * 180 / Math.PI;
+    L.marker([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], {
+      icon: L.divIcon({ className: '', iconSize: [14, 14], iconAnchor: [7, 7],
+        html: `<div class="dirarrow" style="transform:rotate(${deg.toFixed(0)}deg)">
+                 <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3.4 8.6 7 5l3.6 3.6"/></svg>
+               </div>` }),
+      zIndexOffset: 340, interactive: false, keyboard: false,
+    }).addTo(layer);
   }
 }
 
@@ -1750,6 +1778,7 @@ function drawPlan(plan) {
       const seg = p.coords.slice(p.idx[leg.fromIdx], p.idx[leg.toIdx] + 1);
       L.polyline(seg, { color: '#fff', weight: 11, opacity: .9, lineCap: 'round' }).addTo(layerTrip);
       L.polyline(seg, { color: leg.route.color, weight: 6.5, opacity: 1, lineCap: 'round' }).addTo(layerTrip);
+      drawArrows(seg, layerTrip);      // 어느 쪽으로 도는 차인지는 길찾기에서도 같다
       pts.push(...seg);
     }
   }

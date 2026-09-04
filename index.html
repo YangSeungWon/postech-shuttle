@@ -627,6 +627,14 @@ body.strip-on .mapbtns{bottom:calc(var(--strip) + var(--kb) + var(--tabs-h) + 14
 }
 .trip-pin.to{background:var(--postech-red)}
 /* 승하차 지점은 노선 색 테두리를 인라인으로 받는다 */
+/* 진행 방향 화살표. 노선 색 선 위에 얹히므로 흰색으로 두고,
+   가장자리에 그늘을 줘 밝은 노선(초록·주황)에서도 보이게 한다. */
+.dirarrow{width:14px;height:14px;display:grid;place-items:center}
+.dirarrow svg{
+  width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2.6;
+  stroke-linecap:round;stroke-linejoin:round;
+  filter:drop-shadow(0 0 1.4px rgba(0,0,0,.55));
+}
 .trip-stop{
   width:16px;height:16px;border-radius:50%;background:#fff;
   border:4px solid #888;box-shadow:0 1px 4px rgba(0,0,0,.35);
