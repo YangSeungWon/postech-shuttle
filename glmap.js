@@ -265,6 +265,17 @@
     });
     this._gl.addControl(new global.maplibregl.AttributionControl({ compact: true }), 'bottom-right');
     this._gl.touchZoomRotate.enableRotation();
+    /* 지도가 제 컨테이너 크기를 잘못 알고 있으면 화면 가운데는 맞고 가장자리로
+       갈수록 어긋난다 — 캔버스가 늘어난 채로 그려지기 때문이다. MapLibre 도
+       크기를 지켜보지만 50ms 늦고 첫 번째 변화는 건너뛴다. 레이아웃이 자리를
+       잡은 뒤와 화면이 바뀔 때 직접 한 번씩 알려 준다. */
+    const resize = () => this._gl.resize();
+    addEventListener('load', resize);
+    addEventListener('resize', resize);
+    addEventListener('orientationchange', () => setTimeout(resize, 120));
+    global.visualViewport?.addEventListener('resize', resize);
+    requestAnimationFrame(resize);
+
     // 스타일이 갈릴 때마다 우리가 얹은 것이 지워지므로 다시 얹는다
     /* 스타일을 갈면 우리가 얹은 소스·레이어가 함께 지워진다.
        그리고 스타일이 준비됐는지는 우리가 따로 센다 — isStyleLoaded() 는
