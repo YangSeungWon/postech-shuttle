@@ -27,9 +27,6 @@
   outline:3px solid var(--postech-red);outline-offset:2px;border-radius:6px;
 }
 .leaflet-container :focus-visible{outline-offset:1px}
-@media (prefers-reduced-motion:reduce){
-  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
-}
 html,body{height:100%}
 body{
   margin:0;background:var(--bg);color:var(--ink);overflow:hidden;
@@ -85,10 +82,6 @@ button{cursor:pointer}
 .clock .colon{animation:blink 1s step-end infinite;animation-delay:var(--blink-delay,0s)}
 .clock.sim .colon{animation:none}          /* 옮겨 둔 시각은 지금이 아니다 */
 @keyframes blink{50%{opacity:.15}}
-@media (prefers-reduced-motion:reduce){
-  .clock .colon{animation:none}
-}
-
 /* ---------- layout ---------- *
  * 모바일이 기본. 지도는 화면 전체를 채우고 패널이 바텀시트로 그 위에 뜬다.
  * 시트가 가리는 높이를 --sheet 로 알려 주어 지도 버튼과 fitBounds 가 피해 간다.
@@ -546,6 +539,14 @@ button{cursor:pointer}
   .hdr strong{font-size:15.5px}
   .hdr-btn{padding:8px 10px;font-size:15px}
   .clock{font-size:15.5px;padding:6px 8px}
+}
+/* 움직임을 줄여 달라는 설정에서는 우리 UI 의 장식적 움직임만 끈다.
+   전체 선택자로 끄면 트랜지션이 없던 요소(지도 pane 등)에까지 0.01ms
+   트랜지션이 붙어, 드래그로 지도를 옮길 때 오히려 뚝뚝 끊긴다.
+   지도 이동은 손가락을 따라가는 직접 조작이라 줄일 대상이 아니다. */
+@media (prefers-reduced-motion:reduce){
+  .panel,.mapbtns,.pick-hint,.simbar{transition:none!important}
+  .clock .colon{animation:none}
 }
 </style>
 </head>
