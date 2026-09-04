@@ -86,7 +86,7 @@ button{cursor:pointer}
  * 모바일이 기본. 지도는 화면 전체를 채우고 패널이 바텀시트로 그 위에 뜬다.
  * 시트가 가리는 높이를 --sheet 로 알려 주어 지도 버튼과 fitBounds 가 피해 간다.
  */
-:root{ --sheet:46dvh; --sheet-max:88dvh; --kb:0px; }  /* JS 가 로드되면 px 값으로 덮어쓴다 */
+:root{ --sheet:46dvh; --sheet-max:88dvh; --kb:0px; --tabs-h:0px; }  /* JS 가 로드되면 px 값으로 덮어쓴다 */
 
 #map{
   position:fixed;left:0;right:0;top:var(--header-h);bottom:0;background:#e8eaed;
@@ -95,14 +95,14 @@ button{cursor:pointer}
    않아서, bottom:0 인 고정 요소가 키보드 뒤로 들어간다. 보이는 영역의
    바닥에 붙인다. */
 .panel{
-  position:fixed;left:0;right:0;bottom:var(--kb);z-index:900;
+  padding-top:10px;
+  position:fixed;left:0;right:0;bottom:calc(var(--kb) + var(--tabs-h));z-index:900;
   height:var(--sheet-max);
   background:#fff;border-radius:20px 20px 0 0;
   box-shadow:0 -6px 28px rgba(0,0,0,.16);
   display:flex;flex-direction:column;
   transform:translateY(calc(var(--sheet-max) - var(--sheet)));
   transition:transform .26s cubic-bezier(.22,.7,.3,1);
-  touch-action:none;
 }
 .panel.dragging{transition:none}
 .panel-scroll{
@@ -110,12 +110,28 @@ button{cursor:pointer}
   flex:1;padding:0 14px calc(28px + env(safe-area-inset-bottom));touch-action:pan-y;
 }
 /* 시트 손잡이 */
-.grab{
-  height:22px;width:100%;border:0;background:none;padding:0;
-  display:grid;place-items:center;flex:0 0 auto;cursor:grab;touch-action:none;
+
+/* 아래 탭바. 지도 앱들이 쓰는 자리이고, 여기 있는 넷이 이 앱의 전부다. */
+.tabs{
+  position:fixed;left:0;right:0;bottom:0;z-index:930;display:flex;
+  background:#fff;border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom);
 }
-.grab span{width:38px;height:4px;border-radius:99px;background:#D3D7DE}
-.grab:active{cursor:grabbing}
+.tab{
+  flex:1 1 0;min-width:0;border:0;background:none;padding:7px 2px 6px;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  color:#8A9099;font-size:11px;font-weight:800;letter-spacing:-.02em;cursor:pointer;
+}
+.tab svg{
+  width:23px;height:23px;fill:none;stroke:currentColor;
+  stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;
+}
+.tab.on{color:var(--postech-red)}
+.tab:active{background:var(--soft)}
+@media (max-width:820px){ :root{ --tabs-h:58px } }
+@media (min-width:821px){ .tabs{display:none} }
+/* 길찾기는 아래 탭에 있다 — 지도 위 버튼과 겹칠 이유가 없다 */
+@media (max-width:820px){ #btnRoute{display:none} }
 
 @media (min-width:821px){
   :root{ --panel-w:390px; }
@@ -128,7 +144,6 @@ button{cursor:pointer}
     border-radius:0;border-right:1px solid var(--line);box-shadow:none;
     transform:none;touch-action:auto;
   }
-  .grab{display:none}
 }
 
 /* ---------- 접힌 상태의 한 줄 요약 ---------- *
@@ -553,7 +568,7 @@ button{cursor:pointer}
 .mapbtns{
   position:fixed;z-index:850;display:flex;flex-direction:column;gap:9px;
   right:max(12px, env(safe-area-inset-right));
-  bottom:calc(var(--sheet) + var(--kb) + 14px);
+  bottom:calc(var(--sheet) + var(--kb) + var(--tabs-h) + 14px);
   transition:bottom .26s cubic-bezier(.22,.7,.3,1);
 }
 .mapbtn{
@@ -567,7 +582,7 @@ button{cursor:pointer}
 }
 .mapbtn[hidden]{display:none}
 .plan-strip{
-  position:fixed;z-index:900;left:0;right:0;bottom:var(--kb);
+  position:fixed;z-index:900;left:0;right:0;bottom:calc(var(--kb) + var(--tabs-h));
   display:flex;gap:10px;overflow-x:auto;overscroll-behavior-x:contain;
   scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
   padding:4px calc(7vw + env(safe-area-inset-left))
@@ -585,7 +600,7 @@ button{cursor:pointer}
 .plan-strip .itin:not(.best){opacity:.72}
 /* 경로 카드가 아래를 차지하면 시트는 물러난다 */
 body.strip-on .panel{transform:translateY(100%)}
-body.strip-on .mapbtns{bottom:calc(var(--strip) + var(--kb) + 14px)}
+body.strip-on .mapbtns{bottom:calc(var(--strip) + var(--kb) + var(--tabs-h) + 14px)}
 .mapbtns.left{left:max(12px, env(safe-area-inset-left));right:auto;align-items:flex-start}
 .mapbtns.left[hidden]{display:none}
 /* 시각을 바꿔 두면 아이콘만으로는 알 수 없다. 설정한 시각을 배지로 붙인다. */
@@ -715,7 +730,6 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
 </header>
 
 <aside class="panel" id="panel" aria-label="정류장과 길찾기">
-  <button class="grab" id="grab" aria-expanded="false" aria-controls="panelScroll"><span aria-hidden="true"></span></button>
   <button class="hero" id="hero" aria-live="polite" aria-atomic="true"></button>
   <div class="trip" id="trip">
     <div class="trip-summary" id="tripSummary" hidden></div>
@@ -744,6 +758,27 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
 <!-- 추천 경로. 모바일에서는 시트에 쌓지 않고 아래에 가로로 넘겨 본다.
      한 장이 지도에 그려진 한 경로다. -->
 <div class="plan-strip" id="planStrip" hidden role="group" aria-label="추천 경로"></div>
+
+<!-- 시트를 끌어 올려야 나오던 것들을 탭으로 꺼냈다. 끌어야만 볼 수 있는
+     내용은 원래 하나도 없었고, 드래그는 "지도를 얼마나 볼지"만 바꿨다. -->
+<nav class="tabs" id="tabs" aria-label="화면 전환">
+  <button class="tab on" data-tab="near" aria-current="page">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.2s7-5.9 7-11.2a7 7 0 1 0-14 0c0 5.3 7 11.2 7 11.2Z"/><circle cx="12" cy="10" r="2.6"/></svg>
+    <span id="tabNear">주변</span>
+  </button>
+  <button class="tab" data-tab="routes">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.6"/><circle cx="18" cy="6" r="2.6"/><path d="M8.6 18h5.9a3.5 3.5 0 0 0 0-7h-5a3.5 3.5 0 0 1 0-7h5.9"/></svg>
+    <span id="tabRoutes">노선</span>
+  </button>
+  <button class="tab" data-tab="timetable">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.4" y="4.6" width="17.2" height="15.8" rx="2.6"/><path d="M3.4 9.4h17.2M8.6 4.6v-2M15.4 4.6v-2M8 13.4h3M8 16.8h6"/></svg>
+    <span id="tabTimetable">시간표</span>
+  </button>
+  <button class="tab" data-tab="trip">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.4 21.6 12 12 21.6 2.4 12 12 2.4Z"/><path d="M9.3 14.6v-2.5a1.7 1.7 0 0 1 1.7-1.7h3.7"/><path d="M12.9 8.4 15 10.4 12.9 12.4"/></svg>
+    <span id="tabTrip">길찾기</span>
+  </button>
+</nav>
 
 <div id="map" role="region" aria-label="노선 지도">
   <div class="editbar" id="editbar" role="status">

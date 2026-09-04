@@ -848,6 +848,8 @@ function explainGeoError(err) {
 map.on('dragstart', () => { followMe = false; document.getElementById('btnLoc').classList.remove('on'); });
 
 function selectStop(name) {
+  // 지도에서 고르면 그 카드를 볼 만큼만 올린다
+  if (sheet.isMobile() && tab === 'near') sheet.raise(1);
   selectedBus = null;
   selected = selected === name ? null : name;
   paintSelection();
@@ -860,9 +862,11 @@ function selectStop(name) {
 
 /* 시트에 가리는 만큼 지도 중심을 위로 올린 좌표 */
 const sheetHeight = () => {
+  const tabs = $('tabs')?.offsetHeight && window.matchMedia('(max-width:820px)').matches
+    ? $('tabs').offsetHeight : 0;
   // 카드 띠가 떠 있으면 시트는 물러나 있고, 아래를 가리는 건 띠다
-  if (document.body.classList.contains('strip-on')) return $('planStrip').offsetHeight;
-  return typeof sheet === 'undefined' ? 0 : sheet.height();
+  if (document.body.classList.contains('strip-on')) return $('planStrip').offsetHeight + tabs;
+  return (typeof sheet === 'undefined' ? 0 : sheet.height()) + tabs;
 };
 function offsetForSheet(ll) {
   const h = sheetHeight();
@@ -1061,8 +1065,52 @@ function drawHero(t, walks, walkTo) {
   setHero(el, html, () => { selectStop(best.g.name); sheet.goto(1); }, label);
 }
 
+/* 아래 탭. 시트를 끌어 올려야 나오던 것들을 여기로 꺼냈다.
+   끌어야만 볼 수 있는 내용은 원래 하나도 없었고, 드래그는 지도를 얼마나
+   볼지만 바꿨다. 이제는 탭이 높이를 정한다. */
+let tab = 'near';
+/* 탭 표시만 맞춘다. setTab 안에서 openTrip·showTimetable 을 부르고
+   그쪽에서 다시 setTab 을 부르면 서로를 되부른다. */
+function syncTab(name) {
+  tab = name;
+  for (const b of document.querySelectorAll('.tab')) {
+    const on = b.dataset.tab === name;
+    b.classList.toggle('on', on);
+    if (on) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  }
+}
+function setTab(name) {
+  tab = name;
+  for (const b of document.querySelectorAll('.tab')) {
+    const on = b.dataset.tab === name;
+    b.classList.toggle('on', on);
+    if (on) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  }
+  // 다른 탭으로 가면 길찾기와 시간표는 접는다
+  if (name !== 'trip' && $('trip').classList.contains('show')) openTrip(false);
+  if (name !== 'timetable' && view === 'timetable') view = 'stops';
+
+  if (name === 'trip') { openTrip(true); return; }
+  if (name === 'timetable') { showTimetable(); return; }
+  if (name === 'routes') {
+    sheet.goto(1);
+  } else {
+    // 주변은 지도가 주인공이다 — hero 한 줄만 남기고 물러난다
+    selected = null; selectedBus = null;
+    focusGroup = null; focusPeriod = null;
+    sheet.goto(0);
+  }
+  drawFilters(); drawRoutes(); drawStops(); render();
+}
+for (const b of document.querySelectorAll('.tab')) {
+  b.onclick = () => setTab(b.dataset.tab);
+}
+
 function showTimetable() {
   view = 'timetable';
+  syncTab('timetable');
   if (!focusPeriod) focusPeriod = nowMin() < 12 * 60 ? '오전' : '오후';
   sheet.goto(2);
   render();
@@ -1070,7 +1118,8 @@ function showTimetable() {
 
 function render() {
   const t = nowMin();
-  $('filters').hidden = guiding();     // 안내 중에는 노선 필터가 필요 없다
+  // 노선 칩은 '노선' 탭의 것이다 (안내 중에는 어느 탭이든 필요 없다)
+  $('filters').hidden = guiding() || (sheet.isMobile() && tab !== 'routes');
   const live = drawBuses(t);
   const running = live.length;
 
@@ -1389,6 +1438,7 @@ function openTrip(on, suggest = true) {
   $('trip').classList.toggle('show', show);
   showWhen(show);
   placeTrip();
+  syncTab(show ? 'trip' : (view === 'timetable' ? 'timetable' : 'near'));
   $('btnRoute').classList.toggle('on', show);
   $('btnRoute').setAttribute('aria-expanded', String(show));
   // 닫으면 첫 화면 상태(접힘)로 돌아간다. 고른 정류장이 있으면 그것만 보이게 절반.
@@ -1810,7 +1860,7 @@ $('planStrip').addEventListener('scroll', () => {
  * 바텀시트 (모바일)
  * ================================================================== */
 const sheet = (() => {
-  const el = $('panel'), grab = $('grab');
+  const el = $('panel');
   const isMobile = () => window.matchMedia('(max-width:820px)').matches;
   /* 키보드가 올라오면 쓸 수 있는 높이가 줄어든다. innerHeight 로 재면 iOS 는
      그대로라서, 88% 로 잡은 시트가 화면 아래로 넘쳐 버린다. 실제로 보이는
@@ -1820,71 +1870,31 @@ const sheet = (() => {
   const kb = () => vv
     ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))
     : 0;
-  const snaps = () => [Math.round(vh() * 0.16), Math.round(vh() * 0.46), Math.round(vh() * 0.88)];
-  let cur = 1;
+  /* 세 높이는 이제 탭이 정한다 — 끌어서 맞추는 것이 아니다.
+     맨 아래는 hero 한 줄만큼. 그게 이 앱의 기본 답이다. */
+  const peek = () => Math.max(76, ($('hero').offsetHeight || 76) + 8);
+  const snaps = () => [peek(), Math.round(vh() * 0.46), Math.round(vh() * 0.88)];
+  let cur = 0;
 
   function apply(px, animate = true) {
     el.classList.toggle('dragging', !animate);
     // dvh 와 innerHeight 가 어긋나는 브라우저가 있어 높이를 전부 px 로 통일한다
     const root = document.documentElement.style;
     root.setProperty('--kb', kb() + 'px');
+    // 탭바 높이는 안전영역만큼 기기마다 다르다 — 재서 쓴다
+    root.setProperty('--tabs-h',
+      (isMobile() ? ($('tabs').offsetHeight || 58) : 0) + 'px');
     root.setProperty('--sheet-max', Math.round(vh() * 0.88) + 'px');
     root.setProperty('--sheet', Math.round(px) + 'px');
   }
   function goto(i, animate = true) {
     cur = Math.max(0, Math.min(2, i));
     apply(snaps()[cur], animate);
-    // 시트를 끝까지 올리면 지도가 거의 가려진다. 버튼 열이 헤더 뒤로 밀리므로 감춘다.
+    // 시트를 끝까지 올리면 지도가 거의 가려진다. 버튼 열이 겹치므로 감춘다.
     document.body.classList.toggle('sheet-full', isMobile() && cur === 2);
-    grab.setAttribute('aria-expanded', String(cur > 0));
-    grab.setAttribute('aria-label', cur === 0 ? T.sheetOpen : T.sheetClose);
     return cur;
   }
   function height() { return isMobile() ? snaps()[cur] : 0; }
-
-  /* --- 드래그 --- */
-  let startY = 0, startPx = 0, dragging = false;
-  const onDown = e => {
-    if (!isMobile()) return;
-    dragging = true; startY = (e.touches ? e.touches[0] : e).clientY;
-    startPx = snaps()[cur];
-    el.classList.add('dragging');
-  };
-  const onMove = e => {
-    if (!dragging) return;
-    e.preventDefault();
-    const y = (e.touches ? e.touches[0] : e).clientY;
-    const px = Math.max(60, Math.min(vh() * 0.88, startPx + (startY - y)));
-    apply(px, false);
-  };
-  const onUp = e => {
-    if (!dragging) return;
-    dragging = false; el.classList.remove('dragging');
-    const y = (e.changedTouches ? e.changedTouches[0] : e).clientY;
-    const px = startPx + (startY - y);
-    const s = snaps();
-    // 가장 가까운 스냅 지점으로
-    let bi = 0;
-    s.forEach((v, i) => { if (Math.abs(v - px) < Math.abs(s[bi] - px)) bi = i; });
-    goto(bi);
-  };
-  grab.addEventListener('touchstart', onDown, { passive: true });
-  grab.addEventListener('mousedown', onDown);
-  window.addEventListener('touchmove', onMove, { passive: false });
-  window.addEventListener('mousemove', onMove);
-  window.addEventListener('touchend', onUp);
-  window.addEventListener('mouseup', onUp);
-  grab.addEventListener('click', () => { if (isMobile()) goto(cur === 2 ? 1 : cur + 1); });
-  grab.addEventListener('keydown', e => {
-    if (e.key === 'ArrowUp') { e.preventDefault(); goto(cur + 1); }
-    if (e.key === 'ArrowDown') { e.preventDefault(); goto(cur - 1); }
-  });
-
-  /* 목록을 맨 위까지 올렸을 때만 시트를 끌어내린다 */
-  $('panelScroll').addEventListener('touchstart', e => {
-    if (!isMobile() || $('panelScroll').scrollTop > 0) return;
-    onDown(e);
-  }, { passive: true });
 
   const reflow = () => { if (isMobile()) apply(snaps()[cur], false); };
   window.addEventListener('resize', reflow);
@@ -1948,6 +1958,8 @@ function applyLang() {
   $('btnMode').ariaLabel = T.modeSwitch;
   $('btnClock').title = T.whenTitle;   // 라벨은 whenLabel 이 시각까지 넣어 다시 쓴다
   sheet.relabel();
+  set('tabNear', T.tabNear); set('tabRoutes', T.tabRoutes);
+  set('tabTimetable', T.tabTimetable); set('tabTrip', T.tabTrip);
   set('pickHintText', T.pickHint);
   set('installText', T.installNudge);
   set('installYes', T.installNow);
