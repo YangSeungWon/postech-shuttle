@@ -231,6 +231,12 @@ button{cursor:pointer}
 .mini{
   flex:0 0 auto;width:34px;height:34px;border:1px solid var(--line);background:#fff;
   border-radius:10px;font-size:15.5px;line-height:1;color:#555;
+  display:grid;place-items:center;padding:0;
+}
+/* 내 위치 아이콘은 지도 위 ◎ 버튼과 같은 것을 쓴다 — 같은 뜻이니까 */
+.mini svg{
+  width:19px;height:19px;fill:none;stroke:currentColor;
+  stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;
 }
 .mini.wide{width:auto;padding:0 11px;font-size:14px;font-weight:800}
 .mini:hover{background:var(--soft);color:var(--postech-red)}
@@ -795,7 +801,7 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
         </button>
         <span class="pin from" id="pinFrom" role="img" aria-label="출발"></span>
         <input id="inFrom" placeholder="출발지" autocomplete="off" aria-label="출발지">
-        <button class="mini" id="btnHere" title="내 위치로" aria-label="내 위치로">◎</button>
+        <button class="mini" id="btnHere" title="내 위치로" aria-label="내 위치로"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M12 1.6v3.2M12 19.2v3.2M1.6 12h3.2M19.2 12h3.2"/></svg></button>
       </div>
       <div class="trip-row">
         <span class="pin to" id="pinTo" role="img" aria-label="도착"></span>

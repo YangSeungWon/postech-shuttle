@@ -571,9 +571,20 @@ function drawBusPath(b) {
   }
   L.polyline(rest, { color: '#fff', weight: 11, opacity: .9, lineCap: 'round', interactive: false }).addTo(layerBusPath);
   L.polyline(rest, { color: b.route.color, weight: 6, opacity: 1, lineCap: 'round', interactive: false }).addTo(layerBusPath);
-  /* 순환노선은 길이 고리라서, 지나온 쪽을 흐리게 두는 것만으로는 어느 쪽으로
-     도는 차인지 읽기 어렵다. 남은 길 위에 진행 방향 화살표를 얹는다. */
-  drawArrows(rest);
+  /* 남은 길 전체에 화살표를 뿌리면 오히려 못 읽는다 — 고리 노선은 같은
+     도로를 갈 때 한 번, 올 때 한 번 지나므로 반대 방향 화살표가 한 줄에
+     겹친다. 지금 어디로 가고 있는지만 알면 되니, 버스에서 다음 정류장까지만
+     얹는다. 그 구간은 절대 겹치지 않는다. */
+  const nextI = Math.min((b.legIdx < 0 ? 0 : b.legIdx + 1), p.idx.length - 1);
+  const upTo = p.idx[nextI];
+  if (upTo > here) {
+    let bi = here, bd = Infinity;
+    for (let i = here; i <= upTo; i++) {
+      const d = dist(p.coords[i], b.ll);
+      if (d < bd) { bd = d; bi = i; }
+    }
+    drawArrows([b.ll, ...p.coords.slice(bi + 1, upTo + 1)], layerBusPath, 55, 5);
+  }
   for (let i = b.legIdx < 0 ? 0 : b.legIdx + 1; i < b.route.stops.length; i++) {
     const ll = STOPS[canon(b.route.stops[i])];
     if (!ll) continue;
@@ -586,16 +597,15 @@ function drawBusPath(b) {
 }
 
 /* 좌표열을 따라 일정 간격으로 진행 방향 화살표를 놓는다 */
-const ARROW_EVERY_M = 130;
-function drawArrows(coords, layer = layerBusPath) {
-  let acc = ARROW_EVERY_M * 0.55;      // 첫 화살표는 조금 가서
+function drawArrows(coords, layer = layerBusPath, every = 130, max = 18) {
+  let acc = every * 0.55;              // 첫 화살표는 조금 가서
   let put = 0;
-  for (let i = 1; i < coords.length && put < 18; i++) {
+  for (let i = 1; i < coords.length && put < max; i++) {
     const a = coords[i - 1], b = coords[i];
     const seg = dist(a, b);
     if (seg < 1) continue;
     acc += seg;
-    if (acc < ARROW_EVERY_M) continue;
+    if (acc < every) continue;
     acc = 0; put++;
     // 화면 기준 방위 — 경도차는 위도만큼 좁아진다
     const la = (a[0] + b[0]) / 2 * Math.PI / 180;
@@ -916,7 +926,10 @@ function setMyLocation(ll, accuracy) {
       myMarker.setLatLng(myLL); myCircle.setLatLng(myLL).setRadius(accuracy);
       if (followMe) map.setView(myLL, map.getZoom());
     }
-    if ($('trip').classList.contains('show') && !tripFrom) {
+    /* 출발지는 거의 언제나 지금 있는 자리다. 비어 있으면 채운다 —
+       위치가 늦게 잡혀도, 지웠다가 다시 열어도. 지운 채로 두고 싶으면
+       다른 곳을 고르면 되고, 되돌리려면 옆의 ◎ 를 누르면 된다. */
+    if ($('trip').classList.contains('show') && !tripFrom && !$('inFrom').value) {
       tripFrom = { ll: myLL, label: T.here };
       $('inFrom').value = T.here;
       runTrip();
@@ -1287,7 +1300,11 @@ function render() {
       $('panelScroll').innerHTML = `<div class="notice warn">${T.noRoute}</div>`;
       return;
     }
-    html += '';   // 입력칸 두 개가 곧 설명이다
+    /* 아직 출발·도착을 안 찍었을 때. 여기서 그냥 흘려보내면 아래쪽
+       "곧 도착하는 버스" 목록이 그대로 붙는다 — 길찾기 화면에 있을 자리가
+       아니다. 고를 것은 위 입력칸의 검색 목록에 있다. */
+    $('panelScroll').innerHTML = '';
+    return;
   }
 
   const served = focusGroup
@@ -1840,7 +1857,8 @@ function drawPlan(plan) {
       const seg = p.coords.slice(p.idx[leg.fromIdx], p.idx[leg.toIdx] + 1);
       L.polyline(seg, { color: '#fff', weight: 11, opacity: .9, lineCap: 'round' }).addTo(layerTrip);
       L.polyline(seg, { color: leg.route.color, weight: 6.5, opacity: 1, lineCap: 'round' }).addTo(layerTrip);
-      drawArrows(seg, layerTrip);      // 어느 쪽으로 도는 차인지는 길찾기에서도 같다
+      // 승차 지점에서 어느 쪽으로 떠나는지만 — 구간 전체에 뿌리면 고리에서 겹친다
+      drawArrows(seg.slice(0, Math.max(2, Math.ceil(seg.length / 3))), layerTrip, 70, 4);
       pts.push(...seg);
     }
   }
