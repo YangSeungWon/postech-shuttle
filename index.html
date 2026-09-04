@@ -31,6 +31,9 @@ body{
   margin:0;background:var(--bg);color:var(--ink);overflow:hidden;
   font-family:Pretendard,"Noto Sans KR",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   line-height:1.6;letter-spacing:-.012em;
+  /* 한글은 기본이 아무 데서나 끊겨 "무은재삼 / 거리" 처럼 갈린다.
+     낱말째로 넘긴다. 아주 긴 한 덩어리만 예외로 끊는다. */
+  word-break:keep-all;overflow-wrap:break-word;
 }
 a{color:inherit;text-decoration:none}
 button,input,select{font:inherit}

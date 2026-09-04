@@ -1825,8 +1825,15 @@ function search(q, near) {
    단 출발지를 고르는 중이라면 가장 가까운 정류장이 맨 위다. 거기서 타는
    것이 거의 언제나 답이기 때문이다. 도착지에서는 반대다 — 지금 서 있는
    자리로 가려는 사람은 없다. */
+/* 같은 자리인지는 좌표로 가린다. 최근 목록은 눌렀을 때의 '표시 이름'을
+   적어 두는데, 정류장 목록은 원래 이름으로 걸러서 서로를 못 알아봤다 —
+   영문에서는 Mueunjae Intersection 과 무은재삼거리 가 다른 말이라 무은재가
+   최근과 정류장으로 두 번 떴다. 언어를 바꿔도 좌표는 그대로다. */
+const posKey = ll => (ll ? ll[0].toFixed(5) + ',' + ll[1].toFixed(5) : '');
+
 function emptyState(near, field = activeField) {
   const seen = new Set();
+  const stopAt = new Map(STOP_LIST.map(s => [posKey(s.ll), s.name]));
   /* 지도 앱들이 이 자리에 두는 두 가지. 내 위치는 출발 칸 옆 ◎ 로만 닿을 수
      있었고(도착 칸에는 길이 없었다), 지도에서 찍기는 길게 누르기뿐이라
      알려 주는 데가 없었다. */
@@ -1841,15 +1848,18 @@ function emptyState(near, field = activeField) {
 
   if (field === 'from' && near && stops.length) {
     out.push(stops[0]);
-    seen.add(stops[0].name);
+    seen.add(posKey(stops[0].ll));
   }
   for (const r of recents) {
-    if (seen.has(r.name)) continue;
-    seen.add(r.name);
-    out.push({ name: r.name, label: r.name, ll: r.ll, kind: 'recent',
+    const k = posKey(r.ll);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    // 정류장이면 지금 언어의 이름으로 보여 준다 (적어 둘 때의 이름이 아니라)
+    const at = stopAt.get(k);
+    out.push({ name: r.name, label: at ? stopLabel(at) : r.name, ll: r.ll, kind: 'recent',
                d: near ? dist(near, r.ll) : null });
   }
-  return out.concat(stops.filter(s => !seen.has(s.name))).slice(0, 7);
+  return out.concat(stops.filter(s => !seen.has(posKey(s.ll)))).slice(0, 7);
 }
 
 function drawSuggest(list) {

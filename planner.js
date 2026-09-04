@@ -159,6 +159,11 @@ function planTrip(from, to, depart, ctx) {
 function planTripSeries(from, to, depart, ctx, want = 3) {
   const first = planTrip(from, to, depart, ctx);
   if (!first.length) return first;
+  /* 뒤차를 붙일 때 아무거나 붙이면 안 된다. 3분이면 가는 길에 "나중에 떠나는"
+     24분짜리를 끼워 넣는 일이 있었다 — 늦게 나간다는 것 하나로 살아남는다.
+     걸리는 시간이 최선과 크게 다르면 그건 다음 차가 아니라 다른 여정이다. */
+  const bestDur = first[0].arrive - first[0].leave;
+  const sane = r => (r.arrive - r.leave) <= bestDur * 1.6 + 6;
   const pool = [...first];
   const seen = new Set(pool.map(r => r.leave + '>' + r.arrive));
   let cursor = first[0].leave;
@@ -169,7 +174,7 @@ function planTripSeries(from, to, depart, ctx, want = 3) {
     cursor = more[0].leave;
     for (const r of more) {
       const sig = r.leave + '>' + r.arrive;
-      if (!seen.has(sig)) { seen.add(sig); pool.push(r); }
+      if (!seen.has(sig) && sane(r)) { seen.add(sig); pool.push(r); }
     }
   }
   return rank(pool, want);
@@ -201,6 +206,7 @@ function finish(results) {
 }
 
 /* 어느 면에서도 나은 구석이 없는 후보는 빼고, 남은 것을 줄 세운다. */
+const SHORT_WALK = 15;   // 이만큼이면 그냥 걸어간다
 const LEAVE_EPS = 3;   // 1분 늦게 나가려고 12분 늦게 닿는 안은 고를 이유가 없다
 
 function rank(all, limit) {
@@ -227,7 +233,13 @@ function rank(all, limit) {
   const hasRide = r => r.legs.some(l => l.kind === 'ride');
   if (!out.some(hasRide)) {
     const bus = sorted.find(hasRide);
-    if (bus) out.push(bus);
+    /* 걸어서 금방 닿는 길이면 버스를 되살리지 않는다. 4분이면 걸어갈 데를
+       두고 42분 걸리는 차를 기다리라고 하는 셈이다. 낮에 유강·지곡을
+       기다릴 만한 것은 걸어서 한참인 경우뿐이다. */
+    const walk = sorted.find(r => !hasRide(r));
+    const pointless = walk && walk.walkMin <= SHORT_WALK
+                   && (!bus || bus.arrive >= walk.arrive);
+    if (bus && !pointless) out.push(bus);
   }
   return out;
 }
