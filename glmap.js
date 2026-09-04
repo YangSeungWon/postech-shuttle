@@ -90,6 +90,7 @@
       if (!this._map) return;
       for (let i = this._n; i < this._slots.length; i++) this._map._dropSlot(this._slots[i]);
       this._slots.length = this._n;
+      this._map._reorder();
     },
   };
 
@@ -265,7 +266,7 @@
        스타일은 이미 로드된 뒤라 그 이벤트가 다시 오지 않는다. 그렇게
        사라진 선들이 버스 자취를 흰 테두리만 남기고 있었다. */
     this._ready = false;
-    this._gl.on('style.load', () => { this._ready = true; this._restore(); });
+    this._gl.on('style.load', () => { this._ready = true; this._restore(); this._reorder(); });
   }
   Map.prototype = {
     /* --- 자리에 얹기 --- *
@@ -303,6 +304,23 @@
             'fill-color': c.options.color || '#1a73e8',
             'fill-opacity': c.options.fillOpacity == null ? .1 : c.options.fillOpacity } });
     },
+    /* 겹치는 차례를 매번 명시적으로 세운다.
+
+       얹을 때 beforeId 로 자리를 잡아 주기는 하지만, 그것만 믿으면 다시
+       얹는 차례에 따라 결과가 달라진다 — 사파리에서 흰 테두리가 노선 색
+       위로 올라와 노선이 하얗게 보였다. 순위(묶음)와 차례(묶음 안)대로
+       한 줄로 세워 두면 어느 브라우저에서든 같은 그림이 된다. */
+    _reorder() {
+      if (!this._ready) return;
+      const live = [...this._slots]
+        .filter(s => s.kind && this._gl.getLayer(s.id))
+        .sort((a, b) => a.rank - b.rank || a.seq - b.seq);
+      // 뒤에서부터 "다음 것 앞으로" 옮기면 한 번에 줄이 선다
+      for (let i = live.length - 2; i >= 0; i--) {
+        this._gl.moveLayer(live[i].id, live[i + 1].id);
+      }
+    },
+
     /* 이 자리보다 위에 와야 할 것 중 가장 앞선 것 */
     _before(slot) {
       let best = null;
