@@ -568,6 +568,10 @@ button{cursor:pointer}
 .maplibregl-map{font-family:inherit}
 /* 마커는 아이콘 크기만 차지한다 */
 .gl-marker{line-height:0}
+/* 버스는 쉬지 않고 조금씩 움직인다. 그냥 두면 브라우저가 정수 픽셀에 맞춰
+   그려서, x 와 y 가 경계를 넘는 시점이 달라 대각선이 계단처럼 꺾인다.
+   따로 합성 층으로 올리면 GPU 가 소수점째로 옮겨 준다. */
+.gl-marker.bus-icon{will-change:transform;backface-visibility:hidden}
 
 
 /* 지도에서 출발·도착 지정 */
