@@ -591,7 +591,18 @@ button{cursor:pointer}
 .maplibregl-popup{z-index:820}
 .pa-popup .maplibregl-popup-content{border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.22);margin:0;padding:11px 13px;font:inherit}
 
+/* 고른 자리에 세우는 물방울 핀 — 뾰족한 끝이 실제 지점이다 */
+.pick-pin{
+  width:22px;height:22px;margin:1px;border-radius:50% 50% 50% 0;
+  transform:rotate(-45deg);border:2.5px solid #fff;
+  background:var(--postech-red);box-shadow:0 2px 7px rgba(0,0,0,.4);
+}
+.pick-icon{transform:translateY(6px)}      /* 물방울 끝을 좌표에 맞춘다 */
+
 .pa{display:flex;align-items:center;gap:7px}
+/* 시트 카드 안에 놓일 때 — 지도 위 표지가 아니라 카드의 한 줄이다 */
+.pa.card{padding:2px 0 12px;gap:8px}
+.pa.card button{flex:1 1 0;padding:12px 10px;font-size:15.5px}
 .pa button{
   border:1px solid var(--line);background:#fff;border-radius:9px;
   padding:8px 12px;font-size:15px;font-weight:900;color:#444B57;

@@ -317,6 +317,20 @@ const layerRoutes = L.layerGroup().addTo(map);
 const layerStops  = L.layerGroup().addTo(map);
 const layerBuses  = L.layerGroup().addTo(map);
 const layerXing   = L.layerGroup().addTo(map);
+/* 고른 자리에 세우는 물방울 핀. 표지를 지도에 띄우는 대신 이것만 두고,
+   출발·도착 버튼은 시트 카드로 내렸다 — 표지는 자리를 어디에 잡아도
+   마커나 시트와 부딪혔고, 시트에는 이미 그 정류장 카드가 있다. */
+const layerPick = L.layerGroup().addTo(map);
+function drawPick(ll) {
+  layerPick.clearLayers();
+  if (!ll) return;
+  L.marker(ll, {
+    anchor: 'bottom',
+    icon: L.divIcon({ className: 'pick-icon', iconSize: null,
+      html: '<div class="pick-pin"></div>' }),
+    zIndexOffset: 460, interactive: false, keyboard: false,
+  }).addTo(layerPick);
+}
 
 /* 횡단보도 — 129개를 늘 그리면 소음이라 가까이 봤을 때만 옅게 깔고,
    길찾기 중에는 그 경로가 실제로 건너는 곳만 진하게 보여 준다. */
@@ -587,7 +601,7 @@ function selectBus(key) {
      그대로 떠 있었다. 이제 버스를 보겠다는 뜻이니 정류장은 놓는다 —
      selectStop 이 버스를 놓는 것과 같다. */
   map.closePopup();
-  if (selected) { selected = null; paintSelection(); }
+  if (selected) { selected = null; paintSelection(); drawPick(null); }
   selectedBus = selectedBus === key ? null : key;
   if (selectedBus) {
     if (sheet.isMobile() && tab === 'near') sheet.raise(1);
@@ -743,6 +757,7 @@ map.on('click', e => {
   if (selected || selectedBus) {
     selected = null; selectedBus = null;
     map.closePopup();
+    drawPick(null);
     paintSelection();
     render();
   }
@@ -1045,7 +1060,8 @@ function selectStop(name, center) {
   selectedBus = null;
   selected = selected === name ? null : name;
   paintSelection();
-  map.closePopup();                    // 표지는 고른 것을 따라간다
+  map.closePopup();
+  drawPick(null);
   if (selected) {
     /* 시간표를 보다가 지도에서 정류장을 찍었으면, 그건 그 정류장을 보겠다는
        뜻이다. 시트에 시간표가 그대로 남아 있으면 찍은 보람이 없다. */
@@ -1056,7 +1072,7 @@ function selectStop(name, center) {
     /* 지도에서 찍었으면 이미 보고 있는 자리라 밀지 않는다. 목록에서 골랐으면
        그 정류장이 화면에 없을 수도 있으니 데려온다. */
     if (center) centerInView(ll); else reveal(ll);
-    pointActions(ll, stopLabel(selected), false);
+    drawPick(ll);
   }
   render();
 }
@@ -1102,9 +1118,8 @@ function centerInView(ll) {
 function reveal(ll) {
   const p = map.latLngToContainerPoint(ll);
   const s = map.getSize();
-  const m = 46;
-  // 위쪽은 표지(약 46px)가 마커 위에 서므로 그만큼 더 비워야 한다
-  const top = topInset() + 96, bot = s.y - sheetHeight() - m;
+  const m = 46;                              // 핀이 설 자리
+  const top = topInset() + 56, bot = s.y - sheetHeight() - m;
   let dx = 0, dy = 0;
   if (p.x < m) dx = p.x - m; else if (p.x > s.x - m) dx = p.x - (s.x - m);
   if (p.y < top) dy = p.y - top; else if (p.y > bot) dy = p.y - bot;
@@ -1267,7 +1282,11 @@ function stopCard(name, t, walk) {
         ${walk ? `<span class="stop-dist">${T.dist(humanDist(walk.m), walk.min)}</span>` : ''}
       </div>
       <div class="arrivals">${rows}</div>
-    </button>`;
+    </button>` + (selected === name ? `
+    <div class="pa card" role="group" aria-label="${stopLabel(name)}">
+      <button data-w="from" data-stop="${name}">${T.startHere}</button>
+      <button data-w="to" data-stop="${name}">${T.endHere}</button>
+    </div>` : '');
 }
 
 /* 접힌 상태에서 보이는 한 줄. 첫 화면의 답은 이것 하나면 된다. */
@@ -1548,6 +1567,11 @@ function render() {
   $('panelScroll').innerHTML = html;
   $('panelScroll').querySelectorAll('.stop').forEach(el =>
     el.onclick = () => selectStop(el.dataset.stop, true));
+  // 고른 정류장 카드의 출발·도착
+  $('panelScroll').querySelectorAll('.pa.card button').forEach(el => el.onclick = () => {
+    const n = el.dataset.stop;
+    setEndpoint(el.dataset.w, { ll: groupOfStop(n)?.ll || STOPS[n], label: stopLabel(n) });
+  });
   bindLangButtons();
   const tt = $('lnkTimetable2');
   if (tt) tt.onclick = showTimetable;
