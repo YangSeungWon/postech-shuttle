@@ -858,9 +858,14 @@ const ASKED_KEY = 'geo-asked';
   const st = await geoPermission();
   if (st === 'granted') { startLocate(true); return; }
   if (st === 'denied') return;                 // 다시 물어도 프롬프트가 안 뜬다
-  // Permissions API 가 없는 브라우저(state === null)는 상태를 알 수 없다.
-  // 그래서 한 번 물어본 뒤로는 다시 띄우지 않는다 — ◎ 버튼이 남아 있다.
-  try { if (localStorage.getItem(ASKED_KEY)) return; } catch (e) { /* 무시 */ }
+  /* Permissions API 가 없는 브라우저(state === null, 사파리)는 허락받았는지
+     알 수 없다. 한 번 물어본 적이 있으면 그냥 잡아 본다 — 그때 허락했다면
+     조용히 잡히고, 거부했다면 오류만 돌아온다(그때는 아무것도 띄우지 않는다).
+     예전에는 여기서 그냥 물러나는 바람에, 두 번째 방문부터는 허락해 둔
+     사파리에서도 위치를 잡지 않았다. */
+  let asked = false;
+  try { asked = !!localStorage.getItem(ASKED_KEY); } catch (e) { /* 무시 */ }
+  if (asked) { startLocate(true); return; }
   try { localStorage.setItem(ASKED_KEY, '1'); } catch (e) { /* 무시 */ }
   askLocation();
 })();
@@ -987,7 +992,9 @@ function startLocate(quiet = false) {
     watchId = null;
     $('btnLoc').classList.remove('on');
     geoError = explainGeoError(err);
-    if (err.code === 1) showRecovery();
+    // 저절로 잡으려던 것이면 실패해도 조용히 넘어간다 — 묻지도 않았는데
+    // 되돌리는 방법을 늘어놓을 일은 아니다
+    if (err.code === 1 && !quiet) showRecovery();
     render();
   }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 });
 }
