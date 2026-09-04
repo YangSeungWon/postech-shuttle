@@ -484,12 +484,27 @@ button{cursor:pointer}
 .mapbtn{
   width:46px;height:46px;border-radius:14px;border:1px solid var(--line);background:#fff;
   box-shadow:var(--shadow);display:grid;place-items:center;font-size:20px;line-height:1;
-  color:#3d434c;
+  color:#3d434c;padding:0;
 }
+.mapbtn svg{
+  width:23px;height:23px;fill:none;stroke:currentColor;
+  stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;
+}
+.mapbtn[hidden]{display:none}
+/* 확대·축소는 지도 앱 관행대로 한 덩어리로 붙인다 */
+.zoomer{
+  display:flex;flex-direction:column;border-radius:14px;overflow:hidden;
+  box-shadow:var(--shadow);
+}
+.zoomer .mapbtn{
+  border-radius:0;box-shadow:none;height:44px;
+}
+.zoomer .mapbtn+.mapbtn{border-top:0}
 @media (min-width:821px){
   .mapbtns{bottom:26px;transition:none}
 }
 .mapbtn.on{background:var(--postech-red);border-color:var(--postech-red);color:#fff}
+.mapbtn:disabled{color:#C6CBD3;cursor:default}
 
 /* ---------- edit mode ---------- */
 .editbar{
@@ -602,10 +617,14 @@ button{cursor:pointer}
     </div>
   </div>
   <div class="mapbtns">
-    <button class="mapbtn" id="btnLoc" title="내 위치" aria-label="내 위치">◎</button>
-    <button class="mapbtn" id="btnFit" title="전체 보기" aria-label="전체 보기">⤢</button>
-    <button class="mapbtn" id="btnBase" title="지도 종류" aria-label="지도 종류">◻</button>
-    <button class="mapbtn desk" id="btnEdit" title="좌표 보정" aria-label="좌표 보정">✎</button>
+    <div class="zoomer">
+      <button class="mapbtn" id="btnZoomIn" aria-label="확대"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="mapbtn" id="btnZoomOut" aria-label="축소"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+    </div>
+    <button class="mapbtn" id="btnLoc" aria-label="내 위치"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M12 1.6v3.2M12 19.2v3.2M1.6 12h3.2M19.2 12h3.2"/></svg></button>
+    <button class="mapbtn" id="btnFit" aria-label="전체 보기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H3v6M15 3h6v6M15 21h6v-6M9 21H3v-6"/></svg></button>
+    <button class="mapbtn" id="btnBase" aria-label="지도 종류"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.5 8 12 13l9.5-5L12 3Z"/><path d="M2.5 13.5 12 18.5l9.5-5"/></svg></button>
+    <button class="mapbtn desk" id="btnEdit" hidden aria-label="좌표 보정">✎</button>
   </div>
 </div>
 

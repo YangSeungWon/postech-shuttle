@@ -242,7 +242,14 @@ const map = L.map('map', {
   center: CENTER, zoom: 15, zoomControl: false, attributionControl: true,
   maxBoundsViscosity: 1,          // 경계 밖으로는 끌리지 않게
 });
-L.control.zoom({ position: 'topright' }).addTo(map);
+/* 확대·축소도 다른 지도 버튼과 같은 모양으로 둔다 */
+$('btnZoomIn').onclick = () => map.zoomIn();
+$('btnZoomOut').onclick = () => map.zoomOut();
+function paintZoom() {
+  $('btnZoomIn').disabled = map.getZoom() >= map.getMaxZoom();
+  $('btnZoomOut').disabled = map.getZoom() <= map.getMinZoom();
+}
+map.on('zoomend', paintZoom);
 /* 바탕 지도 — 벡터 스타일을 직접 손봐서 쓴다.
    래스터에 흑백 필터를 씌우면 도로 위계와 라벨까지 함께 뭉개져서,
    바탕이 물러나는 게 아니라 그냥 흐려지기만 한다. 벡터라면 땅과 건물은
@@ -250,9 +257,9 @@ L.control.zoom({ position: 'topright' }).addTo(map);
 const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 기여자';
 const VECTOR_ATTR = OSM_ATTR + ' · <a href="https://openfreemap.org">OpenFreeMap</a>';
 const BASE_STYLES = [
-  { id: 'muted',  key: 'baseMuted',  icon: '◻',
+  { id: 'muted',  key: 'baseMuted',
     style: () => LANG === 'en' ? './style-muted-en.json' : './style-muted.json', attr: VECTOR_ATTR },
-  { id: 'detail', key: 'baseDetail', icon: '▦',
+  { id: 'detail', key: 'baseDetail',
     style: () => 'https://tiles.openfreemap.org/styles/liberty', attr: VECTOR_ATTR },
 ];
 const LS_BASE = 'postech-shuttle-basemap';
@@ -287,8 +294,13 @@ function setBasemap(i) {
   baseLayer.addTo(map);
   if (baseLayer.bringToBack) baseLayer.bringToBack();
   try { localStorage.setItem(LS_BASE, b.id); } catch (e) {}
+  // 아이콘은 그대로 두고 상태만 표시한다 (글자로 덮어쓰면 아이콘이 사라진다)
   const btn = document.getElementById('btnBase');
-  if (btn) { btn.textContent = b.icon; btn.title = T[b.key]; }
+  if (btn) {
+    btn.classList.toggle('on', b.id === 'detail');
+    btn.title = btn.ariaLabel = T[b.key];
+    btn.setAttribute('aria-pressed', String(b.id === 'detail'));
+  }
 }
 setBasemap(baseIdx);
 
@@ -408,14 +420,24 @@ map.on('zoomend', drawRoutes);
 
 /* 노선이 지나는 만큼만 돌아다니게 한다. 캠퍼스 셔틀 지도에서 전국을 볼 이유가
    없고, 오프라인 타일 캐시가 쓸데없이 커진다. */
-const NETWORK = L.latLngBounds(ROUTES.flatMap(r => r.path.coords)).pad(0.25);
+/* 가장자리 여유는 거리로 준다. 비율로 주면 남북으로만 넓어진다.
+   남쪽은 모바일에서 시트가 가리므로 조금 더 둔다. */
+const EDGE_M = 150, SOUTH_EXTRA_M = 1400;
+const NETWORK = (() => {
+  const b = L.latLngBounds(ROUTES.flatMap(r => r.path.coords));
+  const dLat = EDGE_M / 111000, dLng = EDGE_M / 90000;
+  return L.latLngBounds(
+    [b.getSouth() - dLat - SOUTH_EXTRA_M / 111000, b.getWest() - dLng],
+    [b.getNorth() + dLat, b.getEast() + dLng]);
+})();
 function clampToNetwork() {
   map.setMaxBounds(NETWORK);
   // 전체가 한 화면에 들어오는 배율까지만 (inside 를 켜면 반대로 잠긴다)
   map.setMinZoom(Math.max(11, Math.floor(map.getBoundsZoom(NETWORK))));
 }
 clampToNetwork();
-addEventListener('resize', clampToNetwork);
+paintZoom();
+addEventListener('resize', () => { clampToNetwork(); paintZoom(); });
 
 /* --- 정류장 마커 --- */
 let selected = null;
@@ -1044,6 +1066,9 @@ function toggleEdit() {
   }
   drawStops();
 }
+/* 좌표 보정은 유지보수용이다. 정류장이 다 맞춰진 뒤로는 감춰 두고,
+   주소에 ?edit 를 붙였을 때만 꺼낸다. */
+if (new URLSearchParams(location.search).has('edit')) $('btnEdit').hidden = false;
 $('btnEdit').onclick = toggleEdit;
 $('btnBase').onclick = () => setBasemap(baseIdx + 1);
 $('askNo').onclick = closeAsk;
