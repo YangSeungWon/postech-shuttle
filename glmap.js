@@ -235,6 +235,9 @@
       this._gl = new global.maplibregl.Popup({
         closeButton: !!o.closeButton, closeOnClick: true,
         className: o.className, maxWidth: (o.maxWidth || 240) + 'px',
+        /* anchor 를 안 주면 자리에 따라 위아래로 뒤집히는데, offset 은 그대로
+           적용돼서 아래로 붙을 때 표지가 마커를 덮는다. 늘 위에 세운다. */
+        anchor: o.anchor || 'bottom',
         offset: o.offset ? [o.offset[0], o.offset[1]] : 0,
       }).setLngLat(toGL(this._ll)).setHTML(this._html).addTo(map._gl);
       map._popup = this._gl;

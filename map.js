@@ -1102,8 +1102,9 @@ function centerInView(ll) {
 function reveal(ll) {
   const p = map.latLngToContainerPoint(ll);
   const s = map.getSize();
-  const m = 46;                              // 표지가 설 자리
-  const top = topInset() + m, bot = s.y - sheetHeight() - m;
+  const m = 46;
+  // 위쪽은 표지(약 46px)가 마커 위에 서므로 그만큼 더 비워야 한다
+  const top = topInset() + 96, bot = s.y - sheetHeight() - m;
   let dx = 0, dy = 0;
   if (p.x < m) dx = p.x - m; else if (p.x > s.x - m) dx = p.x - (s.x - m);
   if (p.y < top) dy = p.y - top; else if (p.y > bot) dy = p.y - bot;
@@ -1966,7 +1967,9 @@ function focusEmptyField() {
 function pointActions(ll, label, autoPan = true) {
   const id = 'pa' + Math.random().toString(36).slice(2, 8);
   L.popup({
-    closeButton: false, className: 'pa-popup', offset: [0, -8], autoPan, maxWidth: 240,
+    /* 늘 마커 위에 세운다. 정류장 점은 고르면 21px 로 커지므로 그만큼 띄운다. */
+    closeButton: false, className: 'pa-popup', anchor: 'bottom', offset: [0, -14],
+    autoPan, maxWidth: 240,
     // 표지가 시트·탭 뒤로 들어가지 않도록 가려지는 만큼 비워 둔다
     autoPanPaddingTopLeft: L.point(14, topInset() + 14),
     autoPanPaddingBottomRight: L.point(14, sheetHeight() + 14),
