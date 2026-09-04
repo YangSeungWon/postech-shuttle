@@ -924,6 +924,19 @@ async function geoPermission() {
 let pickingFor = null;
 function pickOnMap(which) {
   pickingFor = which;
+  /* 여기로 들어오면 입력칸이 blur 된다. 그 blur 는 "고르지 않고 나갔다" 로
+     보고 아까 것을 되돌려 놓는데, 지금은 지도에서 고르는 중이므로 되돌리면
+     안 된다. 되돌릴 것을 버리고 그 자리도 비워 둔다. */
+  if (which === 'from' || which === 'to') {
+    held = null;
+    if (which === 'from') { tripFrom = null; $('inFrom').value = ''; }
+    else { tripTo = null; $('inTo').value = ''; }
+    tripPlans = [];
+    layerTrip.clearLayers();
+    tripXings = []; drawCrossings(tripXings);
+    drawEnds();
+    render();
+  }
   closeAsk();
   $('pickHintText').textContent = which === 'me' ? T.pickHintMe : T.pickHint;
   $('pickHint').hidden = false;
@@ -2139,8 +2152,8 @@ for (const [id, field] of [['inFrom', 'from'], ['inTo', 'to']]) {
       }
       held = null;
     }
-    // 출발지를 빈 채로 두고 나갔으면 원래대로
-    if (field === 'from' && !tripFrom && !$('inFrom').value && myLL) {
+    // 출발지를 빈 채로 두고 나갔으면 원래대로 (지도에서 고르는 중이면 아니다)
+    if (field === 'from' && !pickingFor && !tripFrom && !$('inFrom').value && myLL) {
       tripFrom = { ll: myLL, label: T.here };
       $('inFrom').value = T.here;
       runTrip();
