@@ -53,9 +53,11 @@
      그래서 자리를 정해 두고 그 자리의 데이터만 갈아 끼운다. clearLayers 는
      자리 번호를 0 으로 되돌릴 뿐이고, 그리기가 끝난 뒤(마이크로태스크)
      남는 자리만 실제로 지운다. 마커는 DOM 이라 값이 싸므로 그냥 지운다. */
+  let rank = 0;
   function LayerGroup() {
     this._slots = []; this._n = 0; this._dom = [];
     this._map = null; this._key = 'g' + (++uid); this._trimQueued = false;
+    this._rank = ++rank;                     // 만든 차례 = 겹치는 차례
   }
   LayerGroup.prototype = {
     addTo(map) { this._map = map; map._groups.push(this); return this; },
@@ -75,7 +77,7 @@
     /* 다음 자리를 내준다 */
     _take() {
       const i = this._n++;
-      if (!this._slots[i]) this._slots[i] = { id: this._key + '_' + i, kind: null };
+      if (!this._slots[i]) this._slots[i] = { id: this._key + '_' + i, kind: null, rank: this._rank, seq: i };
       this._queueTrim();
       return this._slots[i];
     },
@@ -273,7 +275,10 @@
         if (src) src.setData(data);
         else this._gl.addSource(slot.id, { type: 'geojson', data });
         const lyr = this._gl.getLayer(slot.id);
-        if (!lyr) this._gl.addLayer({ ...spec, id: slot.id, source: slot.id });
+        /* 어느 자리 앞에 끼울지 정해 준다. 그냥 얹으면 늦게 만들어진 것이
+           늘 위로 가서, 버스 자취가 회색 노선 밑에 깔리는 일이 생긴다.
+           묶음 순위 → 그 안의 차례 순으로 줄을 세운다. */
+        if (!lyr) this._gl.addLayer({ ...spec, id: slot.id, source: slot.id }, this._before(slot));
         else for (const [k, v] of Object.entries(spec.paint)) {
           this._gl.setPaintProperty(slot.id, k, v);
         }
@@ -291,6 +296,17 @@
         { type: 'fill', paint: {
             'fill-color': c.options.color || '#1a73e8',
             'fill-opacity': c.options.fillOpacity == null ? .1 : c.options.fillOpacity } });
+    },
+    /* 이 자리보다 위에 와야 할 것 중 가장 앞선 것 */
+    _before(slot) {
+      let best = null;
+      for (const s of this._slots) {
+        if (!s.kind || s === slot) continue;
+        if (s.rank < slot.rank || (s.rank === slot.rank && s.seq <= slot.seq)) continue;
+        if (!this._gl.getLayer(s.id)) continue;
+        if (!best || s.rank < best.rank || (s.rank === best.rank && s.seq < best.seq)) best = s;
+      }
+      return best ? best.id : undefined;
     },
     _dropSlot(slot) {
       if (!slot) return;

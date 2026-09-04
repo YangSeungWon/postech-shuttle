@@ -543,7 +543,14 @@ function selectBus(key) {
   render();
 }
 
+let busPathKey = null;
 function drawBusPath(b) {
+  /* 자취는 버스가 다음 구간으로 넘어갈 때만 달라진다. 그런데 render 가
+     매번 부르는 바람에 1초마다 선과 화살표를 통째로 새로 그리고 있었다 —
+     깜빡임의 정체다. 달라졌을 때만 그린다. */
+  const key = b ? b.key + '@' + b.legIdx : null;
+  if (key === busPathKey) return;
+  busPathKey = key;
   layerBusPath.clearLayers();
   if (!b) return;
   const p = b.route.path;
@@ -2171,7 +2178,11 @@ fitWithSheet(L.latLngBounds(
    sheet 가 만들어진 뒤여야 하므로 시작 블록에서 부른다. */
 if (new URLSearchParams(location.search).get('view') === 'timetable') showTimetable();
 
+/* 시각 표시와 남은 시간은 1초면 충분하지만, 버스가 1초마다 한 번씩만
+   움직이면 뚝뚝 끊겨 보인다. 자리 옮기는 것만 따로 자주 돌린다 —
+   마커를 옮기는 일이라 값이 싸고, 목록을 다시 만들지는 않는다. */
 setInterval(() => { if (simMinutes === null) render(); }, 1000);
+setInterval(() => { if (simMinutes === null) drawBuses(nowMin()); }, 150);
 
 /* ================================================================== *
  * 언어 전환
