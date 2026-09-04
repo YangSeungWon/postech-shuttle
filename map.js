@@ -355,6 +355,7 @@ function pinHTML(cls, label) {
 
 function drawEnds() {
   layerEnds.clearLayers();
+  if (pickingFor) setTimeout(hideEndsUnderCursor, 0);
   for (const [pt, cls, label] of [[tripFrom?.ll, 'from', T.from], [tripTo?.ll, 'to', T.to]]) {
     if (!pt) continue;
     L.marker(pt, {
@@ -961,12 +962,32 @@ function pickOnMap(which) {
   sheet.goto(0);
   // 핀이 서는 자리는 위쪽 가림도 셈해야 한다
   document.documentElement.style.setProperty('--pick-top', topInset() + 'px');
+  // 시트가 자리를 잡은 뒤라야 커서 자리가 맞다
+  for (const d of [0, 60, 260, 420]) setTimeout(hideEndsUnderCursor, d);
 }
 function endPick() {
   pickingFor = null;
   $('pickHint').hidden = true;
   $('pickPin').hidden = true;
+  hideEndsUnderCursor();
 }
+
+/* 커서가 이미 서 있는 물방울과 딱 겹치면 둘이 하나로 보인다. 출발을 찍고
+   이어서 도착을 찍을 때가 그렇다 — 지도를 움직이지 않았으니 커서가 출발
+   물방울 자리에 그대로 선다. 가려지는 동안만 아래 것을 감춘다. */
+function hideEndsUnderCursor() {
+  const cur = $('pickPin');
+  const on = pickingFor && !cur.hidden;
+  const r = on ? cur.getBoundingClientRect() : null;
+  for (const el of document.querySelectorAll('.end-icon')) {
+    if (!on) { el.classList.remove('under-cursor'); continue; }
+    const e = el.getBoundingClientRect();
+    el.classList.toggle('under-cursor',
+      Math.abs((e.left + e.width / 2) - (r.left + r.width / 2)) < 24 &&
+      Math.abs(e.bottom - r.bottom) < 24);
+  }
+}
+map.on('move', hideEndsUnderCursor);
 function pickMyLocation() { pickOnMap('me'); }
 /* 핀이 가리키는 자리는 지도 한가운데가 아니다 — 위(입력칸)와 아래(시트·탭)에
    가려지는 만큼을 뺀 '보이는 가운데'에 선다. 그런데 여기서는 map.getCenter()

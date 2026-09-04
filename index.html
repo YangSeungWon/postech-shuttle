@@ -682,6 +682,10 @@ html[lang="en"] .arr .badge{--badge-w:58px}
 /* 물방울 꼭짓점(아래에서 2px 위)이 고르는 점이다 */
 .pick-cursor{transform:translate(-50%, calc(-100% + 2px))}
 .pick-cursor .trip-pin{filter:drop-shadow(0 3px 9px rgba(0,0,0,.45))}
+/* 커서에 가려 겹쳐 보이는 동안만 감춘다. MapLibre 가 마커 요소의
+   opacity 를 인라인으로 직접 건드리므로 안쪽 물방울을 감춘다. */
+.end-icon .trip-pin{transition:opacity .12s ease}
+.end-icon.under-cursor .trip-pin{opacity:0}
 .trip-pin.me{--pc:#1a73e8}
 @media (min-width:821px){ .pick-cursor{left:calc(50% + var(--panel-w) / 2)} }
 

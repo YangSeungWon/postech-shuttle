@@ -175,18 +175,41 @@ function planTrip(from, to, depart, ctx, keepRide = false) {
 
 /* 셔틀에서 실제 질문은 "이거 놓치면 다음은 언제"다. 위의 걸러내기로 비슷비슷한
    안이 빠지고 나면 한 줄만 남는 일이 많아, 그 뒤차를 이어 붙여 목록을 채운다. */
+/* 오늘 차가 끝났을 때 내미는 '다음 운행일' 안. 하나만 뽑으면 그날 가장 이른
+   차 하나 — 지곡·유강 첫차 — 만 남아, 어느 목적지를 찍어도 같은 차만 뜬다.
+   타는 노선 조합이 다른 것을 모아 여러 줄로 준다. */
+function firstOfDay(from, to, ctx, want) {
+  const rides = r => r.legs.filter(l => l.kind === 'ride');
+  const cands = [];
+  /* 첫차만 보면 순환은 09:00 하나뿐이다. 하루를 훑어 노선 조합마다
+     가장 이른 것을 모은다. */
+  for (let t = 0; t < 24 * 60; t += 30) {
+    for (const r of planTrip(from, to, t, ctx, true)) {
+      if (rides(r).length) cands.push(r);
+    }
+  }
+  const byRoute = new Map();
+  for (const r of cands.sort((a, b) => a.leave - b.leave || a.walkMin - b.walkMin)) {
+    /* 지곡·유강은 출발 시각마다 노선 id 가 다르다. id 로 묶으면 같은 노선의
+       첫차·둘째차·셋째차가 서로 다른 것인 양 목록을 다 차지한다. */
+    const sig = rides(r).map(l => l.route.group || l.route.name).join('>');
+    if (!byRoute.has(sig)) byRoute.set(sig, r);
+  }
+  return [...byRoute.values()]
+    .sort((a, b) => a.walkMin - b.walkMin || a.leave - b.leave)
+    .slice(0, want)
+    .sort((a, b) => a.leave - b.leave)
+    .map(r => (r.nextDay = true, r));
+}
+
 function planTripSeries(from, to, depart, ctx, want = 3) {
   const hasRide = r => r.legs.some(l => l.kind === 'ride');
   const first = planTrip(from, to, depart, ctx);
   if (!first.length) {
     /* 걸어가기엔 멀고(MAX_WALK_MIN 초과) 버스는 끝난 밤이면 여기가 빈다.
        "갈 방법이 없다" 와 "오늘은 끝났다" 는 다른 말이므로 첫차를 찾아 준다. */
-    /* 이른 도착만 보면 엉뚱한 것이 뽑힌다 — 목적지를 12분 걸어 지나친 뒤
-       버스를 타고 다시 15분 걷는 안이 그렇다. 덜 걷는 쪽을 먼저 본다. */
-    const [firstOfDay] = planTrip(from, to, 0, ctx, true).filter(hasRide)
-      .sort((a, b) => a.walkMin - b.walkMin || a.arrive - b.arrive);
-    if (firstOfDay) { firstOfDay.nextDay = true; return [firstOfDay]; }
-    return first;
+    const next = firstOfDay(from, to, ctx, want);
+    return next.length ? next : first;
   }
   /* 뒤차를 붙일 때 아무거나 붙이면 안 된다. 3분이면 가는 길에 "나중에 떠나는"
      24분짜리를 끼워 넣는 일이 있었다 — 늦게 나간다는 것 하나로 살아남는다.
@@ -214,14 +237,8 @@ function planTripSeries(from, to, depart, ctx, want = 3) {
   /* 결과가 아예 없을 때도 붙여야 한다 — 걸어가기엔 멀고(20분 초과) 버스는
      끝난 밤이면 "이 시각에 갈 수 있는 경로가 없습니다" 만 남았다. 갈 방법이
      없다는 말과 오늘은 끝났다는 말은 다르다. */
-  if (!out.some(hasRide)) {
-    /* 이른 도착만 보면 엉뚱한 것이 뽑힌다 — 목적지를 12분 걸어 지나친 뒤
-       버스를 타고 다시 15분 걷는 안이 그렇다. 덜 걷는 쪽을 먼저 본다. */
-    const [firstOfDay] = planTrip(from, to, 0, ctx, true).filter(hasRide)
-      .sort((a, b) => a.walkMin - b.walkMin || a.arrive - b.arrive);
-    // 세로 목록이라 따로 두어도 눈에 들어온다 — 지금 탈 수 있는 것과 섞지 않는다
-    if (firstOfDay) { firstOfDay.nextDay = true; out.push(firstOfDay); }
-  }
+  // 세로 목록이라 따로 두어도 눈에 들어온다 — 지금 탈 수 있는 것과 섞지 않는다
+  if (!out.some(hasRide)) out.push(...firstOfDay(from, to, ctx, want));
   return out;
 }
 
