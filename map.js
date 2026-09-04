@@ -320,7 +320,13 @@ function patchGlForRotation(layer) {
   layer._update = function (e) {
     orig(e);
     const c = layer._container;
-    if (!c) return;
+    if (!c || !layer._map) return;
+    /* 줌 애니메이션 동안 라이브러리는 자리를 잡지 않는다 — 캔버스를 늘려서
+       흉내내다가 끝나면 다시 잡는다. 그 사이에 끼어들면 배경만 따로 논다. */
+    if (layer._zooming) return;
+    /* 안 돌아가 있으면 라이브러리 계산과 값이 같다(측정 결과 0px). 건드릴
+       이유가 없고, 건드리면 이렇게 사고만 난다. */
+    if (!map.getBearing()) return;
     const half = layer.getSize().divideBy(2);
     L.DomUtil.setPosition(c, map.latLngToLayerPoint(map.getCenter()).subtract(half)._round());
   };
