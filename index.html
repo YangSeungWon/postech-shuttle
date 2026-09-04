@@ -783,24 +783,17 @@ body.strip-on .mapbtns{bottom:calc(var(--strip) + var(--kb) + var(--tabs-h) + 22
 .end-icon{overflow:visible}
 .trip-pin{
   --pc:#1a8a4a;
-  position:relative;width:38px;height:38px;border-radius:50%;
-  border:3px solid #fff;background:var(--pc);
+  position:relative;width:46px;height:55px;
+  filter:drop-shadow(0 2px 5px rgba(0,0,0,.4));
+}
+.trip-pin svg{display:block;width:46px;height:55px}
+/* 원과 꼭짓점이 접선으로 이어지는 진짜 물방울. 삼각형을 이어 붙이면 이음매가
+   보인다 — 반지름 19, 꼭짓점 (0,30), 접점 (±14.7, 12.03) 에서 매끄럽게 만난다. */
+.trip-pin path{fill:var(--pc);stroke:#fff;stroke-width:3;stroke-linejoin:round}
+.trip-pin span{
+  position:absolute;left:0;right:0;top:0;height:46px;
   display:grid;place-items:center;
   color:#fff;font-size:12.5px;font-weight:900;letter-spacing:-.04em;line-height:1;
-  box-shadow:0 2px 8px rgba(0,0,0,.4);
-}
-/* 꼬리도 몸통처럼 흰 테두리를 두른다 — 삼각형에는 테두리를 줄 수 없어
-   흰 것 위에 색 있는 것을 겹친다(::before 가 먼저 칠해진다) */
-.trip-pin::before, .trip-pin::after{
-  content:'';position:absolute;left:50%;top:100%;
-}
-.trip-pin::before{
-  margin-left:-10px;border-left:10px solid transparent;border-right:10px solid transparent;
-  border-top:17px solid #fff;
-}
-.trip-pin::after{
-  margin-left:-7px;border-left:7px solid transparent;border-right:7px solid transparent;
-  border-top:12px solid var(--pc);
 }
 .trip-pin.to{--pc:var(--postech-red)}
 /* 승하차 지점은 노선 색 테두리를 인라인으로 받는다 */

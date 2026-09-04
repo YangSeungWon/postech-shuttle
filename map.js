@@ -349,9 +349,13 @@ function drawEnds() {
     if (!pt) continue;
     L.marker(pt, {
       // 물방울 끝이 지점이다 — 가운데가 아니라 아래 끝에 맞춘다
-      // 꼬리 끝(아래 한가운데)이 실제 지점이다: 동그라미 38 + 테두리 6 + 꼬리 17
-      icon: L.divIcon({ className: 'end-icon', iconSize: [44, 61], iconAnchor: [22, 61],
-        html: `<div class="trip-pin ${cls}">${label}</div>` }),
+      // 물방울 꼭짓점(아래 한가운데)이 실제 지점이다
+      icon: L.divIcon({ className: 'end-icon', iconSize: [46, 55], iconAnchor: [23, 53],
+        html: `<div class="trip-pin ${cls}">
+                 <svg viewBox="-23 -23 46 55" aria-hidden="true">
+                   <path d="M0 30 L-14.7 12.03 A19 19 0 1 1 14.7 12.03 Z"/>
+                 </svg><span>${label}</span>
+               </div>` }),
       zIndexOffset: 600, interactive: false, keyboard: false,
     }).addTo(layerEnds);
   }
@@ -750,6 +754,11 @@ if (new URLSearchParams(location.search).has('debug')) {
       console.log(`[debug] ${name}: 상자 ${r.width.toFixed(1)}×${r.height.toFixed(1)}`
         + ` (지정 ${el.style.width || '?'}×${el.style.height || '?'})`
         + ` · 어긋남 (${(gotX - want.x).toFixed(1)}, ${(gotY - want.y).toFixed(1)})px`);
+    }
+    {
+      const h = $('hero');
+      console.log('[debug] hero 숨김', h.hidden, '· offsetTop', h.offsetTop, '· 높이', h.offsetHeight,
+                  '| --sheet', document.documentElement.style.getPropertyValue('--sheet'));
     }
     console.log('[debug] 방위', map.getBearing().toFixed(1), '· 기울기',
                 (map._gl.getPitch?.() ?? 0).toFixed(1));
@@ -2452,10 +2461,14 @@ const sheet = (() => {
   /* 접힌 높이는 "가장 가까운 정류장 한 줄이 보이는" 만큼이다. 손잡이와
      시트 위 여백까지 세야 그 줄이 실제로 드러난다 — 예전에는 hero 높이만
      보고 76px 을 잡아, 손잡이에 밀려 줄이 통째로 잠겼다. */
+  /* 접힌 높이는 "가장 가까운 정류장 한 줄이 다 보이는" 만큼이다. 손잡이
+     높이와 시트 여백을 더해 짐작하지 말고, hero 가 실제로 앉은 자리를
+     레이아웃에서 잰다 — offsetTop 이 여백과 손잡이를 이미 셈하고 있다. */
   const peek = () => {
-    const g = grab.offsetHeight || 22;
-    const h = $('hero').hidden ? 0 : ($('hero').offsetHeight || 66);
-    return Math.max(52 + g, g + h + 10);
+    const h = $('hero');
+    // hero 가 없거나 숨었으면 보여 줄 것이 없다 — 손잡이만 남긴다
+    if (!h || h.hidden || !h.offsetHeight) return (grab.offsetHeight || 22) + 12;
+    return Math.round(h.offsetTop + h.offsetHeight + 10);
   };
   const snaps = () => [peek(), Math.round(vh() * 0.46), Math.round(vh() * 0.88)];
   let cur = 0;
