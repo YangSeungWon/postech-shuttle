@@ -2171,6 +2171,7 @@ for (const [id, field] of [['inFrom', 'from'], ['inTo', 'to']]) {
   $(id).addEventListener('input', e => { activeField = field; drawSuggest(search(e.target.value, myLL)); });
   $(id).addEventListener('focus', e => {
     activeField = field;
+    if (pickingFor) endPick();         // 칸으로 돌아왔으면 지도에서 고르기는 그만이다
     /* 이 칸을 고치는 중이라는 뜻이다. 그 자리와 지난 경로는 지도에서 치운다 —
        바꾸는 중인 것이 남아 있으면 무엇이 지금 정해진 것인지 헷갈린다.
        반대쪽은 그대로 둔다. 고르지 않고 나가면 blur 에서 되돌린다. */
@@ -2251,6 +2252,7 @@ $('btnNow').onclick = () => {
 };
 
 $('btnSwap').onclick = () => {
+  if (pickingFor) endPick();
   [tripFrom, tripTo] = [tripTo, tripFrom];
   $('inFrom').value = tripFrom?.label || '';
   $('inTo').value = tripTo?.label || '';
@@ -2291,6 +2293,10 @@ function editEnd(which) {
  * 검색으로만 입력받으면 이름을 모르는 지점은 지정할 방법이 없다.
  */
 function setEndpoint(which, place) {
+  /* 지도에서 자리를 고르는 중에 정류장을 누르거나 목록에서 골랐다는 것은
+     고르기를 그만두겠다는 뜻이다. 커서와 안내 띠를 남겨 두면 무엇을 하는
+     중인지 알 수 없다. ('여기로' 는 이미 스스로 끝내고 들어온다) */
+  if (pickingFor) endPick();
   // openTrip 이 먼저 포커스를 잡아 버리므로 제안 목록은 여기서 직접 그린다
   if (!$('trip').classList.contains('show')) openTrip(true, false);
   if (which === 'from') { tripFrom = place; $('inFrom').value = place.label; }
