@@ -781,6 +781,16 @@ body.trip-top-on:not(.strip-on) .mapbtns{bottom:calc(var(--kb) + 22px)}
   padding:8px 10px;display:flex;align-items:center;gap:9px;white-space:nowrap;
 }
 .when-pop[hidden]{display:none}
+/* 시각을 정해 둔 상태에서만 나오는 되돌리기. 한 번 정하면 "지금" 으로
+   돌아갈 길이 없었다 — 시각 입력을 비우는 것 말고는 방법이 없었는데
+   모바일 시각 선택기에는 그런 길이 거의 없다. */
+.when-clear{
+  flex:0 0 auto;width:26px;height:26px;padding:0;border:0;background:var(--soft);
+  border-radius:50%;color:#69717d;font-size:13px;font-weight:900;
+  display:grid;place-items:center;text-decoration:none;
+}
+.when-clear[hidden]{display:none}
+.when-clear:hover{background:var(--postech-red);color:#fff}
 /* 확대·축소는 지도 앱 관행대로 한 덩어리로 붙인다 */
 .zoomer{
   display:flex;flex-direction:column;border-radius:14px;overflow:hidden;
@@ -995,6 +1005,7 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
       <button id="btnMode" class="mode" aria-label="출발·도착 기준 바꾸기">출발</button>
       <button id="btnWhen">지금 출발</button>
       <input type="time" id="whenTime" hidden aria-label="시각">
+      <button id="btnNow" class="when-clear" hidden aria-label="지금으로">✕</button>
     </div>
     <button class="mapbtn" id="btnClock" aria-expanded="false" aria-controls="whenPop"
             aria-label="출발·도착 시각"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.2V12l3.2 2"/></svg><span class="clock-tag" id="clockTag" hidden></span></button>

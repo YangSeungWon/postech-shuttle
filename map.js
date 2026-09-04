@@ -1931,6 +1931,7 @@ function whenLabel() {
   tag.hidden = !set;
   if (set) tag.textContent = fmt(simMinutes);
   $('btnClock').classList.toggle('on', set);
+  $('btnNow').hidden = !set;
   // 아이콘만으로는 출발 기준인지 도착 기준인지 알 수 없다
   $('btnClock').setAttribute('aria-label',
     set ? (tripMode === 'depart' ? T.departAt(fmt(simMinutes)) : T.arriveBy(fmt(simMinutes)))
@@ -1970,6 +1971,10 @@ $('whenTime').onchange = e => {
   whenLabel(); closeWhen(); runTrip(); render();
 };
 $('whenTime').onblur = e => { e.target.hidden = true; $('btnWhen').hidden = false; };
+$('btnNow').onclick = () => {
+  simMinutes = null; tripMode = 'depart';
+  whenLabel(); closeWhen(); runTrip(); render();
+};
 
 $('btnSwap').onclick = () => {
   [tripFrom, tripTo] = [tripTo, tripFrom];
@@ -2415,7 +2420,8 @@ function applyLang() {
   set('askNo', T.askNo);
   set('skipLink', T.skip);
   $('btnMode').ariaLabel = T.modeSwitch;
-  $('btnClock').title = T.whenTitle;   // 라벨은 whenLabel 이 시각까지 넣어 다시 쓴다
+  $('btnClock').title = T.whenTitle;
+  $('btnNow').title = $('btnNow').ariaLabel = T.resetTime;   // 라벨은 whenLabel 이 시각까지 넣어 다시 쓴다
   $('tripClose').title = $('tripClose').ariaLabel = T.close;
   sheet.relabel();
   set('tabNear', T.tabNear); set('tabRoutes', T.tabRoutes);
