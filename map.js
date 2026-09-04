@@ -469,7 +469,13 @@ function drawStops() {
     }).addTo(layerStops);
     m.getElement()?.setAttribute('aria-label', stopLabel(s.name));
     m.getElement()?.setAttribute('role', 'button');
-    m.on('click', () => { selectStop(s.name); pointActions(s.ll, stopLabel(s.name)); });
+    m.on('click', () => {
+      // 경로를 안내하는 중에는 출발·도착이 이미 정해져 있다. 그 자리에서
+      // 다시 찍을 일이 없으므로 표지를 띄우지 않는다.
+      if (guiding()) return;
+      selectStop(s.name);
+      pointActions(s.ll, stopLabel(s.name));
+    });
     m.bindTooltip(stopLabel(s.name), { direction: 'right', offset: [10, 0] });
     m.on('dragend', e => {
       const only = s.members[0];
@@ -1379,7 +1385,7 @@ function pointActions(ll, label) {
 }
 
 /* 지도 길게 누르기 (터치) 와 오른쪽 클릭 모두 contextmenu 로 들어온다 */
-map.on('contextmenu', e => pointActions(e.latlng, T.mapPoint));
+map.on('contextmenu', e => { if (!guiding()) pointActions(e.latlng, T.mapPoint); });
 
 function runTrip() {
   if (!tripFrom || !tripTo) { tripPlans = []; collapseForm(false); layerTrip.clearLayers(); render(); return; }

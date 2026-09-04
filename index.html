@@ -210,7 +210,7 @@ button{cursor:pointer}
 .trip-summary .arrow{flex:0 0 auto;color:var(--muted);font-weight:900;font-size:14px}
 
 /* 출발 시각 */
-.trip-when{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:2px}
+.trip-when{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:8px}
 .trip-when .mode{
   border:1px solid var(--line);border-radius:9px;padding:6px 10px;
   background:#fff;color:#69717d;font-size:12.5px;font-weight:900;text-decoration:none;
@@ -617,11 +617,11 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
         <button class="mini" id="btnSwap" title="출발·도착 바꾸기" aria-label="출발·도착 바꾸기">⇅</button>
       </div>
       <div class="suggest" id="suggest" role="listbox" aria-label="검색 결과"></div>
-      <div class="trip-when">
-        <button id="btnMode" class="mode" aria-label="출발·도착 기준 바꾸기">출발</button>
-        <button id="btnWhen">지금 출발</button>
-        <input type="time" id="whenTime" hidden aria-label="시각">
-      </div>
+    </div>
+    <div class="trip-when">
+      <button id="btnMode" class="mode" aria-label="출발·도착 기준 바꾸기">출발</button>
+      <button id="btnWhen">지금 출발</button>
+      <input type="time" id="whenTime" hidden aria-label="시각">
     </div>
   </div>
   <div class="filters" id="filters" role="group" aria-label="노선 선택"></div>
