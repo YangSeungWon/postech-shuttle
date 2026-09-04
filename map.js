@@ -537,7 +537,10 @@ function drawBuses(t) {
     if (!m) {
       m = L.marker(b.ll, {
         icon: L.divIcon({
-          className: 'bus-icon', iconSize: null, iconAnchor: [0, 0],
+          /* 버스를 좌표 한가운데 놓으면 정류장에 섰을 때 정류장 마커를
+             통째로 덮어, 정류장을 누를 수가 없다. 아래 끝을 좌표에 맞춰
+             정류장 위에 서게 한다. */
+          className: 'bus-icon', anchor: 'bottom', iconSize: null, iconAnchor: [0, 0],
           html: `<div class="bus ${b.waiting ? 'waiting' : ''}" style="--c:${b.route.color}">
                    <i class="bus-dir"></i>
                    <span class="bus-body"><span class="bus-win"></span>${label}</span>
@@ -600,6 +603,11 @@ let selectedBus = null;
 const layerBusPath = L.layerGroup().addTo(map);
 
 function selectBus(key) {
+  /* 정류장을 고른 채로 버스를 누르면 그 정류장의 출발·도착 표지가 지도에
+     그대로 떠 있었다. 이제 버스를 보겠다는 뜻이니 정류장은 놓는다 —
+     selectStop 이 버스를 놓는 것과 같다. */
+  map.closePopup();
+  if (selected) { selected = null; paintSelection(); }
   selectedBus = selectedBus === key ? null : key;
   followBus = !!selectedBus;
   if (followBus) {

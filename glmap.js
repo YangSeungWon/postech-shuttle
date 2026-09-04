@@ -191,6 +191,8 @@
       off = [ic.iconSize[0] / 2 - ic.iconAnchor[0], ic.iconSize[1] / 2 - ic.iconAnchor[1]];
     }
     this._offset = off;
+    // 'bottom' 이면 아이콘 아래 끝이 좌표에 놓인다 (크기를 몰라도 된다)
+    this._anchor = this.options.anchor || 'center';
   }
   Marker.prototype = {
     addTo(target) {
@@ -198,7 +200,8 @@
       if (target.addLayer) target.addLayer(this);
       this._map = map;
       this._gl = new global.maplibregl.Marker({
-        element: this._el, offset: this._offset, draggable: !!this.options.draggable,
+        element: this._el, offset: this._offset, anchor: this._anchor,
+        draggable: !!this.options.draggable,
         // 지도를 돌려도 아이콘은 똑바로 서 있어야 읽힌다
         rotationAlignment: 'viewport', pitchAlignment: 'viewport',
       }).setLngLat(toGL(this._ll)).addTo(map._gl);
