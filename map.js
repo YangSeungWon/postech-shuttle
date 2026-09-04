@@ -512,7 +512,7 @@ map.on('zoomend', () => { drawStops(); paintLabels(); });
 const busMarkers = new Map();
 /* 고른 버스를 따라간다. 그 차를 보겠다고 누른 것이니 화면 밖으로 나가면
    안 된다. 지도를 끌면 놓아 준다 — 그때는 다른 데를 보겠다는 뜻이다. */
-let followBus = false, followTick = 0;
+let followBus = false;
 
 function drawBuses(t) {
   const routeIds = guiding()
@@ -569,22 +569,14 @@ function drawBuses(t) {
     );
   }
   for (const [k, m] of busMarkers) if (!keep.has(k)) { layerBuses.removeLayer(m); busMarkers.delete(k); }
-  /* 따라가기. 매 프레임 지도를 다시 앉히면 화면 전체가 미세하게 떨리고
-     (게다가 시트 높이를 재느라 매번 레이아웃이 걸린다), 버스가 제자리에
-     붙박인 채 배경만 움직여 오히려 어색하다. 화면 밖으로 밀려날 때만
-     한 번씩 데려온다 — 그 사이 버스는 화면 안에서 자유롭게 움직인다. */
+  /* 따라가기. 자리를 옮길 때마다 지도를 그 자리에 맞춘다 — 애니메이션
+     없이 그냥 앉히면 된다. 버스가 이미 부드럽게 움직이므로 화면도 부드럽게
+     따라간다. (예전에 떨린 것은 시트 높이를 매 프레임 재느라 레이아웃이
+     걸려서였다. 이제 묵혀 쓴다.) */
   if (followBus) {
     const b = live.find(x => x.key === selectedBus);
     if (!b) followBus = false;              // 운행이 끝났다
-    else if (++followTick % 10 === 0) {     // 초당 예닐곱 번이면 충분하다
-      const p = map.latLngToContainerPoint(b.ll);
-      const s = map.getSize();
-      const top = topInset(), bot = s.y - sheetHeight();
-      const mx = s.x * 0.22, my = Math.max(60, (bot - top) * 0.22);
-      if (p.x < mx || p.x > s.x - mx || p.y < top + my || p.y > bot - my) {
-        map.panTo(offsetForSheet(b.ll));
-      }
-    }
+    else map.setView(offsetForSheet(b.ll), map.getZoom());
   }
   return live;
 }
@@ -1063,12 +1055,21 @@ function selectStop(name) {
 }
 
 /* 시트에 가리는 만큼 지도 중심을 위로 올린 좌표 */
+/* 아래가 가려지는 높이. offsetHeight 를 읽으면 그 자리에서 레이아웃이
+   걸리는데, 버스를 따라가느라 매 프레임 부르면 그것만으로 화면이 떤다.
+   0.25초쯤 묵혀 쓴다 — 시트가 그보다 빨리 오르내리지는 않는다. */
+let sheetHCache = { at: -1e9, v: 0 };
 const sheetHeight = () => {
+  const now = performance.now();
+  if (now - sheetHCache.at < 250) return sheetHCache.v;
   const tabs = $('tabs')?.offsetHeight && window.matchMedia('(max-width:820px)').matches
     ? $('tabs').offsetHeight : 0;
   // 카드 띠가 떠 있으면 시트는 물러나 있고, 아래를 가리는 건 띠다
-  if (document.body.classList.contains('strip-on')) return $('planStrip').offsetHeight + tabs;
-  return (typeof sheet === 'undefined' ? 0 : sheet.height()) + tabs;
+  const v = document.body.classList.contains('strip-on')
+    ? $('planStrip').offsetHeight + tabs
+    : (typeof sheet === 'undefined' ? 0 : sheet.height()) + tabs;
+  sheetHCache = { at: now, v };
+  return v;
 };
 /* 방금 잡았다는 신호. 애니메이션을 다시 걸려면 지웠다가 리플로우를 한 번
    거쳐야 한다 — 클래스만 다시 붙이면 브라우저가 같은 상태로 보고 넘긴다. */
