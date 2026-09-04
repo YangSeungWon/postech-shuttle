@@ -349,6 +349,8 @@ button{cursor:pointer}
 .panel-links button:hover,.panel-links a:hover{color:var(--postech-red)}
 
 /* 전체 시간표 표 */
+.tt-head{display:flex;align-items:center;gap:8px;text-transform:none;font-size:15px;color:var(--ink);margin-top:22px}
+.tt-head .badge{font-size:12px}
 .view-head{display:flex;align-items:center;gap:8px;text-transform:none;font-size:15px;color:var(--ink)}
 .back{border:0;background:none;font-size:19px;font-weight:900;color:var(--ink);padding:2px 6px;line-height:1}
 .tt-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:14px}
@@ -363,6 +365,23 @@ button{cursor:pointer}
 .tt tr.past td{color:#B9BFC8;font-weight:600}
 .tt tr.next td{background:var(--postech-red-050);color:var(--postech-red-700);font-weight:900}
 .panel-links button{cursor:pointer}
+
+/* 설치 유도 한 줄. 한 번 물러나면 다시 나오지 않는다. */
+.nudge{
+  display:flex;align-items:center;gap:9px;margin:14px 0 2px;
+  padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:#fff;
+  font-size:13.5px;font-weight:800;color:var(--ink);
+}
+.nudge-icon{
+  flex:0 0 auto;width:24px;height:24px;border-radius:8px;display:grid;place-items:center;
+  background:var(--postech-red-050);color:var(--postech-red);font-size:15px;font-weight:900;
+}
+.nudge-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nudge-yes{
+  margin-left:auto;flex:0 0 auto;border:0;border-radius:9px;padding:7px 12px;
+  background:var(--postech-red);color:#fff;font-size:13px;font-weight:900;
+}
+.nudge-x{flex:0 0 auto;border:0;background:none;color:var(--muted);font-size:14px;padding:5px 3px}
 
 /* ---------- notice ---------- */
 .notice{

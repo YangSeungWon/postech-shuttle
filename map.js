@@ -583,6 +583,74 @@ function drawBusPath(b) {
 let myLL = null, myMarker = null, myCircle = null, watchId = null, followMe = false;
 let geoError = null;                         // 실패 사유를 패널에 안내한다
 
+/* ---------- 앱으로 설치 ---------- *
+ * 조건은 다 갖췄지만 알려 주는 것이 없으면 사용자가 브라우저 메뉴를 뒤져야 한다.
+ * 안드로이드·데스크톱 크롬은 프롬프트를 잡아 두었다가 띄우고,
+ * iOS 사파리는 프롬프트가 없으므로 방법을 알려 준다.
+ */
+let installPrompt = null;
+let alreadyInstalled = false;          // 브라우저 탭으로 보는 중이지만 설치는 되어 있음
+const isStandalone = () =>
+  matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const ua = () => navigator.userAgent;
+const isIOS = () => /iPad|iPhone|iPod/.test(ua());
+const isAndroid = () => /Android/.test(ua());
+
+/* 크롬은 프롬프트를 주고, 그렇지 않은 브라우저(iOS 사파리, 안드로이드 파이어폭스
+   등)는 직접 띄울 방법이 없어 경로만 알려 준다. 설치할 수 없는 데스크톱
+   파이어폭스에서는 아무것도 보이지 않는다. */
+const canInstall = () =>
+  !isStandalone() && !alreadyInstalled && (!!installPrompt || isIOS() || isAndroid());
+
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; render(); });
+addEventListener('appinstalled', () => { installPrompt = null; alreadyInstalled = true; render(); });
+
+/* 설치했는지 물어볼 수 있는 브라우저에서는 물어본다 (크롬 계열) */
+(async () => {
+  try {
+    const apps = await navigator.getInstalledRelatedApps?.();
+    if (apps?.length) { alreadyInstalled = true; render(); }
+  } catch (e) { /* 지원하지 않는 브라우저 */ }
+})();
+
+/* 한 번 물러나면 다시 권하지 않는다 */
+const LS_NUDGE = 'postech-shuttle-install-nudge';
+let nudgeOff = false;
+try { nudgeOff = localStorage.getItem(LS_NUDGE) === 'off'; } catch (e) {}
+const showNudge = () => canInstall() && !nudgeOff;
+function dismissNudge() {
+  nudgeOff = true;
+  try { localStorage.setItem(LS_NUDGE, 'off'); } catch (e) {}
+  render();
+}
+
+/* 브라우저마다 경로가 다르다 */
+function installSteps() {
+  if (isIOS()) return T.stepsIOS;
+  if (isAndroid()) return /Firefox|FxiOS/.test(ua()) ? T.stepsFirefox : T.stepsAndroid;
+  return T.stepsDesktop;
+}
+
+async function install() {
+  if (installPrompt) {
+    installPrompt.prompt();
+    await installPrompt.userChoice;
+    installPrompt = null;
+    render();
+    return;
+  }
+  // 프롬프트를 주지 않는 브라우저 — 경로를 알려 준다
+  const el = $('ask');
+  $('askTitle').textContent = T.installTitle;
+  $('askBody').innerHTML = '<ol class="ask-steps">'
+    + installSteps().map(x => `<li>${x}</li>`).join('') + '</ol>';
+  $('askYes').textContent = T.gotIt;
+  $('askYes').onclick = closeAsk;
+  $('askNo').textContent = T.askNo;
+  $('askNo').onclick = closeAsk;
+  openAsk(el);
+}
+
 /* 브라우저 권한 상태 — 알 수 없으면 null */
 async function geoPermission() {
   try { return (await navigator.permissions.query({ name: 'geolocation' })).state; }
@@ -849,13 +917,11 @@ function busCard(b, t) {
 }
 
 /* 전체 시간표. 정류장을 가로로, 운행을 세로로 놓은 표.
-   좁은 화면에서는 가로로 스크롤한다. */
-function timetableView(t) {
-  const g = focusGroup || 'route1';
-  // 시간대 구분은 확장노선에만 있다. 순환노선에 걸면 표가 통째로 비어 버린다.
+   좁은 화면에서는 가로로 스크롤한다. '전체' 를 고르면 노선을 모두 이어 붙인다. */
+function routeTable(g, t) {
   const runs = ROUTES.filter(r => r.group === g
     && (!isExt(g) || !focusPeriod || r.period === focusPeriod));
-  if (!runs.length) return `<div class="notice warn">${T.notRunning}</div>`;
+  if (!runs.length) return '';
 
   const stops = runs[0].stops;
   const rows = runs.flatMap(r => r.tripsMin.map(trip => ({ r, trip })))
@@ -864,19 +930,27 @@ function timetableView(t) {
   const nextIdx = running ? rows.findIndex(x => x.trip[0] >= t) : -1;
 
   const head = stops.map(n => `<th scope="col">${stopLabel(n)}</th>`).join('');
-  const body = rows.map(({ r, trip }, i) => {
+  const body = rows.map(({ trip }, i) => {
     const cls = i === nextIdx ? 'next' : (running && trip[trip.length - 1] < t ? 'past' : '');
-    return `<tr class="${cls}">`
-      + trip.map(m => `<td>${fmt(m)}</td>`).join('')
-      + '</tr>';
+    return `<tr class="${cls}">` + trip.map(m => `<td>${fmt(m)}</td>`).join('') + '</tr>';
   }).join('');
 
-  return `${isExt(g) ? periodSwitch() : ''}
-    <div class="sec-title">${T.routeTimetable(groupLabel(g))}</div>
+  return `<div class="sec-title tt-head">
+      <span class="badge" style="background:${GROUPS.find(x => x.id === g).color}">${
+        badge(ROUTES.find(r => r.group === g))}</span>${T.routeTimetable(groupLabel(g))}
+    </div>
     <div class="tt-wrap"><table class="tt">
       <thead><tr>${head}</tr></thead><tbody>${body}</tbody>
-    </table></div>
-    <div class="notice">${T.timetableHint}</div>`;
+    </table></div>`;
+}
+
+function timetableView(t) {
+  const groups = focusGroup ? [focusGroup] : GROUPS.map(g => g.id);
+  // 확장노선은 시간대별로 경로가 다르므로 전환을 함께 보여 준다
+  const period = groups.some(isExt) ? periodSwitch(groups.find(isExt)) : '';
+  const tables = groups.map(g => routeTable(g, t)).filter(Boolean).join('');
+  if (!tables) return `<div class="notice warn">${T.notRunning}</div>`;
+  return period + tables + `<div class="notice">${T.timetableHint}</div>`;
 }
 
 function stopCard(name, t, walk) {
@@ -970,7 +1044,12 @@ function drawHero(t, walks, walkTo) {
   setHero(el, html, () => { selectStop(best.g.name); sheet.goto(1); }, label);
 }
 
-function showTimetable() { view = 'timetable'; sheet.goto(2); render(); }
+function showTimetable() {
+  view = 'timetable';
+  if (!focusPeriod) focusPeriod = nowMin() < 12 * 60 ? '오전' : '오후';
+  sheet.goto(2);
+  render();
+}
 
 function render() {
   const t = nowMin();
@@ -1025,6 +1104,15 @@ function render() {
       .filter(Boolean)
       .sort((a, b) => a.min - b.min)[0] || null;
   };
+
+  if (showNudge()) {
+    html += `<div class="nudge">
+      <span class="nudge-icon" aria-hidden="true">＋</span>
+      <span class="nudge-text">${T.installNudge}</span>
+      <button type="button" class="nudge-yes" id="nudgeYes">${T.installNow}</button>
+      <button type="button" class="nudge-x" id="nudgeNo" aria-label="${T.close}">✕</button>
+    </div>`;
+  }
 
   const bus = selectedBus ? live.find(b => b.key === selectedBus) : null;
   if (selectedBus && !bus) selectedBus = null;      // 운행이 끝나면 놓아 준다
@@ -1095,6 +1183,7 @@ function render() {
   html += `<div class="source">${sourceNote()}</div>`;
   html += `<div class="panel-links">
     <button type="button" id="lnkTimetable2">${T.allTimetable}</button>
+    ${canInstall() ? `<button type="button" id="lnkInstall">${T.installApp}</button>` : ''}
     <span class="lang" role="group" aria-label="Language">
       <button type="button" id="langKo" class="${LANG === 'ko' ? 'on' : ''}"
               aria-pressed="${LANG === 'ko'}" lang="ko">한국어</button
@@ -1110,6 +1199,10 @@ function render() {
   bindLangButtons();
   const tt = $('lnkTimetable2');
   if (tt) tt.onclick = showTimetable;
+  const ins = $('lnkInstall');
+  if (ins) ins.onclick = install;
+  if ($('nudgeYes')) $('nudgeYes').onclick = install;
+  if ($('nudgeNo')) $('nudgeNo').onclick = dismissNudge;
   const bx = $('busClose');
   if (bx) bx.onclick = e => { e.stopPropagation(); selectedBus = null; render(); };
   $('panelScroll').querySelectorAll('.period button').forEach(el => el.onclick = () => {
@@ -1519,9 +1612,9 @@ function drawPlan(plan) {
 }
 
 /* 출근·퇴근 전환. 그 시간대에 실제로 언제 출발하는지 함께 보여 준다. */
-function periodSwitch() {
+function periodSwitch(group = focusGroup) {
   const runs = p => ROUTES
-    .filter(r => r.group === focusGroup && r.period === p)
+    .filter(r => r.group === group && r.period === p)
     .map(r => fmt(r.tripsMin[0][0]))
     .sort();
   const btn = (p, label) =>
@@ -1529,7 +1622,7 @@ function periodSwitch() {
              data-p="${p}" aria-pressed="${focusPeriod === p}">${label}</button>`;
   return `<div class="period">
     ${btn('오전', T.commuteAm)}${btn('오후', T.commutePm)}
-    <span class="period-time">${T.departsAt(runs(focusPeriod).join(' · '))}</span>
+    <span class="period-time">${T.departsAt(runs(focusPeriod || '오전').join(' · '))}</span>
   </div>`;
 }
 
