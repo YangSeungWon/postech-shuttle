@@ -479,13 +479,16 @@ button{cursor:pointer}
 .bus-icon .bus{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
 
 /* 지도 위를 다니는 버스. 번호만으로는 무엇인지 알기 어려워 형태를 준다. */
-.bus{position:relative;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))}
+/* 그림자를 .bus 에 필터로 걸면 안 된다 — 필터는 그 박스 밖으로 삐져나온
+   자식을 잘라내서, 버스 위에 얹은 방향 화살표가 사라진다. 조각마다 준다. */
+.bus{position:relative}
 .bus-body{
   display:flex;align-items:flex-end;justify-content:center;
   min-width:30px;padding:9px 7px 4px;border-radius:9px 9px 4px 4px;
   border:2px solid #fff;background:var(--c);
   color:#fff;font-size:12px;font-weight:900;line-height:1;
   letter-spacing:-.04em;white-space:nowrap;
+  box-shadow:0 2px 4px rgba(0,0,0,.35);
 }
 /* 향한 쪽. 선 위에 화살표를 뿌리는 것보다 버스가 달고 다니는 편이 읽힌다 —
    어차피 알고 싶은 것은 "이 차가 어디로 가나" 하나다. */
@@ -497,6 +500,7 @@ button{cursor:pointer}
   left:-9.5px;top:-33px;
   border-left:9.5px solid transparent;border-right:9.5px solid transparent;
   border-bottom:13.5px solid #fff;
+  filter:drop-shadow(0 2px 3px rgba(0,0,0,.32));
 }
 .bus-dir::after{                             /* 앞의 노선 색 삼각형 */
   left:-7px;top:-30.5px;
@@ -510,7 +514,7 @@ button{cursor:pointer}
 }
 .bus .wheel{
   position:absolute;bottom:-3px;left:5px;width:7px;height:7px;border-radius:50%;
-  background:#2F3540;border:1.5px solid #fff;
+  background:#2F3540;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.3);
 }
 .bus .wheel.r{left:auto;right:5px}
 /* 출발을 기다리는 차 — 속을 비워 아직 움직이지 않는다는 것을 보이고,
