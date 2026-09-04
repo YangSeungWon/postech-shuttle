@@ -23,7 +23,7 @@ const MAX_ROUNDS = 3;         // 최대 환승 2회
  *   walk.direct(a, b)   → {min, m, coords}|null   두 지점 직접 도보
  * @returns {object[]} 도착이 이른 순으로 정렬된 경로 후보
  */
-function planTrip(from, to, depart, ctx) {
+function planTrip(from, to, depart, ctx, keepRide = false) {
   const { ROUTES, STOP_LIST, isOn, walk } = ctx;
   const names = STOP_LIST.map(s => s.name);
   const ix = new Map(names.map((n, i) => [n, i]));
@@ -55,7 +55,7 @@ function planTrip(from, to, depart, ctx) {
                depart, arrive: depart + directWalk.min }],
     });
   }
-  if (!reachable) return finish(results);
+  if (!reachable) return finish(results, keepRide, directWalk?.min);
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const snapshot = best.map(b => ({ ...b }));
@@ -75,7 +75,48 @@ function planTrip(from, to, depart, ctx) {
           if (si === undefined) continue;
           // 버스보다 먼저 가 있을 수 있는 곳이면 탈 수 있다. (그런 곳에
           // 버스로 가 봐야 이미 걸어서 도착해 있으니 하차 후보는 아니다)
-          if (snapshot[si].via && snapshot[si].t <= trip[k]) {
+          // 버스보다 먼저 가 있을 수 있는 곳이면 탈 수 있다
+          const boardable = snapshot[si].via && snapshot[si].t <= trip[k];
+
+          if (boardAt >= 0) {
+            const bi = ix.get(r.canonStops[boardAt]);
+            const leg = {
+              kind: 'ride', route: r,
+              from: r.stops[boardAt], to: r.stops[k],
+              fromIdx: boardAt, toIdx: k, stops: k - boardAt,
+              depart: trip[boardAt], arrive: trip[k],
+              wait: trip[boardAt] - snapshot[bi].t,
+              prev: snapshot[bi].via,
+            };
+            /* 여기서 내리는 안을 바로 만들어 둔다. best 는 '그 정류장에
+               가장 일찍 닿는 법' 하나만 들고 있어서, 걸어서 더 빨리 닿는
+               정류장은 하차 후보에서 통째로 빠졌다. 그래서 효자시장을
+               지나쳐 유강사거리까지 갔다가 18분 되걸어오는 안이 남았다. */
+            const tw = toWalks[si];
+            if (tw && tw.min <= MAX_WALK_MIN) {
+              const arrive = trip[k] + tw.min;
+              results.push({
+                depart, arrive, transfers: round,
+                legs: unwind(leg).concat(tw.min > 0
+                  ? [{ ...tw, kind: 'walk', from: r.stops[k], to: to.label,
+                       coords: tw.coords ? [...tw.coords].reverse() : null,
+                       depart: trip[k], arrive }]
+                  : []),
+              });
+            }
+            /* 도착이 같으면 늦게 타는 쪽을 남긴다. 더 이르게만 갱신하면
+               먼저 찾은 승차 지점이 눌러앉아, 무은재삼거리에서 17:18 에
+               탈 수 있는데도 체육관까지 12분 걸어가 17:12 에 타라고 한다. */
+            const tie = trip[k] === best[si].t &&
+                        trip[boardAt] > (best[si].via?.kind === 'ride'
+                                          ? best[si].via.depart : -Infinity);
+            if (trip[k] < best[si].t || tie) {
+              if (trip[k] < best[si].t) improved = true;
+              best[si] = { t: trip[k], via: leg };
+            }
+          }
+
+          if (boardable) {
             // 여유가 가장 큰 곳에서 탄다 = 가장 늦게 나가도 되는 곳.
             // 뒤쪽 정류장이라고 늘 나은 게 아니다 — 효자시장까지 14분
             // 걸어가 17:25 에 타는 것보다, 무은재삼거리에서 17:18 에
@@ -85,28 +126,6 @@ function planTrip(from, to, depart, ctx) {
                 (slack === boardSlack && snapshot[si].t < boardCost)) {
               boardAt = k; boardSlack = slack; boardCost = snapshot[si].t;
             }
-            continue;
-          }
-          if (boardAt < 0) continue;
-          /* 도착이 같으면 늦게 타는 쪽을 남긴다. 더 이르게만 갱신하면
-             먼저 찾은 승차 지점이 눌러앉아, 무은재삼거리에서 17:18 에
-             탈 수 있는데도 체육관까지 12분 걸어가 17:12 에 타라고 한다. */
-          const tie = trip[k] === best[si].t &&
-                      trip[boardAt] > (best[si].via?.kind === 'ride'
-                                        ? best[si].via.depart : -Infinity);
-          if (trip[k] < best[si].t || tie) {
-            if (trip[k] < best[si].t) improved = true;
-            best[si] = {
-              t: trip[k],
-              via: {
-                kind: 'ride', route: r,
-                from: r.stops[boardAt], to: r.stops[k],
-                fromIdx: boardAt, toIdx: k, stops: k - boardAt,
-                depart: trip[boardAt], arrive: trip[k],
-                wait: trip[boardAt] - snapshot[ix.get(r.canonStops[boardAt])].t,
-                prev: snapshot[ix.get(r.canonStops[boardAt])].via,
-              },
-            };
           }
         }
       }
@@ -151,7 +170,7 @@ function planTrip(from, to, depart, ctx) {
 
     if (!improved) break;
   }
-  return finish(results);
+  return finish(results, keepRide, directWalk?.min);
 }
 
 /* 셔틀에서 실제 질문은 "이거 놓치면 다음은 언제"다. 위의 걸러내기로 비슷비슷한
@@ -162,7 +181,10 @@ function planTripSeries(from, to, depart, ctx, want = 3) {
   if (!first.length) {
     /* 걸어가기엔 멀고(MAX_WALK_MIN 초과) 버스는 끝난 밤이면 여기가 빈다.
        "갈 방법이 없다" 와 "오늘은 끝났다" 는 다른 말이므로 첫차를 찾아 준다. */
-    const firstOfDay = planTrip(from, to, 0, ctx).find(hasRide);
+    /* 이른 도착만 보면 엉뚱한 것이 뽑힌다 — 목적지를 12분 걸어 지나친 뒤
+       버스를 타고 다시 15분 걷는 안이 그렇다. 덜 걷는 쪽을 먼저 본다. */
+    const [firstOfDay] = planTrip(from, to, 0, ctx, true).filter(hasRide)
+      .sort((a, b) => a.walkMin - b.walkMin || a.arrive - b.arrive);
     if (firstOfDay) { firstOfDay.nextDay = true; return [firstOfDay]; }
     return first;
   }
@@ -193,14 +215,17 @@ function planTripSeries(from, to, depart, ctx, want = 3) {
      끝난 밤이면 "이 시각에 갈 수 있는 경로가 없습니다" 만 남았다. 갈 방법이
      없다는 말과 오늘은 끝났다는 말은 다르다. */
   if (!out.some(hasRide)) {
-    const firstOfDay = planTrip(from, to, 0, ctx).find(hasRide);
+    /* 이른 도착만 보면 엉뚱한 것이 뽑힌다 — 목적지를 12분 걸어 지나친 뒤
+       버스를 타고 다시 15분 걷는 안이 그렇다. 덜 걷는 쪽을 먼저 본다. */
+    const [firstOfDay] = planTrip(from, to, 0, ctx, true).filter(hasRide)
+      .sort((a, b) => a.walkMin - b.walkMin || a.arrive - b.arrive);
     // 세로 목록이라 따로 두어도 눈에 들어온다 — 지금 탈 수 있는 것과 섞지 않는다
     if (firstOfDay) { firstOfDay.nextDay = true; out.push(firstOfDay); }
   }
   return out;
 }
 
-function finish(results) {
+function finish(results, keepRide, directMin) {
   /* 같은 승차 조합은 가장 이른 것 하나만 남긴다 */
   const uniq = new Map();
   for (const r of results.sort((a, b) => a.arrive - b.arrive || a.legs.length - b.legs.length)) {
@@ -209,7 +234,7 @@ function finish(results) {
     if (!uniq.has(sig)) uniq.set(sig, r);
   }
   for (const r of uniq.values()) r.legs = r.legs.filter(l => l.kind !== 'walk' || l.min > 0);
-  const all = [...uniq.values()].filter(r => r.legs.length);
+  let all = [...uniq.values()].filter(r => r.legs.length);
   for (const r of all) {
     const rides = r.legs.filter(l => l.kind === 'ride').length;
     r.transfers = Math.max(0, rides - 1);
@@ -222,14 +247,22 @@ function finish(results) {
     r.leave = ride ? ride.depart - (head.kind === 'walk' ? head.min : 0) : r.depart;
   }
 
-  return rank(all, 4);
+  /* 같은 시각에 집을 나서 그냥 걸었을 때보다 늦게 닿는 버스 안은 버린다.
+     이것이 없으면 목적지를 지나쳐 정류장까지 걸어간 뒤 버스로 더 멀리
+     갔다가 되걸어오는 안이 "늦게 나가도 된다" 는 이유로 살아남는다. */
+  if (directMin != null) {
+    all = all.filter(r => !r.legs.some(l => l.kind === 'ride')
+                       || r.arrive < r.leave + directMin);
+  }
+
+  return rank(all, 4, keepRide);
 }
 
 /* 어느 면에서도 나은 구석이 없는 후보는 빼고, 남은 것을 줄 세운다. */
-const SHORT_WALK = 15;   // 이만큼이면 그냥 걸어간다
+const SHORT_WALK = 6;    // 이만큼이면 버스를 기다릴 것도 없이 걸어간다
 const LEAVE_EPS = 3;   // 1분 늦게 나가려고 12분 늦게 닿는 안은 고를 이유가 없다
 
-function rank(all, limit) {
+function rank(all, limit, keepRide) {
   const worse = (a, b) =>                      // b 가 a 를 모든 면에서 누르는가
     b.arrive <= a.arrive && b.leave >= a.leave - LEAVE_EPS &&
     b.transfers <= a.transfers && b.walkMin <= a.walkMin &&
@@ -257,7 +290,7 @@ function rank(all, limit) {
        두고 42분 걸리는 차를 기다리라고 하는 셈이다. 낮에 유강·지곡을
        기다릴 만한 것은 걸어서 한참인 경우뿐이다. */
     const walk = sorted.find(r => !hasRide(r));
-    const pointless = walk && walk.walkMin <= SHORT_WALK
+    const pointless = !keepRide && walk && walk.walkMin <= SHORT_WALK
                    && (!bus || bus.arrive >= walk.arrive);
     if (bus && !pointless) out.push(bus);
   }

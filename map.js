@@ -827,6 +827,16 @@ if (new URLSearchParams(location.search).has('debug')) {
   // 어느 코드가 돌고 있는지 헷갈리지 않게 표시를 남긴다
   console.log('[debug] BUILD-6 · 정류장', STOP_LIST.length,
               '곳에 GL 원. 지도를 한 번 움직이면 줄이 나온다');
+
+  /* 길찾기 결과를 콘솔에서 바로 확인한다: __plan('무은재삼거리','체육관','13:20') */
+  window.__plan = (a, b, hhmm) => {
+    const at = n => { const s = STOP_LIST.find(x => x.name === n);
+                      return s ? { ll: s.ll, label: s.name } : null; };
+    const [H, M] = String(hhmm).split(':').map(Number);
+    const ctx = { ROUTES, STOP_LIST, isOn, walk: walkNet };
+    return { all:    planTrip(at(a), at(b), H * 60 + M, ctx),
+             series: planTripSeries(at(a), at(b), H * 60 + M, ctx) };
+  };
 }
 
 /* --- 내 위치 --- */
@@ -2039,8 +2049,7 @@ function search(q, near) {
   return places()
     .map(p => ({ ...p, d: near ? dist(near, p.ll) : null, at: hit(p) }))
     .filter(p => p.at >= 0)
-    .sort((a, b) => a.at - b.at || (a.kind === 'stop' ? -1 : 1) || (a.d ?? 0) - (b.d ?? 0))
-    .slice(0, 8);
+    .sort((a, b) => a.at - b.at || (a.kind === 'stop' ? -1 : 1) || (a.d ?? 0) - (b.d ?? 0));
 }
 
 /* 아직 아무것도 입력하지 않았을 때 — 최근에 간 곳, 그다음 가까운 정류장.
@@ -2083,7 +2092,14 @@ function emptyState(near, field = activeField) {
     out.push({ name: r.name, label: at ? stopLabel(at) : r.name, ll: r.ll, kind: 'recent',
                d: near ? dist(near, r.ll) : null });
   }
-  return out.concat(stops.filter(s => !seen.has(posKey(s.ll)))).slice(0, 7);
+  /* 자르지 않는다. 아무것도 치지 않고 목록만 훑어 고르는 사람에게는
+     여기 없는 곳은 없는 곳이다. 목록은 어차피 세로로 스크롤한다. */
+  for (const s of stops) if (!seen.has(posKey(s.ll))) { seen.add(posKey(s.ll)); out.push(s); }
+  const rest = places()
+    .filter(p => p.kind !== 'stop' && !seen.has(posKey(p.ll)))
+    .map(p => ({ ...p, label: p.label || p.name, d: near ? dist(near, p.ll) : null }));
+  if (near) rest.sort((a, b) => a.d - b.d);
+  return out.concat(rest);
 }
 
 function drawSuggest(list) {

@@ -15,13 +15,15 @@ body{
   line-height:1.6;letter-spacing:-.015em;word-break:keep-all;
 }
 
-header{padding:46px 22px 26px}
-h1{margin:0 0 16px;font-size:28px;font-weight:900;letter-spacing:-.04em}
-.open{
-  display:inline-block;background:var(--red);color:#fff;text-decoration:none;
-  padding:11px 26px;border-radius:12px;font-weight:900;font-size:16px;line-height:1.2;
+header{padding:52px 22px 30px}
+h1{margin:0;font-size:28px;font-weight:900;letter-spacing:-.04em}
+h1 a{
+  color:inherit;text-decoration:none;
+  display:inline-flex;align-items:center;gap:9px;
 }
-.open:hover{background:#900048}
+h1 a:hover{color:var(--red)}
+h1 svg{width:19px;height:19px;flex:0 0 auto;opacity:.45}
+h1 a:hover svg{opacity:1}
 
 /* 보고 있는 것을 가운데 두고, 양옆이 슬그머니 보이게. */
 .deck{
@@ -31,10 +33,10 @@ h1{margin:0 0 16px;font-size:28px;font-weight:900;letter-spacing:-.04em}
 }
 .deck::-webkit-scrollbar{display:none}
 .card{
-  flex:0 0 var(--w);scroll-snap-align:center;
+  flex:0 0 var(--w);scroll-snap-align:center;cursor:pointer;
   opacity:.35;transition:opacity .45s ease;
 }
-.card.on{opacity:1}
+.card.on{opacity:1;cursor:default}
 /* 자막은 그대로 두고 화면만 줄여야 줄이 맞는다 */
 .card video{transform:scale(.9);transition:transform .45s ease}
 .card.on video{transform:none}
@@ -43,8 +45,7 @@ video{
   border:1px solid var(--line);background:var(--soft);
 }
 .card h2{
-  margin:12px 0 0;font-size:16px;font-weight:900;letter-spacing:-.03em;
-  white-space:nowrap;
+  margin:12px 0 0;font-size:15.5px;font-weight:900;letter-spacing:-.03em;
 }
 
 .dots{display:flex;justify-content:center;gap:7px;padding:20px 0 0}
@@ -62,14 +63,16 @@ footer a{color:var(--red);font-weight:800;text-decoration:none}
 </style>
 
 <header>
-  <h1>포스텍 셔틀버스</h1>
-  <a class="open" href="./">열기</a>
+  <h1><a href="./">포스텍 셔틀버스<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>
+  </svg></a></h1>
 </header>
 
 <div class="deck" id="deck">
-  <div class="card"><video src="./promo/midday.mp4" autoplay muted loop playsinline></video><h2>버스가 지금 어디쯤</h2></div>
-  <div class="card"><video src="./promo/rush.mp4" autoplay muted loop playsinline></video><h2>노선별로</h2></div>
-  <div class="card"><video src="./promo/stop.mp4" autoplay muted loop playsinline></video><h2>정류장을 누르면</h2></div>
+  <div class="card"><video src="./promo/midday.mp4" autoplay muted loop playsinline></video><h2>버스 위치 확인</h2></div>
+  <div class="card"><video src="./promo/rush.mp4" autoplay muted loop playsinline></video><h2>노선 정보 확인</h2></div>
+  <div class="card"><video src="./promo/stop.mp4" autoplay muted loop playsinline></video><h2>정류장 도착 예정 버스 확인</h2></div>
   <div class="card"><video src="./promo/trip.mp4" autoplay muted loop playsinline></video><h2>길찾기</h2></div>
 </div>
 <div class="dots" id="dots"></div>
@@ -101,6 +104,13 @@ footer a{color:var(--red);font-weight:800;text-decoration:none}
   };
   cards[0].classList.add('on');
   marks[0].classList.add('on');
+
+  cards.forEach((c, i) => c.addEventListener('click', e => {
+    if (i === cur) return;
+    e.preventDefault();          // 옆 것은 눌러 보라는 뜻이지 열라는 뜻이 아니다
+    hold();
+    go(i);
+  }));
 
   const go = i => deck.scrollTo({
     left: cards[i].offsetLeft - (deck.clientWidth - cards[i].clientWidth) / 2,
