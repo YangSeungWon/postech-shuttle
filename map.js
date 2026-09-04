@@ -1861,7 +1861,6 @@ if ($('lnkTimetable')) $('lnkTimetable').onclick = showTimetable;
 addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (!$('ask').hidden) { closeAsk(); return; }
-  if (!$('whenPop').hidden) { closeWhen(); $('btnClock').focus(); return; }
   if (pickingFor) { endPick(); return; }
   if (map._popup) { map.closePopup(); return; }
   if (!wideScreen() && $('trip').classList.contains('show')) openTrip(false);
@@ -2129,7 +2128,6 @@ for (const [id, field] of [['inFrom', 'from'], ['inTo', 'to']]) {
 /* 출발 시각 — 기본은 지금. 눌러야 시각 입력이 나온다.
    도착 기준으로 바꾸면 "그 시각 전에 도착"하는 경로를 찾는다. */
 function whenLabel() {
-  $('btnWhen').textContent = simMinutes === null ? T.now : T.departAt(fmt(simMinutes));
   /* 시계는 아이콘 하나뿐이라, 시각을 바꿔 두면 그 사실이 보이지 않는다.
      설정한 시각을 배지로 붙이고 버튼을 채운다. */
   const set = simMinutes !== null;
@@ -2143,36 +2141,24 @@ function whenLabel() {
     set ? T.departAt(fmt(simMinutes)) : T.whenTitle);
 }
 /* 시각 조정은 길찾기 중에만 뜻이 있다 */
-function showWhen(on) {
-  $('whenBtns').hidden = !on;
-  if (!on) closeWhen();
-}
-function closeWhen() {
-  $('whenPop').hidden = true;
-  $('btnClock').setAttribute('aria-expanded', 'false');
-}
+function showWhen(on) { $('whenBtns').hidden = !on; }
+/* 시계를 누르면 시각 고르는 창이 바로 열린다. 예전에는 팝오버를 한 번
+   거쳐야 해서 두 번 눌러야 했다 — 그 사이에 있던 것은 "지금 출발" 이라는
+   현재 상태뿐이었고, 그건 시계 배지가 이미 말하고 있다. */
 $('btnClock').onclick = () => {
-  const open = $('whenPop').hidden;
-  $('whenPop').hidden = !open;
-  $('btnClock').setAttribute('aria-expanded', String(open));
-  if (open) $('btnWhen').focus();
+  const el = $('whenTime');
+  el.value = fmt(Math.round(simMinutes ?? nowMin()));
+  el.focus();
+  el.showPicker?.();
 };
 
-$('btnWhen').onclick = () => {
-  const el = $('whenTime');
-  el.value = fmt(Math.round(nowMin()));
-  el.hidden = false; $('btnWhen').hidden = true;
-  el.focus(); el.showPicker?.();
-};
 $('whenTime').onchange = e => {
   simMinutes = e.target.value ? toMin(e.target.value) : null;
-  e.target.hidden = true; $('btnWhen').hidden = false;
-  whenLabel(); closeWhen(); runTrip(); render();
+  whenLabel(); runTrip(); render();
 };
-$('whenTime').onblur = e => { e.target.hidden = true; $('btnWhen').hidden = false; };
 $('btnNow').onclick = () => {
   simMinutes = null;
-  whenLabel(); closeWhen(); runTrip(); render();
+  whenLabel(); runTrip(); render();
 };
 
 $('btnSwap').onclick = () => {
@@ -2581,6 +2567,7 @@ function applyLang() {
   $('btnClock').title = T.whenTitle;
   $('btnNow').title = $('btnNow').ariaLabel = T.resetTime;   // 라벨은 whenLabel 이 시각까지 넣어 다시 쓴다
   $('tripClose').title = $('tripClose').ariaLabel = T.close;
+  $('btnNow').title = $('btnNow').ariaLabel = T.resetTime;
   set('pickOk', T.pickHere);
   set('pickCancel', T.askNo);
   sheet.relabel();

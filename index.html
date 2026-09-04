@@ -275,14 +275,6 @@ button{cursor:pointer}
 .trip-summary .arrow{flex:0 0 auto;color:var(--muted);font-weight:900;font-size:14px}
 
 /* 출발 시각 */
-.when-pop button{
-  border:0;background:none;color:var(--muted);font-size:14.5px;font-weight:800;
-  padding:6px 2px;text-decoration:underline;text-underline-offset:3px;
-}
-.when-pop button:hover{color:var(--postech-red)}
-.when-pop input[type=time]{
-  border:1px solid var(--line);border-radius:10px;padding:7px 10px;font-size:16.5px;font-weight:800;
-}
 .suggest{max-height:230px;overflow-y:auto;margin:0 0 7px;border-radius:11px}
 .suggest:not(:empty){border:1px solid var(--line);background:#fff;margin-bottom:9px}
 .sug{padding:11px 12px;min-height:46px;font-size:15.5px;font-weight:700;display:flex;align-items:center;gap:8px;cursor:pointer}
@@ -775,6 +767,7 @@ html[lang="en"] .arr .badge{--badge-w:58px}
 
 /* 경로 카드가 아래를 차지하면 시트는 물러난다 */
 .mapbtns.left{left:max(12px, env(safe-area-inset-left));right:auto;align-items:flex-start}
+#whenBtns{position:fixed}
 .mapbtns.left[hidden]{display:none}
 /* 시각을 바꿔 두면 아이콘만으로는 알 수 없다. 설정한 시각을 배지로 붙인다. */
 .clock-tag{
@@ -836,26 +829,15 @@ body.trip-top-on.trip-empty .panel{display:none}
 /* 사이드바 안에서는 닫을 이유가 없다 — 늘 펴 두는 자리다 */
 .trip-top .trip-close{display:grid}
 #btnClock{position:relative;overflow:visible}
-/* 버튼 오른쪽으로 편다. 위로 펴면 지도 버튼 열과 같은 높이를 두고
-   두 덩어리가 세로로 겹쳐 보인다. */
-.when-pop{
-  position:absolute;left:calc(100% + 9px);bottom:0;
-  /* 오른쪽 버튼 열(46px + 여백)까지 비켜 준다 */
-  max-width:min(320px, calc(100vw - 87px - 66px));
-  background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);
-  padding:8px 10px;display:flex;align-items:center;gap:9px;white-space:nowrap;
+/* 시각 입력은 눈에 보이지 않게 두고, 시계 버튼이 대신 연다.
+   화면 밖으로 치우면 브라우저가 고르는 창을 엉뚱한 데 띄우므로 버튼 뒤에 겹쳐 둔다. */
+#whenTime{
+  position:absolute;left:0;bottom:0;width:100%;height:100%;
+  opacity:0;pointer-events:none;border:0;padding:0;
 }
-.when-pop[hidden]{display:none}
-/* 시각을 정해 둔 상태에서만 나오는 되돌리기. 한 번 정하면 "지금" 으로
-   돌아갈 길이 없었다 — 시각 입력을 비우는 것 말고는 방법이 없었는데
-   모바일 시각 선택기에는 그런 길이 거의 없다. */
-.when-clear{
-  flex:0 0 auto;width:26px;height:26px;padding:0;border:0;background:var(--soft);
-  border-radius:50%;color:#69717d;font-size:13px;font-weight:900;
-  display:grid;place-items:center;text-decoration:none;
-}
-.when-clear[hidden]{display:none}
-.when-clear:hover{background:var(--postech-red);color:#fff}
+/* 시각을 정해 둔 상태에서만 나오는 되돌리기. 시계 버튼 위에 작게 붙는다. */
+.when-clear{width:38px;height:38px;border-radius:50%}
+.when-clear svg{width:19px;height:19px;stroke-width:2.2}
 /* 확대·축소는 지도 앱 관행대로 한 덩어리로 붙인다 */
 .zoomer{
   display:flex;flex-direction:column;border-radius:14px;overflow:hidden;
@@ -1067,12 +1049,10 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
   <div class="map-top">    <button class="mapbtn" id="btnBase" aria-label="지도 종류"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.5 8 12 13l9.5-5L12 3Z"/><path d="M2.5 13.5 12 18.5l9.5-5"/></svg></button>
   </div>
   <div class="mapbtns left" id="whenBtns" hidden>
-    <div class="when-pop" id="whenPop" hidden role="group" aria-label="출발·도착 시각">
-      <button id="btnWhen">지금 출발</button>
-      <input type="time" id="whenTime" hidden aria-label="시각">
-      <button id="btnNow" class="when-clear" hidden aria-label="지금으로">✕</button>
-    </div>
-    <button class="mapbtn" id="btnClock" aria-expanded="false" aria-controls="whenPop"
+    <button class="mapbtn when-clear" id="btnNow" hidden aria-label="지금으로 되돌리기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5"/></svg></button>
+    <!-- 시각 입력. 시계 버튼 뒤에 숨겨 두고 그 버튼을 누르면 연다 -->
+    <input type="time" id="whenTime" aria-label="출발 시각">
+    <button class="mapbtn" id="btnClock"
             aria-label="출발·도착 시각"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.2V12l3.2 2"/></svg><span class="clock-tag" id="clockTag" hidden></span></button>
   </div>
   <div class="mapbtns">
