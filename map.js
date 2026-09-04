@@ -2482,9 +2482,13 @@ const sheet = (() => {
     /* 탭바 높이는 안전영역만큼 기기마다 다르다 — 재서 쓴다.
        숨겨져 있으면 offsetHeight 가 0 이므로 `|| 58` 같은 대비책을 두면
        안 된다. 길찾기 중에는 실제로 0 이 맞다. */
+    /* offsetParent 로 "보이나" 를 물으면 안 된다 — position:fixed 요소는
+       규격상 offsetParent 가 늘 null 이라 언제나 "안 보임" 으로 읽힌다.
+       그래서 --tabs-h 가 0 이 되고 시트가 탭바 뒤에 깔려, 접었을 때 손잡이만
+       삐져나왔다. 실제로 자리를 차지하는지는 높이로 묻는다. */
     const tb = $('tabs');
-    const shown = isMobile() && tb && tb.offsetParent !== null;
-    root.setProperty('--tabs-h', (shown ? tb.offsetHeight : 0) + 'px');
+    const th = tb ? tb.getBoundingClientRect().height : 0;
+    root.setProperty('--tabs-h', (isMobile() ? th : 0) + 'px');
     root.setProperty('--sheet-max', Math.round(vh() * 0.88) + 'px');
     root.setProperty('--sheet', Math.round(px) + 'px');
   }
