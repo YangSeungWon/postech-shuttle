@@ -1813,14 +1813,18 @@ function focusEmptyField() {
 function pointActions(ll, label, autoPan = true) {
   const id = 'pa' + Math.random().toString(36).slice(2, 8);
   L.popup({
-    closeButton: false, className: 'pa-popup', offset: [0, -8], autoPan,
+    closeButton: false, className: 'pa-popup', offset: [0, -8], autoPan, maxWidth: 240,
     // 표지가 시트·탭 뒤로 들어가지 않도록 가려지는 만큼 비워 둔다
     autoPanPaddingTopLeft: L.point(14, topInset() + 14),
     autoPanPaddingBottomRight: L.point(14, sheetHeight() + 14),
   })
     .setLatLng(ll)
+    /* 이름은 넣지 않는다. 표지가 그 정류장을 가리키고 있고 지도에도
+       이름이 붙어 있어서, 여기 또 적으면 같은 말이 두 번이다. 게다가
+       길면 잘렸다 — 잘린 이름은 없느니만 못하다. 이름이 빠지니 표지가
+       좁아져서 지도 끝 정류장(효자시장·유강사거리)에서도 잘리지 않는다. */
     .setContent(
-      `<div class="pa"><div class="pa-name">${label}</div>
+      `<div class="pa" role="group" aria-label="${label}">
        <button data-w="from" id="${id}f">${T.startHere}</button>
        <button data-w="to" id="${id}t">${T.endHere}</button></div>`)
     .openOn(map);

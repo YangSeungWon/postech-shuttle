@@ -537,11 +537,11 @@ button{cursor:pointer}
 .pa-popup .leaflet-popup-content-wrapper{border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.22)}
 .pa-popup .leaflet-popup-content{margin:11px 13px;font:inherit}
 .pa{display:flex;align-items:center;gap:7px}
-.pa-name{font-size:15px;font-weight:900;letter-spacing:-.03em;margin-right:3px;max-width:150px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pa button{
   border:1px solid var(--line);background:#fff;border-radius:9px;
   padding:8px 12px;font-size:15px;font-weight:900;color:#444B57;
+  /* 영문("From here")이 두 줄로 접히던 자리 */
+  white-space:nowrap;
 }
 .pa button[data-w="from"]:hover{background:#1a73e8;border-color:#1a73e8;color:#fff}
 .pa button[data-w="to"]:hover{background:var(--postech-red);border-color:var(--postech-red);color:#fff}
