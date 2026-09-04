@@ -485,7 +485,11 @@ html[lang="en"] .arr .badge{--badge-w:58px}
    보이는 크기는 그대로 두고 누를 수 있는 자리만 넓힌다.
    34px 인 이유: 18m 떨어진 '건너' 짝은 배율 17 에서 갈라지는데, 그보다
    크게 잡으면 두 점의 한가운데를 넘어 서로의 점까지 잡아먹는다. */
-.gl-marker.stop-icon{position:relative}
+/* position 을 건드리면 안 된다 — MapLibre 가 마커에 position:absolute 를
+   걸어 두는데, 여기서 relative 로 덮으면 마커가 문서 흐름으로 돌아가
+   세로로 쌓인다. 그러면 transform 이 그 쌓인 자리에서부터 걸려, 뒤에
+   그려진 정류장일수록 남쪽으로 밀린다(마커마다 14px 씩). 상자를 잡아 주는
+   일은 이미 absolute 가 하고 있으니 아무것도 안 해도 된다. */
 .stop-icon::after{
   content:'';position:absolute;left:50%;top:50%;
   width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;
@@ -603,7 +607,6 @@ html[lang="en"] .arr .badge{--badge-w:58px}
 /* 마커는 아이콘 크기만 차지한다 */
 .gl-marker{line-height:0}
 /* ?debug 전용 십자 — 아무 꾸밈 없이 좌표 그 자리만 가리킨다 */
-.dbg-cross{position:relative}
 .dbg-cross i,.dbg-cross b{position:absolute;background:#FF1744}
 .dbg-cross i{left:0;top:10px;width:21px;height:1px}
 .dbg-cross b{left:10px;top:0;width:1px;height:21px}
@@ -623,7 +626,6 @@ html[lang="en"] .arr .badge{--badge-w:58px}
   transform:rotate(-45deg);border:2.5px solid #fff;
   background:var(--postech-red);box-shadow:0 2px 7px rgba(0,0,0,.4);
 }
-.pick-icon{transform:translateY(6px)}      /* 물방울 끝을 좌표에 맞춘다 */
 
 .pa{display:flex;align-items:center;gap:7px}
 /* 시트 카드 안에 놓일 때 — 지도 위 표지가 아니라 카드의 한 줄이다 */
