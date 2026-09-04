@@ -178,7 +178,10 @@ function arrivalsAt(stopName, t) {
     if (!hits.length) continue;
     // 어느 방향으로 가는 차인지 — 라이더의 실제 질문은 "어느 쪽에서 타나"다
     const times = [];
-    for (const trip of r.tripsMin) for (const i of hits) if (trip[i] >= t - 1) times.push([trip[i], i]);
+    // 지난 차는 곧바로 내린다. 일찍 올 수는 있어도, 떠난 차를 붙들고 있으면
+    // 오지 않을 버스를 기다리게 된다. 10초는 시계 오차만 봐주는 몫이다.
+    const grace = 10 / 60;
+    for (const trip of r.tripsMin) for (const i of hits) if (trip[i] >= t - grace) times.push([trip[i], i]);
     if (!times.length) continue;
     times.sort((a, b) => a[0] - b[0]);
     const [at, idx] = times[0];
@@ -892,8 +895,8 @@ const FAR_MIN = 90;                  // 이보다 멀면 남은 시간 대신 �
    그래서 시간표의 09:15 는 09:13 일 수도, 09:16 일 수도 있다. 그 구간에
    "2분"이라고 말하면 이미 와 있는 차를 두고 걸어가게 된다. 앞뒤 어느
    쪽인지 우리는 알 수 없으니, 알 수 없다고 말한다.
-   앞으로 1분 30초 — 일찍 올 수 있는 만큼. 뒤로 1분 — 시계가 그 분을
-   가리키는 동안. */
+   앞으로 1분 30초 — 일찍 올 수 있는 만큼. 뒤로는 10초까지만 — 시각이
+   지나면 떠난 것으로 보고 다음 차를 말한다. */
 const isDue = eta => eta < 1.5;
 function etaText(eta) {
   if (isDue(eta)) return T.due;
