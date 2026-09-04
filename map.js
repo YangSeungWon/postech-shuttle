@@ -1283,10 +1283,7 @@ const sheetHeight = () => {
   if (now - sheetHCache.at < 250) return sheetHCache.v;
   const tabs = $('tabs')?.offsetHeight && window.matchMedia('(max-width:820px)').matches
     ? $('tabs').offsetHeight : 0;
-  // 카드 띠가 떠 있으면 시트는 물러나 있고, 아래를 가리는 건 띠다
-  const v = document.body.classList.contains('strip-on')
-    ? $('planStrip').offsetHeight + tabs
-    : (typeof sheet === 'undefined' ? 0 : sheet.height()) + tabs;
+  const v = (typeof sheet === 'undefined' ? 0 : sheet.height()) + tabs;
   sheetHCache = { at: now, v };
   return v;
 };
@@ -1667,15 +1664,11 @@ function render() {
 
   let html = '';
 
-  // 카드 띠는 모바일에서 길찾기 결과가 있을 때만 남는다
-  if (wideScreen() || !$('trip').classList.contains('show') || !tripPlans.length) hideStrip();
   if ($('trip').classList.contains('show')) {
     $('hero').hidden = true;
     // 길찾기로 화면을 채우는 모바일에서만 노선 칩을 접는다
     if (sheet.isMobile()) $('filters').hidden = true;
     if (tripPlans.length) {
-      // 모바일은 시트에 쌓지 않고 아래에 가로로 넘겨 본다
-      if (!wideScreen()) { drawStrip(); return; }
       html += `<div class="sec-title">${T.suggested}</div>`;
       html += tripPlans.map(planCard).join('');
       setPanel(html);
@@ -2271,9 +2264,8 @@ function runTrip() {
   tripPlans = planTripSeries(tripFrom, tripTo, t, ctx);
   drawEnds();
   // 시트를 먼저 낮춰야 지도에 맞출 때 가려지는 높이를 제대로 계산한다
-  stripIdx = 0;                       // 새 결과는 첫 장부터 본다
   collapseForm(tripPlans.length > 0);
-  if (tripPlans.length) sheet.goto(1);
+  if (tripPlans.length) sheet.goto(1);   // 목록을 세로로 쌓아 보여 준다
   drawRoutes();
   drawStops();
   drawPlan(tripPlans[0]);
@@ -2355,103 +2347,47 @@ function sourceNote() {
   return `<span class="${stale ? 'stale' : ''}">${parts.join(' · ')}</span>`;
 }
 
+/* 한 줄짜리 목록 항목. 세로로 쌓아 놓고 견주는 것이 목적이므로, 걸리는
+   시간·구성·언제 출발하는지가 한눈에 들어와야 한다. 자세한 구간 설명은
+   지도가 대신 한다 — 누르면 그 경로가 그려진다. */
 function planCard(plan, i) {
-  /* 정류장에서 기다리는 시간은 소요 시간이 아니다. 세 안의 depart 는 모두
-     '지금'이라 그대로 쓰면 셋이 똑같아 보이고, 대기가 긴 안이 오래 걸리는
-     것처럼 읽힌다. 실제로 나가야 하는 시각을 기준으로 잡는다. */
+  /* 정류장에서 기다리는 시간은 소요 시간이 아니다. 실제로 나가야 하는
+     시각을 기준으로 잡는다. */
   const leave = plan.leave ?? plan.depart;
   const dur = Math.round(plan.arrive - leave);
   const rides = plan.legs.filter(l => l.kind === 'ride');
-  const legs = plan.legs.map(l => l.kind === 'walk'
-    ? `<div class="leg">
-         <span class="ic walk"></span>
-         <span class="txt">${T.walkTo(stopLabel(l.to), l.min)}
-           <span class="sub">${T.walkSub(Math.round(l.m), l.ascent >= 10 ? l.ascent : 0, l.signals || 0)}</span></span>
-       </div>`
-    : `<div class="leg">
-         <span class="ic" style="background:${l.route.color}">${badge(l.route)}</span>
-         <span class="txt"><b>${stopLabel(l.from)}</b> ${fmt(l.depart)} → <b>${stopLabel(l.to)}</b> ${fmt(l.arrive)}
-           <span class="sub">${T.rideSub(routeLabel(l.route), l.stops, l.wait >= 1 ? Math.round(l.wait) : 0)}</span></span>
-       </div>`).join('');
-  const tag = plan.walkOnly ? T.walkOnly : (rides.length > 1 ? T.transfers(rides.length - 1) : '');
-  /* 오늘 그 방향 버스가 없을 때, 다음 운행일 첫차를 이 카드 끝에 한 줄로
-     얹는다. 별도 카드로 두면 가로로 넘겨야 보여서 지나친다. */
+  // 구성: 걷기 분 · 노선 배지 를 순서대로
+  const chips = plan.legs.map(l => l.kind === 'walk'
+    ? `<span class="lc walk">${Math.round(l.min)}</span>`
+    : `<span class="lc" style="background:${l.route.color}">${badge(l.route)}</span>`).join('');
+  // 언제 타나 — 첫 승차의 정류장과 시각. 걷기만이면 그럴 것이 없다.
+  const first = rides[0];
+  const sub = first
+    ? `${fmt(leave)} → ${fmt(plan.arrive)} · ${T.boardAt(shortLabel(stopLabel(first.from)), fmt(first.depart))}`
+    : `${fmt(leave)} → ${fmt(plan.arrive)} · ${T.walkOnly}`;
+  /* 오늘 그 방향 버스가 없을 때, 다음 운행일 첫차를 한 줄 얹는다. 따로
+     항목으로 두면 "버스가 아예 없다" 로 읽히거나 스크롤에 묻힌다. */
   const nb = plan.nextBus;
   const nbRow = !nb ? '' : (() => {
-    const ride = nb.legs.find(l => l.kind === 'ride');
-    const day = dayLabel(nextServiceDay()?.days || 1);
-    return `<div class="leg later">
-       <span class="ic" style="background:${ride.route.color}">${badge(ride.route)}</span>
-       <span class="txt">${day} ${fmt(nb.leave)} <span class="sub">${
-         T.rideSub(routeLabel(ride.route), ride.stops, 0)}</span></span>
-     </div>`;
+    const r = nb.legs.find(l => l.kind === 'ride');
+    return `<div class="itin-next">
+      <span class="lc" style="background:${r.route.color}">${badge(r.route)}</span>
+      ${dayLabel(nextServiceDay()?.days || 1)} ${fmt(nb.leave)}
+      <span class="dim">${T.boardAt(shortLabel(stopLabel(r.from)), fmt(r.depart))}</span>
+    </div>`;
   })();
   return `
     <button type="button" class="itin ${i === 0 ? 'best' : ''}" data-plan="${i}"
             aria-pressed="${i === 0}">
-      <div class="itin-head">
+      <div class="itin-main">
         <span class="itin-dur">${T.min(dur)}</span>
-        <span class="itin-time">${fmt(leave)} → ${fmt(plan.arrive)}</span>
-        ${tag ? `<span class="itin-tag">${tag}</span>` : ''}
+        <span class="itin-legs">${chips}</span>
       </div>
-      ${legs}${nbRow}
+      <div class="itin-sub">${sub}</div>
+      ${nbRow}
     </button>`;
 }
 
-
-/* --- 추천 경로를 아래에 가로로 --- *
- * 한 장이 지도에 그려진 한 경로다. 넘기면 지도가 따라 바뀐다. */
-let stripIdx = 0;
-function drawStrip() {
-  const el = $('planStrip');
-  el.innerHTML = tripPlans.map(planCard).join('');
-  el.hidden = false;
-  document.body.classList.add('strip-on');
-  stripIdx = Math.min(stripIdx, tripPlans.length - 1);
-  const cards = el.querySelectorAll('.itin');
-  cards.forEach((c, i) => {
-    c.classList.toggle('best', i === stripIdx);
-    c.setAttribute('aria-pressed', String(i === stripIdx));
-    // 넘기지 않고 눌러서 고를 수도 있어야 한다 (키보드·마우스)
-    c.onclick = () => focusStrip(i, true);
-  });
-  // 지도 버튼이 카드 위로 올라오도록 실제 높이를 알려 준다
-  requestAnimationFrame(() => document.documentElement.style
-    .setProperty('--strip', el.offsetHeight + 'px'));
-}
-function hideStrip() {
-  $('planStrip').hidden = true;
-  $('planStrip').innerHTML = '';
-  document.body.classList.remove('strip-on');
-  document.documentElement.style.setProperty('--strip', '0px');
-}
-function focusStrip(i, scroll) {
-  if (i === stripIdx || !tripPlans[i]) return;
-  stripIdx = i;
-  const cards = $('planStrip').querySelectorAll('.itin');
-  cards.forEach((c, k) => {
-    c.classList.toggle('best', k === i);
-    c.setAttribute('aria-pressed', String(k === i));
-  });
-  if (scroll) cards[i]?.scrollIntoView({ inline: 'center', block: 'nearest',
-                                         behavior: 'smooth' });
-  drawPlan(tripPlans[i]);
-}
-/* 스크롤이 멎으면 가운데 있는 장을 고른 것으로 본다 */
-let stripTimer = null;
-$('planStrip').addEventListener('scroll', () => {
-  clearTimeout(stripTimer);
-  stripTimer = setTimeout(() => {
-    const el = $('planStrip');
-    const mid = el.scrollLeft + el.clientWidth / 2;
-    let bi = 0, bd = Infinity;
-    el.querySelectorAll('.itin').forEach((c, i) => {
-      const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - mid);
-      if (d < bd) { bd = d; bi = i; }
-    });
-    focusStrip(bi, false);
-  }, 90);
-}, { passive: true });
 
 /* ================================================================== *
  * 바텀시트 (모바일)

@@ -304,6 +304,27 @@ button{cursor:pointer}
   border:1px solid var(--line);border-radius:16px;padding:13px;margin-bottom:9px;background:#fff;
 }
 .itin.best{border-color:var(--postech-red);box-shadow:0 0 0 3px rgba(166,25,85,.08)}
+/* 세로로 쌓아 견주는 목록이라 한 항목이 두 줄을 넘지 않게 한다 */
+.itin{padding:11px 12px;margin-bottom:8px;gap:3px}
+.itin-main{display:flex;align-items:baseline;gap:10px}
+.itin-dur{flex:0 0 auto}
+.itin-legs{display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-width:0}
+.lc{
+  flex:0 0 auto;min-width:24px;height:21px;padding:0 6px;border-radius:6px;
+  display:grid;place-items:center;white-space:nowrap;
+  font-size:12px;font-weight:900;color:#fff;background:#AAB1BB;letter-spacing:-.03em;
+}
+.lc.walk{background:none;color:var(--muted);border:1px solid var(--line);padding:0 5px}
+.lc.walk::before{content:'';display:inline-block;width:9px;height:9px;margin-right:3px;
+  background:currentColor;
+  -webkit-mask:no-repeat center/9px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M13 4a2 2 0 1 0 0-.001M11 21l2-6-3-3 1-5 4 3 3 1M9 13l-2 8'/%3E%3C/svg%3E");
+  mask:no-repeat center/9px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M13 4a2 2 0 1 0 0-.001M11 21l2-6-3-3 1-5 4 3 3 1M9 13l-2 8'/%3E%3C/svg%3E")}
+.itin-sub{font-size:13px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+.itin-next{
+  margin-top:7px;padding-top:7px;border-top:1px dashed var(--line);
+  display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:var(--muted);
+}
+.itin-next .dim{color:#9AA1AC;font-weight:700}
 .itin-head{display:flex;align-items:baseline;gap:8px;margin-bottom:9px}
 .itin-dur{font-size:20px;font-weight:900;letter-spacing:-.04em}
 .itin-time{font-size:14px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -743,27 +764,8 @@ html[lang="en"] .arr .badge{--badge-w:58px}
   stroke-width:1.85;stroke-linecap:round;stroke-linejoin:round;
 }
 .mapbtn[hidden]{display:none}
-.plan-strip{
-  position:fixed;z-index:900;left:0;right:0;bottom:calc(var(--kb) + var(--tabs-h));
-  display:flex;gap:10px;overflow-x:auto;overscroll-behavior-x:contain;
-  scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
-  padding:4px calc(7vw + env(safe-area-inset-left))
-          calc(12px + env(safe-area-inset-bottom)) calc(7vw + env(safe-area-inset-left));
-  scrollbar-width:none;
-}
-.plan-strip::-webkit-scrollbar{display:none}
-.plan-strip[hidden]{display:none}
-.plan-strip{align-items:flex-end}      /* 카드마다 제 높이로, 아래를 맞춰 선다 */
-.plan-strip .itin{
-  flex:0 0 86vw;scroll-snap-align:center;margin:0;
-  max-height:44dvh;overflow-y:auto;
-  box-shadow:0 6px 22px rgba(0,0,0,.16);
-}
-/* 가로로 넘기는 동안에는 어느 장이 지도에 그려진 것인지가 유일한 단서다 */
-.plan-strip .itin:not(.best){opacity:.72}
+
 /* 경로 카드가 아래를 차지하면 시트는 물러난다 */
-body.strip-on .panel{transform:translateY(100%)}
-body.strip-on .mapbtns{bottom:calc(var(--strip) + var(--kb) + var(--tabs-h) + 22px)}
 .mapbtns.left{left:max(12px, env(safe-area-inset-left));right:auto;align-items:flex-start}
 .mapbtns.left[hidden]{display:none}
 /* 시각을 바꿔 두면 아이콘만으로는 알 수 없다. 설정한 시각을 배지로 붙인다. */
@@ -812,7 +814,6 @@ body.trip-top-on{--tabs-h:0px}
 /* 출발·도착을 찍는 동안 시트에는 아무것도 없다. 빈 흰 띠가 지도를 가릴
    이유가 없으므로 아예 내린다. 결과가 나오면 가로 카드 띠가 그 자리를 쓴다. */
 body.trip-top-on .panel{display:none}
-body.trip-top-on:not(.strip-on) .mapbtns{bottom:calc(var(--kb) + 22px)}
 .trip-main{display:flex;align-items:center;gap:8px}
 .trip-rows{flex:1 1 auto;min-width:0}
 .trip-swap{align-self:center}
@@ -996,9 +997,6 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
      그래야 시트를 끝까지 올리지 않고도 입력할 수 있다. -->
 <div class="trip-top" id="tripTop" hidden></div>
 
-<!-- 추천 경로. 모바일에서는 시트에 쌓지 않고 아래에 가로로 넘겨 본다.
-     한 장이 지도에 그려진 한 경로다. -->
-<div class="plan-strip" id="planStrip" hidden role="group" aria-label="추천 경로"></div>
 
 <!-- 시트를 끌어 올려야 나오던 것들을 탭으로 꺼냈다. 끌어야만 볼 수 있는
      내용은 원래 하나도 없었고, 드래그는 "지도를 얼마나 볼지"만 바꿨다. -->
