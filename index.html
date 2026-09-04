@@ -999,6 +999,11 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
         };
       };
       if (reg.waiting) show(reg.waiting);
+      /* 새 버전이 있는지 다시 물어본다. 등록할 때 한 번만 보면, 화면을
+         오래 켜 둔 채로는 새 코드가 나와도 모른 채 옛것을 계속 쓴다. */
+      const check = () => reg.update().catch(() => {});
+      setInterval(check, 30 * 60 * 1000);
+      addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
       reg.addEventListener('updatefound', () => {
         const w = reg.installing;
         w?.addEventListener('statechange', () => {
