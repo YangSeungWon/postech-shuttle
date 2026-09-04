@@ -245,16 +245,11 @@ function activeBuses(t) {
 const map = L.map('map', {
   center: CENTER, zoom: 15, zoomControl: false, attributionControl: true,
   maxBoundsViscosity: 1,          // 경계 밖으로는 끌리지 않게
-  // 회전 (leaflet-rotate). 플러그인이 없으면 이 값들은 무시된다.
-  rotate: true, touchRotate: true, shiftKeyRotate: true, rotateControl: false,
-  bearing: 0,
-  /* 노선을 그리는 SVG 는 화면보다 조금만 넓게 잘라 두는 것이 기본(0.1)인데,
-     지도를 돌리면 그 사각형이 화면을 못 덮어서 노선이 잘리고 끊긴다.
-     돌려도 덮이도록 넉넉히 잡는다. */
-  renderer: L.svg({ padding: 0.8 }),
 });
-const canRotate = typeof map.setBearing === 'function';
-const mapBearing = () => (canRotate ? map.getBearing() : 0);
+/* 지도 회전은 접었다. leaflet-rotate 로 붙여 봤지만, 벡터 배경(MapLibre)이
+   Leaflet 안에 레이어로 얹힌 구조라 배경만 따로 놀았다. 라이브러리 내부
+   계산을 두 군데 고쳐 봤는데 위치는 잡혔어도 확대·축소가 망가졌다.
+   제대로 하려면 지도 엔진을 MapLibre 로 옮겨야 한다. */
 /* 확대·축소도 다른 지도 버튼과 같은 모양으로 둔다 */
 $('btnZoomIn').onclick = () => map.zoomIn();
 $('btnZoomOut').onclick = () => map.zoomOut();
@@ -296,58 +291,14 @@ const canVector = (() => {
   };
 })();
 
-/* 회전하면 GL 캔버스가 지도 판과 함께 돌아, 네 귀퉁이가 캔버스 밖으로
-   나간다. 세로로 긴 화면은 45° 에서 가로로 (W+H)/W·0.71 배가 필요한데
-   (400×800 이면 2.1배) 그만큼 키우면 캔버스가 너무 커진다. 적당히 잡고,
-   드러나는 자리는 배경색을 땅 색과 맞춰 눈에 덜 띄게 했다. */
-function glPadding() {
-  if (!canRotate) return 0.1;
-  const s = map.getSize();
-  const need = (s.x + s.y) * 0.7071 / Math.max(1, s.x);
-  return Math.min(0.45, Math.max(0.1, (need - 1) / 2));
-}
-
-/* maplibre-gl-leaflet 은 GL 캔버스를 '화면 좌상단' 기준으로 놓는다. 지도를
-   돌리면 그 지점이 팬 안에서 다른 자리로 가 버려서, 배경만 어긋난 채로
-   따라온다(노선은 팬이 통째로 돌아 제자리다).
-
-   중심 기준으로 놓으면 회전과 무관해진다 — 회전은 팬을 축 하나로 돌리는
-   것이라, 어떤 점의 팬 좌표는 그대로다. 안 돌린 상태에서는 원래 계산과
-   같은 값이 나온다(좌상단 − 여백 = 중심 − 크기/2). */
-function patchGlForRotation(layer) {
-  if (!canRotate || !layer || typeof layer._update !== 'function') return;
-  const orig = layer._update.bind(layer);
-  layer._update = function (e) {
-    orig(e);
-    const c = layer._container;
-    if (!c || !layer._map) return;
-    /* 줌 애니메이션 동안 라이브러리는 자리를 잡지 않는다 — 캔버스를 늘려서
-       흉내내다가 끝나면 다시 잡는다. 그 사이에 끼어들면 배경만 따로 논다. */
-    if (layer._zooming) return;
-    /* 안 돌아가 있으면 라이브러리 계산과 값이 같다(측정 결과 0px). 건드릴
-       이유가 없고, 건드리면 이렇게 사고만 난다. */
-    if (!map.getBearing()) return;
-    const half = layer.getSize().divideBy(2);
-    L.DomUtil.setPosition(c, map.latLngToLayerPoint(map.getCenter()).subtract(half)._round());
-  };
-
-  /* 줌 애니메이션은 라이브러리에 맡긴다. 중간 배율마다 GL 을 다시 그리지
-     않고 마지막 프레임을 CSS 로 늘렸다 줄였다 하는 방식인데, 그 계산을
-     회전에 맞게 바꿔 보려다 확대·축소를 망가뜨렸다. 캔버스가 어느 점을
-     축으로 커지는지(transform-origin) 확인하지 못한 채 가정만 한 것이
-     원인이다. 돌아가 있으면 애니메이션 도중 배경이 잠깐 밀리지만 끝나면
-     _update 가 제자리에 놓는다 — 잠깐 어긋나는 편이 낫다. */
-}
-
 function setBasemap(i) {
   baseIdx = ((i % BASE_STYLES.length) + BASE_STYLES.length) % BASE_STYLES.length;
   const b = BASE_STYLES[baseIdx];
   if (baseLayer) { map.removeLayer(baseLayer); baseLayer = null; }
   baseLayer = canVector()
-    ? L.maplibreGL({ style: b.style(), attribution: b.attr, padding: glPadding() })
+    ? L.maplibreGL({ style: b.style(), attribution: b.attr })
     : L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   { maxZoom: 19, attribution: OSM_ATTR, className: 'raster-fallback' });
-  patchGlForRotation(baseLayer);
   baseLayer.addTo(map);
   if (baseLayer.bringToBack) baseLayer.bringToBack();
   try { localStorage.setItem(LS_BASE, b.id); } catch (e) {}
@@ -665,9 +616,7 @@ function drawArrows(coords, layer = layerBusPath, every = 130, max = 18) {
     const deg = Math.atan2((b[1] - a[1]) * Math.cos(la), b[0] - a[0]) * 180 / Math.PI;
     L.marker([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], {
       icon: L.divIcon({ className: '', iconSize: [14, 14], iconAnchor: [7, 7],
-        // 마커는 지도가 돌아도 똑바로 서 있으므로, 지도가 돈 만큼 더해 준다
-        html: `<div class="dirarrow" data-deg="${deg.toFixed(1)}"
-                    style="transform:rotate(${(deg + mapBearing()).toFixed(0)}deg)">
+        html: `<div class="dirarrow" style="transform:rotate(${deg.toFixed(0)}deg)">
                  <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3.4 8.6 7 5l3.6 3.6"/></svg>
                </div>` }),
       zIndexOffset: 340, interactive: false, keyboard: false,
@@ -868,37 +817,15 @@ const ASKED_KEY = 'geo-asked';
  */
 let headingOn = false, heading = null, headingBound = false;
 
-/* 지도를 돌리면 마커 안의 방향 표시(화살표·부채꼴)는 따라 돌지 않는다.
-   지리 방위에 지도가 돈 만큼을 더해야 화면에서 맞는 쪽을 가리킨다. */
-function applyMapRotation() {
-  const b = mapBearing();
-  for (const el of document.querySelectorAll('.dirarrow')) {
-    const base = parseFloat(el.dataset.deg || '0');
-    el.style.transform = `rotate(${(base + b).toFixed(0)}deg)`;
-  }
-  const beam = $('meBeam');
-  if (beam && heading !== null) beam.style.transform = `rotate(${(heading + b).toFixed(0)}deg)`;
-  // 나침반은 지도가 돌아가 있을 때만. 바늘은 늘 북쪽을 가리킨다.
-  const n = $('btnNorth');
-  if (n) {
-    const off = Math.abs(((b + 180) % 360) - 180) > 0.5;
-    n.hidden = !canRotate || !off;
-    n.querySelector('svg').style.transform = `rotate(${b.toFixed(0)}deg)`;
-  }
-}
-if (canRotate) map.on('rotate', () => {
-  applyMapRotation();
-  // 회전만으로는 배경 레이어가 스스로 다시 자리를 잡지 않는다
-  if (baseLayer && baseLayer._update) baseLayer._update();
-});
-
 function applyHeading() {
   // ◎ 는 상태가 셋이라 버튼 이름도 따라가야 한다
   $('btnLoc').ariaLabel = headingOn ? T.headingOn : (followMe ? T.following : T.myLocation);
   const w = $('meWrap');
   if (!w) return;
   w.classList.toggle('heading', headingOn && heading !== null);
-  applyMapRotation();
+  // 지도는 북쪽 고정이므로 부채꼴은 방위 그대로 돌리면 된다
+  const beam = $('meBeam');
+  if (beam && heading !== null) beam.style.transform = `rotate(${heading.toFixed(0)}deg)`;
 }
 
 function onOrientation(e) {
@@ -907,9 +834,6 @@ function onOrientation(e) {
           : (e.absolute && e.alpha != null ? 360 - e.alpha : null);
   if (h == null || Number.isNaN(h)) return;
   heading = h;
-  /* 지도를 내가 보는 쪽이 위로 오게 돌린다. 플러그인은 팬을 시계방향으로
-     bearing 만큼 돌리므로, 방위 H 를 위로 올리려면 -H 다. */
-  if (headingOn && canRotate) map.setBearing(-h);
   applyHeading();
 }
 
@@ -917,7 +841,6 @@ async function toggleHeading() {
   if (headingOn) {                       // 끄기
     headingOn = false; heading = null;
     $('btnLoc').classList.remove('heading');
-    if (canRotate) map.setBearing(0);    // 방향 모드를 껐으면 북쪽으로
     applyHeading();
     return;
   }
@@ -1541,12 +1464,6 @@ function render() {
  * 조작
  * ================================================================== */
 $('btnLoc').onclick = requestLocation;
-$('btnNorth').onclick = () => {
-  if (canRotate) map.setBearing(0);
-  // 손으로 북쪽에 맞췄으면 방향 따라가기는 그만둔다 — 곧바로 다시 돌아간다
-  if (headingOn) { headingOn = false; heading = null; $('btnLoc').classList.remove('heading'); }
-  applyHeading();
-};
 $('btnFit').onclick = () => {
   const on = ROUTES.filter(isOn);
   fitWithSheet(L.latLngBounds(on.flatMap(r => r.path.coords)));
@@ -2268,7 +2185,6 @@ function applyLang() {
   $('btnHere').title = $('btnHere').ariaLabel = T.here;
   $('btnSwap').title = $('btnSwap').ariaLabel = T.swap;
   $('btnLoc').title = T.myLocation;
-  $('btnNorth').title = $('btnNorth').ariaLabel = T.northUp;
   applyHeading();
   $('btnFit').title = $('btnFit').ariaLabel = T.fitAll;
   $('btnBase').title = $('btnBase').ariaLabel = T[BASE_STYLES[baseIdx].key];

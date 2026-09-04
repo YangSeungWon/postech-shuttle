@@ -7,7 +7,7 @@
  * 오프라인으로 동작한다. 캠퍼스 실내나 신호가 약한 곳에서 쓸모가 있다.
  * ------------------------------------------------------------------ */
 
-const VERSION = 'b37c0d564cf8';
+const VERSION = 'e55b874fca91';
 const SHELL = `shuttle-shell-${VERSION}`;
 const TILES = 'shuttle-tiles';
 const TILE_LIMIT = 600;
@@ -26,7 +26,6 @@ const VENDOR = [
   'https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.css',
   'https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.js',
   'https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js',
-  'https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.8/dist/leaflet-rotate.js',
 ];
 
 self.addEventListener('install', e => {
