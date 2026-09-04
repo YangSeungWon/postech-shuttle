@@ -814,14 +814,18 @@ function setMyLocation(ll, accuracy) {
     myLL = ll;
     const [latitude, longitude] = ll;
     geoError = null;
-    $('btnLoc').classList.add('on');
+    // ◎ 는 "내 위치를 따라간다" 는 뜻이다. 저절로 잡힌 것만으로는 켜지 않는다.
+    $('btnLoc').classList.toggle('on', followMe);
     if (!myMarker) {
       myMarker = L.marker(myLL, {
         icon: L.divIcon({ className: '', iconSize: [16, 16], iconAnchor: [8, 8], html: '<div class="me"></div>' }),
         zIndexOffset: 500, interactive: false, keyboard: false,
       }).addTo(map);
       myCircle = L.circle(myLL, { radius: accuracy, color: '#1a73e8', weight: 1, fillOpacity: .08, interactive: false }).addTo(map);
-      map.setView(offsetForSheet(myLL), 16);
+      /* 처음 잡혔을 때만 지도를 옮긴다. 단 노선 밖에 있으면 옮기지 않는다 —
+         집에서 열었는데 버스도 정류장도 없는 화면을 보여 줘 봐야 소용없다.
+         그때는 캠퍼스 전체를 보여 주는 첫 화면이 그대로 더 낫다. */
+      if (NETWORK.contains(myLL)) map.setView(offsetForSheet(myLL), 16);
     } else {
       myMarker.setLatLng(myLL); myCircle.setLatLng(myLL).setRadius(accuracy);
       if (followMe) map.setView(myLL, map.getZoom());
@@ -952,16 +956,19 @@ function busCard(b, t) {
 /* 전체 시간표. 정류장을 가로로, 운행을 세로로 놓은 표.
    좁은 화면에서는 가로로 스크롤한다. '전체' 를 고르면 노선을 모두 이어 붙인다. */
 function routeTable(g, t) {
-  // 전체를 볼 때(focusGroup 없음)는 확장노선의 오전·오후를 따로 그린다
+  /* 지곡·유강은 출근과 퇴근이 서로 다른 경로다 — 서는 정류장도 순서도
+     달라서 한 표에 담을 수가 없다. 노선을 골랐을 때는 고른 시간대만,
+     전체를 볼 때는 둘 다 그린다. 예전에는 전체에서도 오전만 그려서
+     퇴근 시간표가 통째로 빠져 있었다. */
   const all = ROUTES.filter(r => r.group === g);
   const periods = isExt(g)
     ? (focusGroup ? [focusPeriod || '오전'] : ['오전', '오후'])
     : [null];
-  return periods.map(p => routeTableFor(g, t, all.filter(r => !p || r.period === p)))
+  return periods.map(p => routeTableFor(g, t, all.filter(r => !p || r.period === p), p))
                 .filter(Boolean).join('');
 }
 
-function routeTableFor(g, t, runs) {
+function routeTableFor(g, t, runs, period) {
   if (!runs.length) return '';
 
   const stops = runs[0].stops;
@@ -978,7 +985,8 @@ function routeTableFor(g, t, runs) {
 
   return `<div class="sec-title tt-head">
       <span class="badge" style="background:${GROUPS.find(x => x.id === g).color}">${
-        badge(ROUTES.find(r => r.group === g))}</span>${T.routeTimetable(groupLabel(g))}
+        badge(ROUTES.find(r => r.group === g))}</span>${T.routeTimetable(groupLabel(g))}${
+        period ? `<span class="tt-period">${period === '오전' ? T.commuteAm : T.commutePm}</span>` : ''}
     </div>
     <div class="tt-wrap"><table class="tt">
       <thead><tr>${head}</tr></thead><tbody>${body}</tbody>
