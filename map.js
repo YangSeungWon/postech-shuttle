@@ -468,7 +468,7 @@ function drawStops() {
     if (served && !s.members.some(m => served.has(m.name))) continue;
     const m = L.marker(s.ll, {
       icon: L.divIcon({
-        className: '', iconSize: [14, 14], iconAnchor: [7, 7],
+        className: 'stop-icon', iconSize: [14, 14], iconAnchor: [7, 7],
         html: `<div class="stop-marker"${ringColor ? ` style="border-color:${ringColor}"` : ''}></div>` +
               `<div class="stop-label">${stopLabel(s.name)}</div>`
       }),
@@ -505,6 +505,10 @@ function paintSelection() {
 /* 축소 상태에서는 라벨이 서로 겹치므로 선택한 정류장만 이름을 보여 준다 */
 function paintLabels() {
   document.getElementById('map').classList.toggle('labels-off', map.getZoom() < 16);
+  /* 갈라진 직후에는 '건너' 짝이 15px 밖에 안 떨어져 있다. 그때만 누르는
+     자리를 좁혀 서로의 점을 잡아먹지 않게 한다. */
+  document.getElementById('map').classList.toggle('tight',
+    map.getZoom() >= SPLIT_ZOOM && map.getZoom() < SPLIT_ZOOM + 1.4);
 }
 map.on('zoomend', () => { drawStops(); paintLabels(); });
 
