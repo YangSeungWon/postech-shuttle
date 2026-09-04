@@ -1128,7 +1128,23 @@ function drawFilters() {
     focusGroup = focusGroup === g ? null : g;   // 같은 칩을 다시 누르면 전체로
     focusPeriod = isExt(focusGroup) ? (nowMin() < 12 * 60 ? '오전' : '오후') : null;
     drawFilters(); drawRoutes(); drawStops(); render();
+    fitFocus();
   });
+}
+
+/* 노선을 고르면 그 노선이 한눈에 들어오게 맞춘다. 지곡·유강은 캠퍼스
+   밖까지 나가는데, 고르고도 화면이 그대로면 어디로 가는 노선인지 알 수 없다.
+   시트에 가리는 만큼은 비켜서 잡는다. */
+function fitFocus() {
+  if (view === 'timetable') return;        // 시간표를 보는 중엔 지도가 안 보인다
+  /* '전체' 로 돌아오면 첫 화면과 같이 캠퍼스에 맞춘다. 지곡·유강까지 넣으면
+     2km 가 넘어 캠퍼스가 너무 작아진다. */
+  const shown = focusGroup ? ROUTES.filter(isOn)
+                           : ROUTES.filter(r => r.kind === 'circulation');
+  const pts = shown.flatMap(r => r.path.coords);
+  if (!pts.length) return;
+  stopFollow();
+  fitWithSheet(L.latLngBounds(pts), focusGroup ? 28 : 24);
 }
 
 const FAR_MIN = 90;                  // 이보다 멀면 남은 시간 대신 시각만
