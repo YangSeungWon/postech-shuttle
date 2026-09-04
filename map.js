@@ -1055,13 +1055,15 @@ map.on('dragstart', () => {
 });
 
 function selectStop(name) {
-  // 지도에서 고르면 그 카드를 볼 만큼만 올린다
-  if (sheet.isMobile() && tab === 'near') sheet.raise(1);
   selectedBus = null;
   selected = selected === name ? null : name;
   paintSelection();
   if (selected) {
-    sheet.raise(1);
+    /* 시간표를 보다가 지도에서 정류장을 찍었으면, 그건 그 정류장을 보겠다는
+       뜻이다. 시트에 시간표가 그대로 남아 있으면 찍은 보람이 없다. */
+    if (view === 'timetable') { view = 'stops'; syncTab('near'); }
+    // 카드를 볼 만큼만. 시간표(끝까지)에서 왔으면 내려서 지도를 되돌려 준다
+    sheet.goto(1);
     map.panTo(offsetForSheet(groupOfStop(selected)?.ll || STOPS[selected]));
   }
   render();
