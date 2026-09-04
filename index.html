@@ -314,17 +314,17 @@ button{cursor:pointer}
   display:grid;place-items:center;white-space:nowrap;
   font-size:12px;font-weight:900;color:#fff;background:#AAB1BB;letter-spacing:-.03em;
 }
-.lc.walk{background:none;color:var(--muted);border:1px solid var(--line);padding:0 5px}
-.lc.walk::before{content:'';display:inline-block;width:9px;height:9px;margin-right:3px;
-  background:currentColor;
-  -webkit-mask:no-repeat center/9px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M13 4a2 2 0 1 0 0-.001M11 21l2-6-3-3 1-5 4 3 3 1M9 13l-2 8'/%3E%3C/svg%3E");
-  mask:no-repeat center/9px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M13 4a2 2 0 1 0 0-.001M11 21l2-6-3-3 1-5 4 3 3 1M9 13l-2 8'/%3E%3C/svg%3E")}
+/* 도보는 테두리만 두른 알약, 버스는 노선 색을 채운 배지 — 모양으로 갈린다.
+   아이콘을 마스크로 넣었더니 깨졌다. 글자에 단위를 붙이면 그림 없이도 읽힌다. */
+.lc.walk{background:none;color:var(--muted);border:1px solid var(--line);font-weight:800}
 .itin-sub{font-size:13px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
-.itin-next{
-  margin-top:7px;padding-top:7px;border-top:1px dashed var(--line);
-  display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:var(--muted);
+/* 오늘 탈 수 없는 것 — 흐리게 두고 언제인지 붙인다 */
+.itin.later{background:var(--soft);border-style:dashed}
+.itin.later .itin-dur{color:var(--muted)}
+.itin-day{
+  margin-left:auto;flex:0 0 auto;font-size:12.5px;font-weight:900;
+  color:#fff;background:#8A9099;border-radius:7px;padding:2px 8px;
 }
-.itin-next .dim{color:#9AA1AC;font-weight:700}
 .itin-head{display:flex;align-items:baseline;gap:8px;margin-bottom:9px}
 .itin-dur{font-size:20px;font-weight:900;letter-spacing:-.04em}
 .itin-time{font-size:14px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}

@@ -185,9 +185,8 @@ function planTripSeries(from, to, depart, ctx, want = 3) {
   if (out.length && !out.some(r => r.legs.some(l => l.kind === 'ride'))) {
     const firstOfDay = planTrip(from, to, 0, ctx)
       .find(r => r.legs.some(l => l.kind === 'ride'));
-    /* 따로 카드로 붙이면 가로로 넘겨야 보여서 놓친다. 지금 할 수 있는
-       것(걷기) 안에 한 줄로 얹어, 넘기지 않아도 눈에 들어오게 한다. */
-    if (firstOfDay) out[0].nextBus = firstOfDay;
+    // 세로 목록이라 따로 두어도 눈에 들어온다 — 지금 탈 수 있는 것과 섞지 않는다
+    if (firstOfDay) { firstOfDay.nextDay = true; out.push(firstOfDay); }
   }
   return out;
 }

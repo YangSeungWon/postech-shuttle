@@ -2360,33 +2360,24 @@ function planCard(plan, i) {
   const rides = plan.legs.filter(l => l.kind === 'ride');
   // 구성: 걷기 분 · 노선 배지 를 순서대로
   const chips = plan.legs.map(l => l.kind === 'walk'
-    ? `<span class="lc walk">${Math.round(l.min)}</span>`
+    ? `<span class="lc walk">${T.min(Math.round(l.min))}</span>`
     : `<span class="lc" style="background:${l.route.color}">${badge(l.route)}</span>`).join('');
   // 언제 타나 — 첫 승차의 정류장과 시각. 걷기만이면 그럴 것이 없다.
   const first = rides[0];
   const sub = first
     ? `${fmt(leave)} → ${fmt(plan.arrive)} · ${T.boardAt(shortLabel(stopLabel(first.from)), fmt(first.depart))}`
     : `${fmt(leave)} → ${fmt(plan.arrive)} · ${T.walkOnly}`;
-  /* 오늘 그 방향 버스가 없을 때, 다음 운행일 첫차를 한 줄 얹는다. 따로
-     항목으로 두면 "버스가 아예 없다" 로 읽히거나 스크롤에 묻힌다. */
-  const nb = plan.nextBus;
-  const nbRow = !nb ? '' : (() => {
-    const r = nb.legs.find(l => l.kind === 'ride');
-    return `<div class="itin-next">
-      <span class="lc" style="background:${r.route.color}">${badge(r.route)}</span>
-      ${dayLabel(nextServiceDay()?.days || 1)} ${fmt(nb.leave)}
-      <span class="dim">${T.boardAt(shortLabel(stopLabel(r.from)), fmt(r.depart))}</span>
-    </div>`;
-  })();
+  // 다음 운행일 것은 지금 탈 수 있는 것과 섞이지 않게 따로 표시한다
+  const day = plan.nextDay ? dayLabel(nextServiceDay()?.days || 1) : '';
   return `
-    <button type="button" class="itin ${i === 0 ? 'best' : ''}" data-plan="${i}"
-            aria-pressed="${i === 0}">
+    <button type="button" class="itin ${i === 0 && !day ? 'best' : ''} ${day ? 'later' : ''}"
+            data-plan="${i}" aria-pressed="${i === 0 && !day}">
       <div class="itin-main">
         <span class="itin-dur">${T.min(dur)}</span>
         <span class="itin-legs">${chips}</span>
+        ${day ? `<span class="itin-day">${day}</span>` : ''}
       </div>
       <div class="itin-sub">${sub}</div>
-      ${nbRow}
     </button>`;
 }
 
