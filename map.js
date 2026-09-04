@@ -307,6 +307,25 @@ function glPadding() {
   return Math.min(0.45, Math.max(0.1, (need - 1) / 2));
 }
 
+/* maplibre-gl-leaflet 은 GL 캔버스를 '화면 좌상단' 기준으로 놓는다. 지도를
+   돌리면 그 지점이 팬 안에서 다른 자리로 가 버려서, 배경만 어긋난 채로
+   따라온다(노선은 팬이 통째로 돌아 제자리다).
+
+   중심 기준으로 놓으면 회전과 무관해진다 — 회전은 팬을 축 하나로 돌리는
+   것이라, 어떤 점의 팬 좌표는 그대로다. 안 돌린 상태에서는 원래 계산과
+   같은 값이 나온다(좌상단 − 여백 = 중심 − 크기/2). */
+function patchGlForRotation(layer) {
+  if (!canRotate || !layer || typeof layer._update !== 'function') return;
+  const orig = layer._update.bind(layer);
+  layer._update = function (e) {
+    orig(e);
+    const c = layer._container;
+    if (!c) return;
+    const half = layer.getSize().divideBy(2);
+    L.DomUtil.setPosition(c, map.latLngToLayerPoint(map.getCenter()).subtract(half)._round());
+  };
+}
+
 function setBasemap(i) {
   baseIdx = ((i % BASE_STYLES.length) + BASE_STYLES.length) % BASE_STYLES.length;
   const b = BASE_STYLES[baseIdx];
@@ -315,6 +334,7 @@ function setBasemap(i) {
     ? L.maplibreGL({ style: b.style(), attribution: b.attr, padding: glPadding() })
     : L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   { maxZoom: 19, attribution: OSM_ATTR, className: 'raster-fallback' });
+  patchGlForRotation(baseLayer);
   baseLayer.addTo(map);
   if (baseLayer.bringToBack) baseLayer.bringToBack();
   try { localStorage.setItem(LS_BASE, b.id); } catch (e) {}
@@ -853,7 +873,11 @@ function applyMapRotation() {
     n.querySelector('svg').style.transform = `rotate(${b.toFixed(0)}deg)`;
   }
 }
-if (canRotate) map.on('rotate', applyMapRotation);
+if (canRotate) map.on('rotate', () => {
+  applyMapRotation();
+  // 회전만으로는 배경 레이어가 스스로 다시 자리를 잡지 않는다
+  if (baseLayer && baseLayer._update) baseLayer._update();
+});
 
 function applyHeading() {
   // ◎ 는 상태가 셋이라 버튼 이름도 따라가야 한다
