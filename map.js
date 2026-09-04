@@ -2548,6 +2548,8 @@ const sheet = (() => {
     root.setProperty('--tabs-h', (isMobile() ? th : 0) + 'px');
     root.setProperty('--sheet-max', Math.round(vh() * 0.88) + 'px');
     root.setProperty('--sheet', Math.round(px) + 'px');
+    // 스크롤 영역을 보이는 만큼으로 자르려면 손잡이가 얼마나 먹는지 알아야 한다
+    root.setProperty('--grab-h', Math.round(grab.getBoundingClientRect().height) + 'px');
   }
   function goto(i, animate = true) {
     cur = Math.max(0, Math.min(2, i));

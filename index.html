@@ -117,10 +117,16 @@ button{cursor:pointer}
   transition:transform .26s cubic-bezier(.22,.7,.3,1);
 }
 .panel.dragging{transition:none}
+/* 시트는 --sheet-max 높이 그대로 두고 아래로 밀어 감춘다(그래야 부드럽다).
+   그래서 스크롤 영역까지 늘 최대 높이가 되어, 반쯤 올린 시트에서는 아래
+   항목이 화면 밖에 있는데도 넘칠 것이 없어 스크롤이 안 걸렸다. 실제로
+   보이는 만큼으로 잘라 둔다. */
 .panel-scroll{
   overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
   flex:1;padding:0 14px calc(28px + env(safe-area-inset-bottom));touch-action:pan-y;
+  max-height:calc(var(--sheet) - var(--grab-h, 22px));
 }
+@media (min-width:821px){ .panel-scroll{max-height:none} }
 /* 시트 손잡이 */
 
 /* 아래 탭바. 지도 앱들이 쓰는 자리이고, 여기 있는 넷이 이 앱의 전부다. */
