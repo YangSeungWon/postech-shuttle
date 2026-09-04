@@ -16,7 +16,9 @@ body{
 h1{margin:0 0 26px;font-size:24px;font-weight:900;letter-spacing:-.04em}
 ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:30px 26px}
 li{display:flex;gap:16px;align-items:flex-start}
-img{border:1px solid var(--line);border-radius:16px;display:block}
+li.wide{flex-basis:100%}
+img{border:1px solid var(--line);border-radius:16px;display:block;width:300px;max-width:100%}
+li.wide img{width:640px}
 .meta{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding-top:4px}
 .meta b{font-size:16px;font-weight:900;letter-spacing:-.03em}
 .meta span{font-size:13.5px;color:var(--muted)}
@@ -33,17 +35,35 @@ footer a{color:var(--red);font-weight:800;text-decoration:none}
 
 <h1>포스텍 셔틀버스 — 화면</h1>
 <ul>
-  <li>
-    <img src="./promo/midday.gif" alt="일과 시간" width="300" loading="lazy">
+  <li class="wide">
+    <img src="./promo/strip.gif" alt="네 장면 나란히" loading="lazy">
+    <div class="meta">
+      <b>네 장면 나란히</b>
+      <span>880px · 9초</span>
+      <a href="./promo/strip.gif" download="postech-shuttle-strip.gif">GIF 내려받기 · 1.9MB</a>
+      <a class="sub" href="./promo/strip.mp4" download="postech-shuttle-strip.mp4">MP4 · 197KB</a>
+    </div>
+  </li>
+  <li class="">
+    <img src="./promo/all.gif" alt="네 장면 연달아" loading="lazy">
+    <div class="meta">
+      <b>네 장면 연달아</b>
+      <span>260px · 36초</span>
+      <a href="./promo/all.gif" download="postech-shuttle-all.gif">GIF 내려받기 · 2.3MB</a>
+      <a class="sub" href="./promo/all.mp4" download="postech-shuttle-all.mp4">MP4 · 319KB</a>
+    </div>
+  </li>
+  <li class="">
+    <img src="./promo/midday.gif" alt="일과 시간" loading="lazy">
     <div class="meta">
       <b>일과 시간</b>
       <span>13:20 · 순환 1·2·3</span>
-      <a href="./promo/midday.gif" download="postech-shuttle-midday.gif">GIF 내려받기 · 1015KB</a>
+      <a href="./promo/midday.gif" download="postech-shuttle-midday.gif">GIF 내려받기 · 1.0MB</a>
       <a class="sub" href="./promo/midday.mp4" download="postech-shuttle-midday.mp4">MP4 · 77KB</a>
     </div>
   </li>
-  <li>
-    <img src="./promo/rush.gif" alt="출근 시간" width="300" loading="lazy">
+  <li class="">
+    <img src="./promo/rush.gif" alt="출근 시간" loading="lazy">
     <div class="meta">
       <b>출근 시간</b>
       <span>08:14 · 유강</span>
@@ -51,8 +71,8 @@ footer a{color:var(--red);font-weight:800;text-decoration:none}
       <a class="sub" href="./promo/rush.mp4" download="postech-shuttle-rush.mp4">MP4 · 92KB</a>
     </div>
   </li>
-  <li>
-    <img src="./promo/stop.gif" alt="정류장" width="300" loading="lazy">
+  <li class="">
+    <img src="./promo/stop.gif" alt="정류장" loading="lazy">
     <div class="meta">
       <b>정류장</b>
       <span>도착 시각</span>
@@ -60,8 +80,8 @@ footer a{color:var(--red);font-weight:800;text-decoration:none}
       <a class="sub" href="./promo/stop.mp4" download="postech-shuttle-stop.mp4">MP4 · 91KB</a>
     </div>
   </li>
-  <li>
-    <img src="./promo/trip.gif" alt="길찾기" width="300" loading="lazy">
+  <li class="">
+    <img src="./promo/trip.gif" alt="길찾기" loading="lazy">
     <div class="meta">
       <b>길찾기</b>
       <span>가속기까지</span>
@@ -70,4 +90,4 @@ footer a{color:var(--red);font-weight:800;text-decoration:none}
     </div>
   </li>
 </ul>
-<footer>300px · 12fps · 9초 · 무한 반복 · <a href="./intro.html">소개</a> · <a href="./">앱</a></footer>
+<footer>12fps · 무한 반복 · <a href="./intro.html">소개</a> · <a href="./">앱</a></footer>
