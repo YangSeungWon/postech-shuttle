@@ -608,7 +608,8 @@ button{cursor:pointer}
 .mapbtns{
   position:fixed;z-index:850;display:flex;flex-direction:column;gap:9px;
   right:max(12px, env(safe-area-inset-right));
-  bottom:calc(var(--sheet) + var(--kb) + var(--tabs-h) + 14px);
+  /* 시트·탭 바로 위에 붙으면 길찾기 버튼이 눌리기 답답하다 */
+  bottom:calc(var(--sheet) + var(--kb) + var(--tabs-h) + 22px);
   transition:bottom .26s cubic-bezier(.22,.7,.3,1);
 }
 .mapbtn{
@@ -640,7 +641,7 @@ button{cursor:pointer}
 .plan-strip .itin:not(.best){opacity:.72}
 /* 경로 카드가 아래를 차지하면 시트는 물러난다 */
 body.strip-on .panel{transform:translateY(100%)}
-body.strip-on .mapbtns{bottom:calc(var(--strip) + var(--kb) + var(--tabs-h) + 14px)}
+body.strip-on .mapbtns{bottom:calc(var(--strip) + var(--kb) + var(--tabs-h) + 22px)}
 .mapbtns.left{left:max(12px, env(safe-area-inset-left));right:auto;align-items:flex-start}
 .mapbtns.left[hidden]{display:none}
 /* 시각을 바꿔 두면 아이콘만으로는 알 수 없다. 설정한 시각을 배지로 붙인다. */
