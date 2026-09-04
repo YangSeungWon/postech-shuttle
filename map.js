@@ -1039,6 +1039,8 @@ function setMyLocation(ll, accuracy) {
     if ($('trip').classList.contains('show') && !tripFrom && !$('inFrom').value) {
       tripFrom = { ll: myLL, label: T.here };
       $('inFrom').value = T.here;
+      // 출발칸에 커서를 두고 기다리던 참이면 이제 도착으로 넘긴다
+      if (document.activeElement === $('inFrom')) focusEmptyField();
       runTrip();
     }
     render();
@@ -1781,8 +1783,11 @@ function openTrip(on, suggest = true) {
     collapseForm(false); simMinutes = null; tripMode = 'depart'; whenLabel();
     tripXings = []; drawCrossings(tripXings); drawRoutes(); drawStops();
   } else {
-    // 출발지는 대개 내 위치다. 이미 알고 있으면 채워 두고 커서를 도착지로 보낸다.
+    /* 출발지는 대개 내 위치다. 알고 있으면 채워 두고 커서를 도착지로 보낸다.
+       아직 모르면 그때 물어본다 — 잡히면 setMyLocation 이 채우고 커서도
+       도착으로 옮긴다. 여기까지 온 사람은 어딘가로 가려는 참이다. */
     if (myLL && !tripFrom) { tripFrom = { ll: myLL, label: T.here }; $('inFrom').value = T.here; }
+    else if (!myLL && suggest) requestLocation();
     activeField = tripFrom ? 'to' : 'from';
     if (suggest) focusEmptyField();
   }
