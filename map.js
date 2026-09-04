@@ -1698,9 +1698,9 @@ function render() {
       html += tripPlans.map(planCard).join('');
       setPanel(html);
       $('panelScroll').querySelectorAll('.itin').forEach(el => el.onclick = () => {
-        $('panelScroll').querySelectorAll('.itin').forEach(x => x.classList.remove('best'));
-        el.classList.add('best');
-        drawPlan(tripPlans[+el.dataset.plan]);
+        planIdx = +el.dataset.plan;
+        drawPlan(tripPlans[planIdx]);
+        render();                        // 고른 것만 펼쳐 다시 그린다
       });
       return;
     }
@@ -2301,6 +2301,7 @@ function runTrip() {
   const t = nowMin();
   const ctx = { ROUTES, STOP_LIST, isOn, walk: walkNet };
   // 기한이 이미 지났으면 다음 운행일로 본다 (시간표가 하루치뿐이다)
+  planIdx = 0;                         // 새 결과는 첫 안을 펼친다
   tripPlans = planTripSeries(tripFrom, tripTo, t, ctx);
   /* 플래너는 요일을 보지 않는다 — 시간표만 본다. 그래서 주말·공휴일에도
      오늘 버스가 있는 것처럼 내놓는다. 시간표는 어느 운행일이든 같으므로
@@ -2393,6 +2394,9 @@ function sourceNote() {
   return `<span class="${stale ? 'stale' : ''}">${parts.join(' · ')}</span>`;
 }
 
+/* 지금 펼쳐 놓은 항목 */
+let planIdx = 0;
+
 /* 한 줄짜리 목록 항목. 세로로 쌓아 놓고 견주는 것이 목적이므로, 걸리는
    시간·구성·언제 출발하는지가 한눈에 들어와야 한다. 자세한 구간 설명은
    지도가 대신 한다 — 누르면 그 경로가 그려진다. */
@@ -2413,15 +2417,25 @@ function planCard(plan, i) {
     : `${fmt(leave)} → ${fmt(plan.arrive)} · ${T.walkOnly}`;
   // 다음 운행일 것은 지금 탈 수 있는 것과 섞이지 않게 따로 표시한다
   const day = plan.nextDay ? dayLabel(nextServiceDay()?.days || 1) : '';
+  /* 고른 것만 구간을 펼친다. 칩은 견주기에는 좋지만 어디서 내리는지를
+     말해 주지 않는다 — 그렇다고 모두 펼치면 다시 긴 목록이 된다. */
+  const open = i === planIdx;
+  const legs = !open ? '' : `<div class="itin-legs-detail">` + plan.legs.map(l => l.kind === 'walk'
+    ? `<div class="leg"><span class="lc walk">${T.min(Math.round(l.min))}</span>
+         <span class="txt">${T.walkTo(stopLabel(l.to), l.min)}</span></div>`
+    : `<div class="leg"><span class="lc" style="background:${l.route.color}">${badge(l.route)}</span>
+         <span class="txt"><b>${stopLabel(l.from)}</b> ${fmt(l.depart)}
+           → <b>${stopLabel(l.to)}</b> ${fmt(l.arrive)}</span></div>`).join('') + `</div>`;
   return `
-    <button type="button" class="itin ${i === 0 && !day ? 'best' : ''} ${day ? 'later' : ''}"
-            data-plan="${i}" aria-pressed="${i === 0 && !day}">
+    <button type="button" class="itin ${open && !day ? 'best' : ''} ${day ? 'later' : ''}"
+            data-plan="${i}" aria-pressed="${open}">
       <div class="itin-main">
         <span class="itin-dur">${T.min(dur)}</span>
         <span class="itin-legs">${chips}</span>
         ${day ? `<span class="itin-day">${day}</span>` : ''}
       </div>
       <div class="itin-sub">${sub}</div>
+      ${legs}
     </button>`;
 }
 

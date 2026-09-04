@@ -313,6 +313,10 @@ button{cursor:pointer}
 /* 도보는 테두리만 두른 알약, 버스는 노선 색을 채운 배지 — 모양으로 갈린다.
    아이콘을 마스크로 넣었더니 깨졌다. 글자에 단위를 붙이면 그림 없이도 읽힌다. */
 .lc.walk{background:none;color:var(--muted);border:1px solid var(--line);font-weight:800}
+/* 고른 항목에서만 펼쳐지는 구간 목록 */
+.itin-legs-detail{margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.itin-legs-detail .leg{padding:3px 0;font-size:13.5px;align-items:center}
+.itin-legs-detail .txt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .itin-sub{font-size:13px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
 /* 오늘 탈 수 없는 것 — 흐리게 두고 언제인지 붙인다 */
 .itin.later{background:var(--soft);border-style:dashed}
