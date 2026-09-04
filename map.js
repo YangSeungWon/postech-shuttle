@@ -510,20 +510,6 @@ map.on('zoomend', () => { drawStops(); paintLabels(); });
 
 /* --- 버스 마커 --- */
 const busMarkers = new Map();
-/* 고른 버스를 따라간다. 그 차를 보겠다고 누른 것이니 화면 밖으로 나가면
-   안 된다. 지도를 끌면 놓아 준다 — 그때는 다른 데를 보겠다는 뜻이다. */
-let followBus = false;
-/* 시트·탭에 가리는 만큼을 지도에게 알려 둔다. 그러면 '가운데'가 보이는
-   영역의 가운데가 된다. 시트가 움직일 때만 다시 잡으면 된다. */
-function setFollowPad() {
-  if (followBus) map.setPad(topInset(), sheetHeight());
-}
-function stopFollow() {
-  if (!followBus) return;
-  followBus = false;
-  map.setPad(0, 0);                     // 여백을 되돌려야 다음 화면 맞추기가 맞는다
-}
-
 function drawBuses(t) {
   const routeIds = guiding()
     ? new Set(tripPlans[0].legs.filter(l => l.kind === 'ride').map(l => l.route.id))
@@ -584,15 +570,6 @@ function drawBuses(t) {
     );
   }
   for (const [k, m] of busMarkers) if (!keep.has(k)) { layerBuses.removeLayer(m); busMarkers.delete(k); }
-  /* 따라가기. 자리를 옮길 때마다 지도를 그 자리에 맞춘다 — 애니메이션
-     없이 그냥 앉히면 된다. 버스가 이미 부드럽게 움직이므로 화면도 부드럽게
-     따라간다. (예전에 떨린 것은 시트 높이를 매 프레임 재느라 레이아웃이
-     걸려서였다. 이제 묵혀 쓴다.) */
-  if (followBus) {
-    const b = live.find(x => x.key === selectedBus);
-    if (!b) stopFollow();                   // 운행이 끝났다
-    else map.center(b.ll);              // 여백은 켤 때 한 번 정해 둔다
-  }
   return live;
 }
 
@@ -609,13 +586,7 @@ function selectBus(key) {
   map.closePopup();
   if (selected) { selected = null; paintSelection(); }
   selectedBus = selectedBus === key ? null : key;
-  followBus = !!selectedBus;
-  if (followBus) {
-    followMe = false;                       // 둘이 동시에 끌면 화면이 싸운다
-    $('btnLoc').classList.remove('on');
-    if (sheet.isMobile() && tab === 'near') sheet.raise(1);
-    setFollowPad();
-  } else map.setPad(0, 0);
+  if (selectedBus && sheet.isMobile() && tab === 'near') sheet.raise(1);
   render();
 }
 
@@ -761,7 +732,7 @@ map.on('click', e => {
   /* 빈 곳을 누르면 고른 것을 놓는다. 손잡이를 없앤 뒤로 시트를 접을 길이
      없었다 — 지도 앱들이 쓰는 몸짓이고 화면을 차지하지도 않는다. */
   if (selected || selectedBus) {
-    selected = null; selectedBus = null; stopFollow();
+    selected = null; selectedBus = null;
     map.closePopup();
     paintSelection();
     render();
@@ -1057,15 +1028,11 @@ function explainGeoError(err) {
 
 map.on('dragstart', () => {
   followMe = false;
-  stopFollow();
   $('btnLoc').classList.remove('on');
   if (headingOn) { headingOn = false; $('btnLoc').classList.remove('heading'); applyHeading(); }
 });
 
 function selectStop(name) {
-  /* 버스를 따라가던 중이면 먼저 놓는다. 안 그러면 다음 프레임에 버스 쪽으로
-     도로 끌려가고, 따라가기용 여백까지 남아 있어 보정이 두 번 걸린다. */
-  stopFollow();
   selectedBus = null;
   selected = selected === name ? null : name;
   paintSelection();
@@ -1075,7 +1042,7 @@ function selectStop(name) {
     if (view === 'timetable') { view = 'stops'; syncTab('near'); }
     // 카드를 볼 만큼만. 시간표(끝까지)에서 왔으면 내려서 지도를 되돌려 준다
     sheet.goto(1);
-    map.panTo(offsetForSheet(groupOfStop(selected)?.ll || STOPS[selected]));
+    reveal(groupOfStop(selected)?.ll || STOPS[selected]);
   }
   render();
 }
@@ -1107,18 +1074,25 @@ function pingMe() {
   el.classList.add('go');
 }
 
+/* 누른 것이 시트나 상단바에 가려질 때만, 가려지지 않을 만큼만 민다.
+   가운데로 끌어오면 누를 때마다 화면이 크게 튀어 어디를 보고 있었는지
+   잃는다 — 카메라는 되도록 사용자가 둔 자리에 있어야 한다. */
+function reveal(ll) {
+  const p = map.latLngToContainerPoint(ll);
+  const s = map.getSize();
+  const m = 46;                              // 표지가 설 자리
+  const top = topInset() + m, bot = s.y - sheetHeight() - m;
+  let dx = 0, dy = 0;
+  if (p.x < m) dx = p.x - m; else if (p.x > s.x - m) dx = p.x - (s.x - m);
+  if (p.y < top) dy = p.y - top; else if (p.y > bot) dy = p.y - bot;
+  if (!dx && !dy) return;                    // 이미 잘 보인다
+  map.panTo(map.containerPointToLatLng(L.point(s.x / 2 + dx, s.y / 2 + dy)));
+}
+
 /* 화면 위(길찾기 입력칸)와 아래(시트·카드 띠·탭)에 가려지는 높이 */
 function topInset() {
   const t = $('tripTop');
   return t && !t.hidden ? t.offsetHeight : 0;
-}
-/* 지도의 '보이는 가운데'로 옮긴다. 컨테이너 한가운데로 옮기면 아래쪽
-   절반이 시트에 덮여 있어, 고른 정류장이 시트 뒤로 들어간다. */
-function offsetForSheet(ll) {
-  const bot = sheetHeight(), top = topInset();
-  if (!bot && !top) return ll;
-  const p = map.latLngToContainerPoint(L.latLng(ll));
-  return map.containerPointToLatLng(L.point(p.x, p.y + (bot - top) / 2));
 }
 
 /* ================================================================== *
@@ -1156,7 +1130,6 @@ function fitFocus() {
                            : ROUTES.filter(r => r.kind === 'circulation');
   const pts = shown.flatMap(r => r.path.coords);
   if (!pts.length) return;
-  stopFollow();
   fitWithSheet(L.latLngBounds(pts), focusGroup ? 28 : 24);
 }
 
@@ -1997,7 +1970,6 @@ function pointActions(ll, label, autoPan = true) {
 map.on('contextmenu', e => { if (!guiding()) pointActions(e.latlng, T.mapPoint); });
 
 function runTrip() {
-  stopFollow();                        // 화면을 경로에 맞출 참이다
   if (!tripFrom || !tripTo) { tripPlans = []; collapseForm(false); layerTrip.clearLayers(); render(); return; }
   const t = nowMin();
   const ctx = { ROUTES, STOP_LIST, isOn, walk: walkNet };
@@ -2226,7 +2198,6 @@ const sheet = (() => {
     apply(snaps()[cur], animate);
     // 시트를 끝까지 올리면 지도가 거의 가려진다. 버튼 열이 겹치므로 감춘다.
     document.body.classList.toggle('sheet-full', isMobile() && cur === 2);
-    if (typeof setFollowPad === 'function') setFollowPad();
     grab.setAttribute('aria-expanded', String(cur > 0));
     grab.setAttribute('aria-label', cur === 0 ? T.sheetOpen : T.sheetClose);
     return cur;
