@@ -736,8 +736,17 @@ async function geoPermission() {
   } catch (e) { /* Permissions API 없음 — 그냥 넘어간다 */ }
 })();
 
-/* 권한을 못 얻을 때의 대비책 — 지도를 눌러 내 위치를 직접 찍는다 */
-let pickingMe = false;
+/* 지도를 눌러 자리를 찍는다. 내 위치를 못 얻을 때의 대비책으로 만든 것을
+   출발·도착 찍기에도 같이 쓴다 — 몸짓이 같으니 안내도 하나면 된다. */
+let pickingMe = false, pickingFor = null;
+function pickOnMap(which) {
+  pickingFor = which;
+  pickingMe = false;
+  closeAsk();
+  document.getElementById('map').classList.add('picking');
+  $('pickHint').hidden = false;
+  sheet.goto(0);
+}
 function pickMyLocation() {
   pickingMe = true;
   closeAsk();
@@ -752,6 +761,14 @@ map.on('click', e => {
     setMyLocation([e.latlng.lat, e.latlng.lng], 0);
     return;
   }
+  if (pickingFor) {
+    const which = pickingFor;
+    pickingFor = null;
+    document.getElementById('map').classList.remove('picking');
+    $('pickHint').hidden = true;
+    setEndpoint(which, { ll: [e.latlng.lat, e.latlng.lng], label: T.mapPoint });
+    return;
+  }
   /* 빈 곳을 누르면 고른 것을 놓는다. 손잡이를 없앤 뒤로 시트를 접을 길이
      없었다 — 지도 앱들이 쓰는 몸짓이고 화면을 차지하지도 않는다. */
   if (selected || selectedBus) {
@@ -764,7 +781,7 @@ map.on('click', e => {
   if (sheet.isMobile() && tab === 'near') sheet.goto(0);
 });
 $('pickCancel').onclick = () => {
-  pickingMe = false;
+  pickingMe = false; pickingFor = null;
   document.getElementById('map').classList.remove('picking');
   $('pickHint').hidden = true;
 };
@@ -1798,7 +1815,13 @@ function search(q, near) {
    자리로 가려는 사람은 없다. */
 function emptyState(near, field = activeField) {
   const seen = new Set();
-  const out = [];
+  /* 지도 앱들이 이 자리에 두는 두 가지. 내 위치는 출발 칸 옆 ◎ 로만 닿을 수
+     있었고(도착 칸에는 길이 없었다), 지도에서 찍기는 길게 누르기뿐이라
+     알려 주는 데가 없었다. */
+  const out = [
+    { kind: 'here', label: T.here, ll: myLL },
+    { kind: 'pick', label: T.pickOnMap },
+  ];
   const stops = STOP_LIST
     .map(s => ({ name: s.name, label: stopLabel(s.name), ll: s.ll, kind: 'stop',
                  d: near ? dist(near, s.ll) : null }));
@@ -1819,7 +1842,10 @@ function emptyState(near, field = activeField) {
 
 function drawSuggest(list) {
   $('suggest').innerHTML = list.map((p, i) => `
-    <div class="sug" data-i="${i}" role="option" tabindex="0" aria-selected="false">
+    <div class="sug ${p.kind === 'here' || p.kind === 'pick' ? 'sug-act' : ''}"
+         data-i="${i}" role="option" tabindex="0" aria-selected="false">
+      ${p.kind === 'here' ? '<svg class="sug-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M12 1.6v3.2M12 19.2v3.2M1.6 12h3.2M19.2 12h3.2"/></svg>' : ''}
+      ${p.kind === 'pick' ? '<svg class="sug-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.2s7-5.9 7-11.2a7 7 0 1 0-14 0c0 5.3 7 11.2 7 11.2Z"/><circle cx="12" cy="12" r="2.6"/></svg>' : ''}
       <span class="sug-name">${p.label}</span>
       <span class="sug-kind">${T.kinds[p.kind] || T.kinds.place}</span>
       ${p.d != null ? `<span class="d">${humanDist(p.d)}</span>` : ''}
@@ -1830,6 +1856,8 @@ function drawSuggest(list) {
     };
     el.onclick = () => {
     const p = list[+el.dataset.i];
+    if (p.kind === 'pick') { $('suggest').innerHTML = ''; pickOnMap(activeField); return; }
+    if (p.kind === 'here' && !p.ll) { $('suggest').innerHTML = ''; requestLocation(); return; }
     const picked = { ll: p.ll, label: p.label };
     if (activeField === 'from') { tripFrom = picked; $('inFrom').value = p.label; }
     else                        { tripTo   = picked; $('inTo').value   = p.label; remember(picked); }
