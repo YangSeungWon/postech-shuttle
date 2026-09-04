@@ -523,13 +523,11 @@ button{cursor:pointer}
   70%{transform:scale(1.12);opacity:.25}
   100%{transform:scale(1.2);opacity:0}
 }
-/* 폰이 향한 쪽. 지도를 돌릴 수는 없으니 부채꼴로 알린다. */
+/* 폰이 향한 쪽. conic-gradient + mask 로 그렸더니 브라우저에 따라
+   테두리만 남았다 — 모양이 계산으로 정해지도록 SVG 로 직접 그린다. */
 .me-beam{
-  position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px;
-  border-radius:50%;display:none;
-  background:conic-gradient(from -32deg,rgba(26,115,232,.42) 0deg,rgba(26,115,232,.12) 36deg,rgba(26,115,232,0) 64deg);
-  -webkit-mask-image:radial-gradient(circle,#000 26%,#000 52%,transparent 72%);
-  mask-image:radial-gradient(circle,#000 26%,#000 52%,transparent 72%);
+  position:absolute;left:50%;top:50%;width:72px;height:72px;margin:-36px 0 0 -36px;
+  display:none;pointer-events:none;
 }
 .me-wrap.heading .me-beam{display:block}
 @media (prefers-reduced-motion:reduce){ .me-glow{animation:none;opacity:.5;transform:scale(1)} }

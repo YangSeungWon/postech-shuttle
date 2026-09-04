@@ -248,6 +248,10 @@ const map = L.map('map', {
   // 회전 (leaflet-rotate). 플러그인이 없으면 이 값들은 무시된다.
   rotate: true, touchRotate: true, shiftKeyRotate: true, rotateControl: false,
   bearing: 0,
+  /* 노선을 그리는 SVG 는 화면보다 조금만 넓게 잘라 두는 것이 기본(0.1)인데,
+     지도를 돌리면 그 사각형이 화면을 못 덮어서 노선이 잘리고 끊긴다.
+     돌려도 덮이도록 넉넉히 잡는다. */
+  renderer: L.svg({ padding: 0.8 }),
 });
 const canRotate = typeof map.setBearing === 'function';
 const mapBearing = () => (canRotate ? map.getBearing() : 0);
@@ -951,8 +955,17 @@ function setMyLocation(ll, accuracy) {
     if (!myMarker) {
       myMarker = L.marker(myLL, {
         icon: L.divIcon({ className: '', iconSize: [16, 16], iconAnchor: [8, 8],
+          /* 부채꼴은 위(-y)를 향하게 그려 두고 방위만큼 돌린다.
+             꼭짓점 (0,0), 반지름 50, 좌우 20° — 끝점은 (∓17.1, -47.0) */
           html: `<div class="me-wrap" id="meWrap">
-                   <div class="me-glow"></div><div class="me-beam" id="meBeam"></div>
+                   <div class="me-glow"></div>
+                   <svg class="me-beam" id="meBeam" viewBox="-50 -50 100 100" aria-hidden="true">
+                     <defs><radialGradient id="meBeamFill">
+                       <stop offset=".18" stop-color="#1a73e8" stop-opacity=".55"/>
+                       <stop offset="1" stop-color="#1a73e8" stop-opacity="0"/>
+                     </radialGradient></defs>
+                     <path d="M0 0 L-17.1 -47 A50 50 0 0 1 17.1 -47 Z" fill="url(#meBeamFill)"/>
+                   </svg>
                    <div class="me"></div>
                  </div>` }),
         zIndexOffset: 500, interactive: false, keyboard: false,
