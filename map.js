@@ -483,7 +483,6 @@ function drawStops() {
       // 다시 찍을 일이 없으므로 표지를 띄우지 않는다.
       if (guiding()) return;
       selectStop(s.name);
-      pointActions(s.ll, stopLabel(s.name), false);
     });
     m.bindTooltip(stopLabel(s.name), { direction: 'right', offset: [10, 0] });
     m.on('dragend', e => {
@@ -1036,17 +1035,22 @@ map.on('dragstart', () => {
   if (headingOn) { headingOn = false; $('btnLoc').classList.remove('heading'); applyHeading(); }
 });
 
-function selectStop(name) {
+function selectStop(name, center) {
   selectedBus = null;
   selected = selected === name ? null : name;
   paintSelection();
+  map.closePopup();                    // 표지는 고른 것을 따라간다
   if (selected) {
     /* 시간표를 보다가 지도에서 정류장을 찍었으면, 그건 그 정류장을 보겠다는
        뜻이다. 시트에 시간표가 그대로 남아 있으면 찍은 보람이 없다. */
     if (view === 'timetable') { view = 'stops'; syncTab('near'); }
     // 카드를 볼 만큼만. 시간표(끝까지)에서 왔으면 내려서 지도를 되돌려 준다
     sheet.goto(1);
-    reveal(groupOfStop(selected)?.ll || STOPS[selected]);
+    const ll = groupOfStop(selected)?.ll || STOPS[selected];
+    /* 지도에서 찍었으면 이미 보고 있는 자리라 밀지 않는다. 목록에서 골랐으면
+       그 정류장이 화면에 없을 수도 있으니 데려온다. */
+    if (center) centerInView(ll); else reveal(ll);
+    pointActions(ll, stopLabel(selected), false);
   }
   render();
 }
@@ -1076,6 +1080,14 @@ function pingMe() {
   el.classList.remove('go');
   void el.offsetWidth;
   el.classList.add('go');
+}
+
+/* 보이는 영역(위아래 가려지는 만큼을 뺀 곳)의 한가운데로 데려온다 */
+function centerInView(ll) {
+  const p = map.latLngToContainerPoint(ll);
+  const s = map.getSize();
+  const mid = (topInset() + (s.y - sheetHeight())) / 2;
+  map.panTo(map.containerPointToLatLng(L.point(p.x, p.y + s.y / 2 - mid)));
 }
 
 /* 누른 것이 시트나 상단바에 가려질 때만, 가려지지 않을 만큼만 민다.
@@ -1324,7 +1336,7 @@ function drawHero(t, walks, walkTo) {
     ? T.heroLabel(stopLabel(best.g.name), best.w.min, routeLabel(a.route),
                   a.eta >= FAR_MIN ? fmt(a.at) : etaText(a.eta))
     : T.notRunning;
-  setHero(el, html, () => { selectStop(best.g.name); sheet.goto(1); }, label);
+  setHero(el, html, () => { selectStop(best.g.name, true); sheet.goto(1); }, label);
 }
 
 /* 아래 탭. 시트를 끌어 올려야 나오던 것들을 여기로 꺼냈다.
@@ -1528,7 +1540,7 @@ function render() {
   drawHero(t, walks, walkTo);
   $('panelScroll').innerHTML = html;
   $('panelScroll').querySelectorAll('.stop').forEach(el =>
-    el.onclick = () => selectStop(el.dataset.stop));
+    el.onclick = () => selectStop(el.dataset.stop, true));
   bindLangButtons();
   const tt = $('lnkTimetable2');
   if (tt) tt.onclick = showTimetable;
@@ -2211,17 +2223,21 @@ const sheet = (() => {
   /* --- 손잡이 --- *
    * 높이는 탭이 정하지만, 접고 펴는 것은 손으로 해야 한다. 탭만 두었더니
    * 정류장을 고른 뒤 시트를 내릴 방법이 없었다. */
-  let startY = 0, startPx = 0, dragging = false;
-  const onDown = e => {
+  let startY = 0, startPx = 0, dragging = false, fromList = false;
+  const onDown = (e, list) => {
     if (!isMobile()) return;
-    dragging = true; startY = (e.touches ? e.touches[0] : e).clientY;
+    dragging = true; fromList = !!list;
+    startY = (e.touches ? e.touches[0] : e).clientY;
     startPx = snaps()[cur];
     el.classList.add('dragging');
   };
   const onMove = e => {
     if (!dragging) return;
-    e.preventDefault();
     const y = (e.touches ? e.touches[0] : e).clientY;
+    /* 목록 위에서 시작해 손가락을 올리는 것은 "목록을 넘기겠다" 는 뜻이다.
+       그것까지 시트 끌기로 삼으면 목록이 아예 안 넘어간다. */
+    if (fromList && y < startY) { dragging = false; el.classList.remove('dragging'); return; }
+    e.preventDefault();
     apply(Math.max(60, Math.min(vh() * 0.88, startPx + (startY - y))), false);
   };
   const onUp = e => {
@@ -2248,7 +2264,7 @@ const sheet = (() => {
   /* 목록을 맨 위까지 올렸을 때만 시트를 끌어내린다 */
   $('panelScroll').addEventListener('touchstart', e => {
     if (!isMobile() || $('panelScroll').scrollTop > 0) return;
-    onDown(e);
+    onDown(e, true);
   }, { passive: true });
 
   const reflow = () => { if (isMobile()) apply(snaps()[cur], false); };
