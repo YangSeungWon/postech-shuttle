@@ -393,6 +393,7 @@
     panTo(ll)    { this._gl.panTo(toGL(ll)); return this; },
     setMaxBounds(b) { this._gl.setMaxBounds(b.toGL()); return this; },
     getSize()    { const c = this._gl.getContainer(); return new Point(c.clientWidth, c.clientHeight); },
+    getContainer() { return this._gl.getContainer(); },
     getBearing() { return this._gl.getBearing(); },
     /* animate 없이 부르면 즉시 돌린다. 나침반 값은 초당 수십 번 들어오는데
        그때마다 rotateTo 로 애니메이션을 걸면 서로 잡아먹어 기어간다. */

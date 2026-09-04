@@ -833,7 +833,10 @@ if (new URLSearchParams(location.search).has('debug')) {
     const at = n => { const s = STOP_LIST.find(x => x.name === n);
                       return s ? { ll: s.ll, label: s.name } : null; };
     const [H, M] = String(hhmm).split(':').map(Number);
-    const ctx = { ROUTES, STOP_LIST, isOn, walk: walkNet };
+    /* 지도에서 한 노선만 보고 있다고 해서 그 노선으로만 길을 찾으면 안 된다.
+     isOn 은 화면에 무엇을 그릴지 고르는 것이지 어느 차를 탈 수 있는지가
+     아니다 — 유강을 켜 둔 채 길찾기를 하면 순환이 통째로 사라졌다. */
+  const ctx = { ROUTES, STOP_LIST, isOn: () => true, walk: walkNet };
     return { all:    planTrip(at(a), at(b), H * 60 + M, ctx),
              series: planTripSeries(at(a), at(b), H * 60 + M, ctx) };
   };
@@ -965,10 +968,20 @@ function endPick() {
   $('pickPin').hidden = true;
 }
 function pickMyLocation() { pickOnMap('me'); }
+/* 핀이 가리키는 자리는 지도 한가운데가 아니다 — 위(입력칸)와 아래(시트·탭)에
+   가려지는 만큼을 뺀 '보이는 가운데'에 선다. 그런데 여기서는 map.getCenter()
+   를 적어 두어서, 찍은 자리보다 40px 남짓 위에 물방울이 섰다. 화면에 그려진
+   꼭짓점 자리를 그대로 읽는다. */
+function pickPoint() {
+  const r = $('pickPin').getBoundingClientRect();
+  const m = map.getContainer().getBoundingClientRect();
+  return map.containerPointToLatLng(
+    L.point(r.left + r.width / 2 - m.left, r.bottom - 2 - m.top));
+}
 $('pickOk').onclick = () => {
   const which = pickingFor;
   if (!which) return;
-  const c = map.getCenter();
+  const c = pickPoint();
   endPick();
   if (which === 'me') setMyLocation([c.lat, c.lng], 0);
   else setEndpoint(which, { ll: [c.lat, c.lng], label: T.mapPoint });
@@ -2315,7 +2328,10 @@ function runTrip() {
   drawEnds();                          // 한쪽만 찍혀 있어도 그 자리는 보여 준다
   if (!tripFrom || !tripTo) { tripPlans = []; collapseForm(false); layerTrip.clearLayers(); render(); return; }
   const t = nowMin();
-  const ctx = { ROUTES, STOP_LIST, isOn, walk: walkNet };
+  /* 지도에서 한 노선만 보고 있다고 해서 그 노선으로만 길을 찾으면 안 된다.
+     isOn 은 화면에 무엇을 그릴지 고르는 것이지 어느 차를 탈 수 있는지가
+     아니다 — 유강을 켜 둔 채 길찾기를 하면 순환이 통째로 사라졌다. */
+  const ctx = { ROUTES, STOP_LIST, isOn: () => true, walk: walkNet };
   // 기한이 이미 지났으면 다음 운행일로 본다 (시간표가 하루치뿐이다)
   planIdx = 0;                         // 새 결과는 첫 안을 펼친다
   tripPlans = planTripSeries(tripFrom, tripTo, t, ctx);
