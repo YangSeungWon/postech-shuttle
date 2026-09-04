@@ -238,7 +238,10 @@ function activeBuses(t) {
 /* ================================================================== *
  * 지도
  * ================================================================== */
-const map = L.map('map', { center: CENTER, zoom: 15, zoomControl: false, attributionControl: true });
+const map = L.map('map', {
+  center: CENTER, zoom: 15, zoomControl: false, attributionControl: true,
+  maxBoundsViscosity: 1,          // 경계 밖으로는 끌리지 않게
+});
 L.control.zoom({ position: 'topright' }).addTo(map);
 /* 바탕 지도 — 벡터 스타일을 직접 손봐서 쓴다.
    래스터에 흑백 필터를 씌우면 도로 위계와 라벨까지 함께 뭉개져서,
@@ -402,6 +405,17 @@ function drawRoutes() {
   for (const { r, line } of shifted) arrowsAlong(line, r.color);
 }
 map.on('zoomend', drawRoutes);
+
+/* 노선이 지나는 만큼만 돌아다니게 한다. 캠퍼스 셔틀 지도에서 전국을 볼 이유가
+   없고, 오프라인 타일 캐시가 쓸데없이 커진다. */
+const NETWORK = L.latLngBounds(ROUTES.flatMap(r => r.path.coords)).pad(0.25);
+function clampToNetwork() {
+  map.setMaxBounds(NETWORK);
+  // 전체가 한 화면에 들어오는 배율까지만 (inside 를 켜면 반대로 잠긴다)
+  map.setMinZoom(Math.max(11, Math.floor(map.getBoundsZoom(NETWORK))));
+}
+clampToNetwork();
+addEventListener('resize', clampToNetwork);
 
 /* --- 정류장 마커 --- */
 let selected = null;
