@@ -348,6 +348,22 @@ button{cursor:pointer}
 }
 .panel-links button:hover,.panel-links a:hover{color:var(--postech-red)}
 
+/* 전체 시간표 표 */
+.view-head{display:flex;align-items:center;gap:8px;text-transform:none;font-size:15px;color:var(--ink)}
+.back{border:0;background:none;font-size:19px;font-weight:900;color:var(--ink);padding:2px 6px;line-height:1}
+.tt-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:14px}
+.tt{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+.tt th,.tt td{padding:8px 11px;white-space:nowrap;text-align:center}
+.tt th{
+  position:sticky;top:0;background:#fff;font-weight:900;font-size:13px;
+  border-bottom:1px solid var(--line);letter-spacing:-.03em;
+}
+.tt td{border-bottom:1px solid #F1F3F6;font-weight:700;color:var(--ink)}
+.tt tr:last-child td{border-bottom:0}
+.tt tr.past td{color:#B9BFC8;font-weight:600}
+.tt tr.next td{background:var(--postech-red-050);color:var(--postech-red-700);font-weight:900}
+.panel-links button{cursor:pointer}
+
 /* ---------- notice ---------- */
 .notice{
   margin:12px 0 0;display:flex;gap:9px;padding:11px 12px;border-radius:13px;
@@ -591,7 +607,7 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
   </div>
   <div class="spacer"></div>
   <div class="clock" id="clock" role="timer" aria-atomic="true"><span id="clockH">--</span><span class="colon" aria-hidden="true">:</span><span id="clockM">--</span></div>
-  <a class="hdr-btn desk" id="lnkTimetable" href="./timetable.html">시간표</a>
+  <button class="hdr-btn desk" id="lnkTimetable">시간표</button>
 </header>
 
 <aside class="panel" id="panel" aria-label="정류장과 길찾기">

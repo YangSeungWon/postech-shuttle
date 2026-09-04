@@ -1,0 +1,45 @@
+{
+ "stops": {
+  "무은재삼거리": "Mueunjae Intersection",
+  "지곡회관 건너": "Across from Jigok Community Center",
+  "지곡회관": "Jigok Community Center",
+  "생명공학연구센터(PBC)": "PBC (Pohang Biotech Center)",
+  "친환경소재대학원": "Graduate Institute of Ferrous & Eco Materials",
+  "C5": "C5",
+  "체육관": "Gymnasium",
+  "체육관 건너": "Across from Gymnasium",
+  "실험동": "Laboratory Building",
+  "실험동 건너": "Across from Laboratory Building",
+  "가속기": "Accelerator",
+  "가속기연구소": "Pohang Accelerator Laboratory",
+  "롯데마트 주차장": "Lotte Mart Parking Lot",
+  "롯데마트": "Lotte Mart",
+  "교수아파트8동": "Faculty Apartments Bldg. 8",
+  "교수아파트 8동": "Faculty Apartments Bldg. 8",
+  "교수아파트 5동": "Faculty Apartments Bldg. 5",
+  "교수아파트 건너 (횡단보도 앞)": "Across from Faculty Apartments (Crosswalk)",
+  "PBC": "PBC",
+  "유강사거리": "Yugang Intersection",
+  "효자시장": "Hyoja Market"
+ },
+ "routes": {
+  "route1": {
+   "name": "Circulation 1",
+   "subtitle": "Mueunjae–Eco Materials",
+   "description": "Circulation service connecting Mueunjae Intersection and the Graduate Institute of Ferrous & Eco Materials.",
+   "start": "Every 15 min from 09:00"
+  },
+  "route2": {
+   "name": "Circulation 2",
+   "subtitle": "Mueunjae–Accelerator",
+   "description": "Circulation service from Mueunjae Intersection toward the accelerator area.",
+   "start": "Every 15 min from 09:05"
+  },
+  "route3": {
+   "name": "Circulation 3",
+   "subtitle": "Accelerator–Eco Materials",
+   "description": "Direct circulation service between the accelerator area and the Graduate Institute of Ferrous & Eco Materials.",
+   "start": "Every 15 min from 09:10"
+  }
+ }
+}

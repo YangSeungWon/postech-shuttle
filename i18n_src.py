@@ -1,4 +1,9 @@
-"""기존 안내 페이지(timetable.html)에 이미 있는 영문 표기를 그대로 가져온다."""
+"""영문 표기.
+
+원래는 기존 안내 페이지(timetable.html)에서 뽑아 썼다. 그 페이지를 지도 안으로
+흡수하면서, 뽑아낸 결과를 en_names.json 에 떼어 두고 그것을 읽는다.
+원본에서 다시 뽑아야 하면 extract() 를 쓴다.
+"""
 import json, re, subprocess, tempfile, os
 
 
@@ -28,8 +33,18 @@ def _eval_js(literal):
         os.unlink(path)
 
 
-def load(path='timetable.html'):
-    h = open(path).read()
+def load(path='en_names.json'):
+    return json.load(open(path))
+
+
+def extract():
+    """원본 안내 페이지에서 다시 뽑는다 (평소에는 en_names.json 을 쓴다)"""
+    import urllib.request
+    req = urllib.request.Request(
+        'https://peppy-beijinho-78668b.netlify.app/',
+        headers={'User-Agent': 'postech-shuttle/1.0'})
+    with urllib.request.urlopen(req, timeout=40) as r:
+        h = r.read().decode('utf-8', 'replace')
     return {
         'stops': _eval_js(_obj_after(h, 'const STOP_EN')),
         'routes': _eval_js(_obj_after(h, 'const ROUTE_EN')),

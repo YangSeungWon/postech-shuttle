@@ -7,7 +7,7 @@
  * 오프라인으로 동작한다. 캠퍼스 실내나 신호가 약한 곳에서 쓸모가 있다.
  * ------------------------------------------------------------------ */
 
-const VERSION = '60e05b8ab0aa';
+const VERSION = 'd9d71d437754';
 const SHELL = `shuttle-shell-${VERSION}`;
 const TILES = 'shuttle-tiles';
 const TILE_LIMIT = 600;
@@ -17,7 +17,7 @@ const SHELL_FILES = [
   './', './index.html', './map.js', './i18n.js', './planner.js', './walk.js',
   './map-data.js', './style-muted.json', './style-muted-en.json',
   './manifest.webmanifest', './icon-192.png', './icon-512.png',
-  './apple-touch-icon.png', './timetable.html',
+  './apple-touch-icon.png',
 ];
 /* 라이브러리 — 다른 출처라 실패해도 설치를 막지 않는다 */
 const VENDOR = [

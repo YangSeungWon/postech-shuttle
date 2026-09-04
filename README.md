@@ -3,8 +3,9 @@
 공개 셔틀버스 시간표를 지도 위에서 보여 주는 정적 웹페이지입니다.
 `bus.ysw.kr` 에 GitHub Pages로 배포합니다.
 
-* **지도** `index.html` — 노선·정류장, 시간표로 계산한 버스 위치, 내 위치 기준 도착 예정, 길찾기
-* **시간표** `timetable.html` — 기존 안내 페이지
+페이지는 하나입니다. 전체 시간표도 그 안의 한 화면입니다. 기존 안내 페이지는
+색·운행일·언어가 따로 놀고 주말에도 "다음 예정시간"을 말하고 있어 흡수했고,
+`timetable.html` 은 옛 주소를 위한 리다이렉트만 남았습니다.
 
 > 버스 위치와 도착 시각은 **공개 시간표를 보간한 예상값**이며 차량 GPS가 아닙니다.
 > 교통 상황에 따라 1~2분 차이가 날 수 있습니다.
@@ -48,7 +49,7 @@ python3 -c "print('const DATA = '+open('map-data.json').read()+';')" > map-data.
 * `upstream.py` — 원본 시간표를 다시 받아 비교
 * `fetch_osm.py` — OSM 도로·건물 다시 받기 (`refresh.py --osm`)
 * `basemap.py` — 바탕 지도 벡터 스타일 (`style-muted*.json`)
-* `i18n_src.py` — 기존 안내 페이지의 영문 정류장·노선명
+* `i18n_src.py` — 영문 정류장·노선명 (`en_names.json`, 원본에서 다시 뽑으려면 `extract()`)
 * `names_en.py` — POSTECH 공식 영문 건물명 (캠퍼스 안내도 국·영문 대조)
 * `elevation.py` — 그래프 노드의 고도 (SRTM 30m, `elev_cache.json.gz` 에 캐시)
 * `driveroute.py` — 정류장 사이 차량 경로 (같은 OSM 추출본에서 직접 계산)

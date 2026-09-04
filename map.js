@@ -109,6 +109,7 @@ const badge = r => BADGE[r.group]?.[LANG] || r.number;
 /* 노선 표시는 한 번에 하나만. 다섯 노선이 캠퍼스 중앙 도로를 공유해서
    동시에 색으로 그리면 무지개 리본이 된다. 기본값은 '전체'로, 이때는
    길 모양만 회색으로 보여 주고 색은 정류장·버스에만 쓴다. */
+let view = 'stops';                    // 'stops' | 'timetable'
 let focusGroup = null;                 // null = 전체
 /* 지곡·유강은 출퇴근 단방향 노선이라 오전·오후가 서로 다른 경로다.
    한쪽만 보여 주지 않으면 왕복 노선처럼 읽힌다. */
@@ -666,6 +667,7 @@ function askLocation() {
   $('askYes').onclick = () => { closeAsk(); startLocate(); };
   $('askNo').textContent = T.askNo;
   $('askNo').onclick = closeAsk;
+if ($('lnkTimetable')) $('lnkTimetable').onclick = showTimetable;
   openAsk(el);
 }
 
@@ -846,6 +848,37 @@ function busCard(b, t) {
   </div>`;
 }
 
+/* 전체 시간표. 정류장을 가로로, 운행을 세로로 놓은 표.
+   좁은 화면에서는 가로로 스크롤한다. */
+function timetableView(t) {
+  const g = focusGroup || 'route1';
+  // 시간대 구분은 확장노선에만 있다. 순환노선에 걸면 표가 통째로 비어 버린다.
+  const runs = ROUTES.filter(r => r.group === g
+    && (!isExt(g) || !focusPeriod || r.period === focusPeriod));
+  if (!runs.length) return `<div class="notice warn">${T.notRunning}</div>`;
+
+  const stops = runs[0].stops;
+  const rows = runs.flatMap(r => r.tripsMin.map(trip => ({ r, trip })))
+                   .sort((a, b) => a.trip[0] - b.trip[0]);
+  const running = today().runs;
+  const nextIdx = running ? rows.findIndex(x => x.trip[0] >= t) : -1;
+
+  const head = stops.map(n => `<th scope="col">${stopLabel(n)}</th>`).join('');
+  const body = rows.map(({ r, trip }, i) => {
+    const cls = i === nextIdx ? 'next' : (running && trip[trip.length - 1] < t ? 'past' : '');
+    return `<tr class="${cls}">`
+      + trip.map(m => `<td>${fmt(m)}</td>`).join('')
+      + '</tr>';
+  }).join('');
+
+  return `${isExt(g) ? periodSwitch() : ''}
+    <div class="sec-title">${T.routeTimetable(groupLabel(g))}</div>
+    <div class="tt-wrap"><table class="tt">
+      <thead><tr>${head}</tr></thead><tbody>${body}</tbody>
+    </table></div>
+    <div class="notice">${T.timetableHint}</div>`;
+}
+
 function stopCard(name, t, walk) {
   const arr = arrivalsForGroup(name, t);
   const rows = arr.length ? arr.slice(0, 3).map(a => `
@@ -897,6 +930,21 @@ function drawHero(t, walks, walkTo) {
     .filter(x => x.w)
     .sort((a, b) => a.w.min - b.w.min);
   const best = near.find(x => arrivalsForGroup(x.g.name, t).length) || near[0];
+  if (view === 'timetable') {
+    let h = `<div class="sec-title view-head">
+        <button type="button" class="back" id="ttBack" aria-label="${T.back}">←</button>
+        ${T.allTimetable}
+      </div>` + timetableView(t);
+    h += `<div class="source">${sourceNote()}</div>`;
+    $('panelScroll').innerHTML = h;
+    drawFilters();
+    $('ttBack').onclick = () => { view = 'stops'; sheet.raise(1); render(); };
+    $('panelScroll').querySelectorAll('.period button').forEach(el => el.onclick = () => {
+      focusPeriod = el.dataset.p; drawRoutes(); drawStops(); render();
+    });
+    return;
+  }
+
   const day = today();
   if (!day.runs) {
     const quiet = day.why === 'weekend' ? T.noWeekend : T.noHoliday(day.name);
@@ -921,6 +969,8 @@ function drawHero(t, walks, walkTo) {
     : T.notRunning;
   setHero(el, html, () => { selectStop(best.g.name); sheet.goto(1); }, label);
 }
+
+function showTimetable() { view = 'timetable'; sheet.goto(2); render(); }
 
 function render() {
   const t = nowMin();
@@ -1017,6 +1067,21 @@ function render() {
     html += near.slice(0, 6).map(s => stopCard(s.name, t, null)).join('');
   }
 
+  if (view === 'timetable') {
+    let h = `<div class="sec-title view-head">
+        <button type="button" class="back" id="ttBack" aria-label="${T.back}">←</button>
+        ${T.allTimetable}
+      </div>` + timetableView(t);
+    h += `<div class="source">${sourceNote()}</div>`;
+    $('panelScroll').innerHTML = h;
+    drawFilters();
+    $('ttBack').onclick = () => { view = 'stops'; sheet.raise(1); render(); };
+    $('panelScroll').querySelectorAll('.period button').forEach(el => el.onclick = () => {
+      focusPeriod = el.dataset.p; drawRoutes(); drawStops(); render();
+    });
+    return;
+  }
+
   const day = today();
   if (!day.runs) {
     html += `<div class="notice warn">${day.why === 'weekend' ? T.noWeekend : T.noHoliday(day.name)}</div>`;
@@ -1029,7 +1094,7 @@ function render() {
   }
   html += `<div class="source">${sourceNote()}</div>`;
   html += `<div class="panel-links">
-    <a href="./timetable.html">${T.allTimetable}</a>
+    <button type="button" id="lnkTimetable2">${T.allTimetable}</button>
     <span class="lang" role="group" aria-label="Language">
       <button type="button" id="langKo" class="${LANG === 'ko' ? 'on' : ''}"
               aria-pressed="${LANG === 'ko'}" lang="ko">한국어</button
@@ -1043,6 +1108,8 @@ function render() {
   $('panelScroll').querySelectorAll('.stop').forEach(el =>
     el.onclick = () => selectStop(el.dataset.stop));
   bindLangButtons();
+  const tt = $('lnkTimetable2');
+  if (tt) tt.onclick = showTimetable;
   const bx = $('busClose');
   if (bx) bx.onclick = e => { e.stopPropagation(); selectedBus = null; render(); };
   $('panelScroll').querySelectorAll('.period button').forEach(el => el.onclick = () => {
@@ -1079,6 +1146,7 @@ if (new URLSearchParams(location.search).has('edit')) $('btnEdit').hidden = fals
 $('btnEdit').onclick = toggleEdit;
 $('btnBase').onclick = () => setBasemap(baseIdx + 1);
 $('askNo').onclick = closeAsk;
+if ($('lnkTimetable')) $('lnkTimetable').onclick = showTimetable;
 
 /* Esc 로 지금 열려 있는 것을 닫는다 */
 addEventListener('keydown', e => {
@@ -1613,6 +1681,10 @@ render();
 // 처음에는 캠퍼스(순환노선)에 맞춘다 — 지곡·유강까지 넣으면 캠퍼스가 너무 작아진다
 fitWithSheet(L.latLngBounds(
   ROUTES.filter(r => r.kind === 'circulation').flatMap(r => r.path.coords)), 24);
+/* 옛 시간표 주소에서 넘어오면 바로 그 화면을 연다.
+   sheet 가 만들어진 뒤여야 하므로 시작 블록에서 부른다. */
+if (new URLSearchParams(location.search).get('view') === 'timetable') showTimetable();
+
 setInterval(() => { if (simMinutes === null) render(); }, 1000);
 
 /* ================================================================== *

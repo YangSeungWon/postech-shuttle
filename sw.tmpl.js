@@ -17,7 +17,7 @@ const SHELL_FILES = [
   './', './index.html', './map.js', './i18n.js', './planner.js', './walk.js',
   './map-data.js', './style-muted.json', './style-muted-en.json',
   './manifest.webmanifest', './icon-192.png', './icon-512.png',
-  './apple-touch-icon.png', './timetable.html',
+  './apple-touch-icon.png',
 ];
 /* 라이브러리 — 다른 출처라 실패해도 설치를 막지 않는다 */
 const VENDOR = [
