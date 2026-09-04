@@ -678,14 +678,19 @@ body.trip-top-on .install-bar{display:none}
    대신 상단바 왼쪽에 나가는 화살표를 둔다 — 없으면 빠져나올 길이 없다. */
 body.trip-top-on .tabs{display:none}
 body.trip-top-on{--tabs-h:0px}
-.trip-back{
-  flex:0 0 auto;width:30px;height:30px;margin-left:-6px;padding:0;
-  border:0;background:none;color:#3d434c;display:none;place-items:center;cursor:pointer;
+.trip-main{display:flex;align-items:center;gap:8px}
+.trip-rows{flex:1 1 auto;min-width:0}
+.trip-swap{align-self:center}
+/* 출발 줄에만 ◎ 가 있어서 두 입력칸 길이가 달라진다 — 도착 줄에 그만큼 비운다 */
+.trip-rows .trip-row:last-child{padding-right:41px}
+.trip-close{
+  flex:0 0 auto;width:32px;height:32px;padding:0;align-self:center;
+  border:0;background:none;color:#69717d;display:none;place-items:center;cursor:pointer;
 }
-.trip-back svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.trip-close svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+.trip-close:hover{color:var(--postech-red)}
 /* 사이드바 안에서는 닫을 이유가 없다 — 늘 펴 두는 자리다 */
-.trip-top .trip-back{display:grid}
-.trip-top .trip-row:nth-of-type(2){padding-left:30px}
+.trip-top .trip-close{display:grid}
 #btnClock{position:relative;overflow:visible}
 /* 버튼 오른쪽으로 편다. 위로 펴면 지도 버튼 열과 같은 높이를 두고
    두 덩어리가 세로로 겹쳐 보인다. */
@@ -810,18 +815,24 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
   <div class="trip" id="trip">
     <div class="trip-summary" id="tripSummary" hidden></div>
     <div class="trip-fields" id="tripFields">
-      <div class="trip-row">
-        <button class="trip-back" id="tripBack" aria-label="길찾기 닫기">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5.5 8 12l7 6.5"/></svg>
+      <!-- 바꾸기는 두 줄에 함께 걸리는 동작이라 왼쪽에 한 번만 둔다.
+           닫기는 오른쪽 맨 끝 — 나가는 문은 늘 같은 자리에 있어야 한다. -->
+      <div class="trip-main">
+        <button class="mini trip-swap" id="btnSwap" title="출발·도착 바꾸기" aria-label="출발·도착 바꾸기">⇅</button>
+        <div class="trip-rows">
+          <div class="trip-row">
+            <span class="pin from" id="pinFrom" role="img" aria-label="출발"></span>
+            <input id="inFrom" placeholder="출발지" autocomplete="off" aria-label="출발지">
+            <button class="mini" id="btnHere" title="내 위치로" aria-label="내 위치로"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M12 1.6v3.2M12 19.2v3.2M1.6 12h3.2M19.2 12h3.2"/></svg></button>
+          </div>
+          <div class="trip-row">
+            <span class="pin to" id="pinTo" role="img" aria-label="도착"></span>
+            <input id="inTo" placeholder="도착지" autocomplete="off" aria-label="도착지">
+          </div>
+        </div>
+        <button class="trip-close" id="tripClose" aria-label="길찾기 닫기">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5"/></svg>
         </button>
-        <span class="pin from" id="pinFrom" role="img" aria-label="출발"></span>
-        <input id="inFrom" placeholder="출발지" autocomplete="off" aria-label="출발지">
-        <button class="mini" id="btnHere" title="내 위치로" aria-label="내 위치로"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M12 1.6v3.2M12 19.2v3.2M1.6 12h3.2M19.2 12h3.2"/></svg></button>
-      </div>
-      <div class="trip-row">
-        <span class="pin to" id="pinTo" role="img" aria-label="도착"></span>
-        <input id="inTo" placeholder="도착지" autocomplete="off" aria-label="도착지">
-        <button class="mini" id="btnSwap" title="출발·도착 바꾸기" aria-label="출발·도착 바꾸기">⇅</button>
       </div>
       <div class="suggest" id="suggest" role="listbox" aria-label="검색 결과"></div>
     </div>

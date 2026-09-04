@@ -1721,7 +1721,7 @@ function openTrip(on, suggest = true) {
   render();
 }
 $('btnRoute').onclick = () => openTrip();
-$('tripBack').onclick = () => setTab('near');
+$('tripClose').onclick = () => setTab('near');
 
 
 function search(q, near) {
@@ -2244,7 +2244,7 @@ function applyLang() {
   set('skipLink', T.skip);
   $('btnMode').ariaLabel = T.modeSwitch;
   $('btnClock').title = T.whenTitle;   // 라벨은 whenLabel 이 시각까지 넣어 다시 쓴다
-  $('tripBack').title = $('tripBack').ariaLabel = T.back;
+  $('tripClose').title = $('tripClose').ariaLabel = T.close;
   sheet.relabel();
   set('tabNear', T.tabNear); set('tabRoutes', T.tabRoutes);
   set('tabTimetable', T.tabTimetable); set('tabTrip', T.tabTrip);
