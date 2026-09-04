@@ -925,8 +925,9 @@ function render() {
   // 콜론을 깜빡여 지금 시각임을 드러낸다. 시각을 옮겨 둔 상태에서는 멈춘다.
   // 매초 다시 만들면 애니메이션이 리셋되므로 숫자만 갈아 끼운다.
   const [hh, mm] = fmt(tripMode === 'arrive' ? realNow() : t).split(':');
+  if (!$('clockH')) { /* 모바일에는 상단바가 없다 */ } else
   if ($('clockH').textContent !== hh) $('clockH').textContent = hh;
-  if ($('clockM').textContent !== mm) {
+  if ($('clockM') && $('clockM').textContent !== mm) {
     $('clockM').textContent = mm;
     $('clock').setAttribute('aria-label', T.clockLabel(hh, mm));
   }
@@ -1614,6 +1615,7 @@ setInterval(() => { if (simMinutes === null) render(); }, 1000);
 function applyLang() {
   setLang(LANG);
   const set = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+  const has = id => !!$(id);
   set('brandShort', T.brandShort);
   set('brandLong', T.brandLong);
   set('tagline', T.tagline);
@@ -1632,6 +1634,7 @@ function applyLang() {
   set('updateText', T.updateReady);
   set('updateNow', T.reload);
   set('pickCancel', T.cancel);
+  if (has('clock')) $('clock').setAttribute('aria-label', T.clockLabel('--', '--'));
   $('inFrom').placeholder = $('inFrom').ariaLabel = T.fromPh;
   $('inTo').placeholder = $('inTo').ariaLabel = T.toPh;
   $('btnHere').title = $('btnHere').ariaLabel = T.here;
