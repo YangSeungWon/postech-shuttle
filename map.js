@@ -1532,8 +1532,8 @@ function render() {
   if (wideScreen() || !$('trip').classList.contains('show') || !tripPlans.length) hideStrip();
   if ($('trip').classList.contains('show')) {
     $('hero').hidden = true;
-    // 길찾기 중에는 노선 칩이 할 일이 없다 — 지도는 고른 경로를 그린다
-    $('filters').hidden = true;
+    // 길찾기로 화면을 채우는 모바일에서만 노선 칩을 접는다
+    if (sheet.isMobile()) $('filters').hidden = true;
     if (tripPlans.length) {
       // 모바일은 시트에 쌓지 않고 아래에 가로로 넘겨 본다
       if (!wideScreen()) { drawStrip(); return; }
@@ -1551,11 +1551,12 @@ function render() {
       $('panelScroll').innerHTML = `<div class="notice warn">${T.noRoute}</div>`;
       return;
     }
-    /* 아직 출발·도착을 안 찍었을 때. 여기서 그냥 흘려보내면 아래쪽
-       "곧 도착하는 버스" 목록이 그대로 붙는다 — 길찾기 화면에 있을 자리가
-       아니다. 고를 것은 위 입력칸의 검색 목록에 있다. */
-    $('panelScroll').innerHTML = '';
-    return;
+    /* 아직 출발·도착을 안 찍었을 때. 모바일에서는 길찾기가 화면을 통째로
+       차지하므로 시트를 비운다 — 아래쪽 "곧 도착하는 버스" 목록이 거기
+       있을 자리가 아니다. 데스크톱은 다르다. 사이드바에서는 길찾기 폼이
+       늘 펴져 있고 그 아래가 본래 목록 자리다. 여기서 비우면 정류장을
+       골라도 아무것도 안 나온다. */
+    if (sheet.isMobile()) { $('panelScroll').innerHTML = ''; return; }
   }
 
   const served = focusGroup
