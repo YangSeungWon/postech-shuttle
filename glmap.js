@@ -9,6 +9,7 @@
    호출부의 16·17 같은 숫자를 그대로 두려고 이 층에서 ±1 해 준다. */
 (function (global) {
   const ZOFF = 1;
+  const MIN_SLACK = 1.2;      // 최소 배율에서 이만큼은 더 밀린다
 
   /* ---------- 값 타입 ---------- */
   const asLL = v => Array.isArray(v) ? { lat: +v[0], lng: +v[1] }
@@ -273,7 +274,20 @@
     zoomOut()    { this._gl.zoomOut(); return this; },
     getMinZoom() { return this._minZoom; },
     getMaxZoom() { return this._maxZoom; },
-    setMinZoom(z){ this._minZoom = z; this._gl.setMinZoom(Math.max(0, z - ZOFF)); return this; },
+    /* 딱 막으면 손가락이 벽에 부딪힌 느낌이라, 조금 넘어갔다 돌아오게 둔다.
+       실제 한계는 조금 아래로 열어 두고, 손을 떼면 제자리로 당긴다. */
+    setMinZoom(z) {
+      this._minZoom = z;
+      this._gl.setMinZoom(Math.max(0, z - ZOFF - MIN_SLACK));
+      if (!this._spring) {
+        this._spring = true;
+        this._gl.on('zoomend', () => {
+          const lo = this._minZoom - ZOFF;
+          if (this._gl.getZoom() < lo - 0.01) this._gl.easeTo({ zoom: lo, duration: 260 });
+        });
+      }
+      return this;
+    },
     setMaxZoom(z){ this._maxZoom = z; this._gl.setMaxZoom(z - ZOFF); return this; },
     getCenter()  { const c = this._gl.getCenter(); return { lat: c.lat, lng: c.lng }; },
     setView(ll, z) { this._gl.jumpTo({ center: toGL(ll), zoom: (z == null ? this.getZoom() : z) - ZOFF }); return this; },
@@ -281,7 +295,13 @@
     setMaxBounds(b) { this._gl.setMaxBounds(b.toGL()); return this; },
     getSize()    { const c = this._gl.getContainer(); return new Point(c.clientWidth, c.clientHeight); },
     getBearing() { return this._gl.getBearing(); },
-    setBearing(d){ this._gl.rotateTo(d); return this; },
+    /* animate 없이 부르면 즉시 돌린다. 나침반 값은 초당 수십 번 들어오는데
+       그때마다 rotateTo 로 애니메이션을 걸면 서로 잡아먹어 기어간다. */
+    setBearing(d, animate) {
+      if (animate) this._gl.rotateTo(d, { duration: 300 });
+      else this._gl.setBearing(d);
+      return this;
+    },
     getBoundsZoom(b) {
       const cam = this._gl.cameraForBounds(b.toGL(), { padding: 0 });
       return cam ? cam.zoom + ZOFF : this.getZoom();

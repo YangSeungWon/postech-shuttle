@@ -742,8 +742,12 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
 .locbtn.heading .ic-nav{display:block}
 /* 방향까지 따라가는 중 — 한 번 더 누른 상태 */
 .mapbtn.heading{color:#1a73e8}
-/* 나침반. 바늘이 늘 북쪽을 가리키므로 지도가 돌아간 만큼 같이 돈다. */
+/* 나침반. 바늘이 늘 북쪽을 가리키므로 지도가 돌아간 만큼 같이 돈다.
+   북쪽 반쪽만 빨갛다 — 나침반은 다들 그렇게 생겼고, 어느 쪽이 북인지
+   방향(위아래)이 아니라 색으로 알 수 있어야 돌아가 있어도 읽힌다. */
 #btnNorth svg{transition:transform .1s linear}
+#btnNorth .n{fill:var(--postech-red);stroke:none}
+#btnNorth .s{fill:#B9BEC6;stroke:none}
 @media (prefers-reduced-motion:reduce){ #btnNorth svg{transition:none} }
 /* 길찾기는 이 화면의 주된 동작이라 채워서 눈에 띄게 둔다 */
 .mapbtn.primary{
@@ -930,7 +934,7 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
       <button class="mapbtn" id="btnZoomIn" aria-label="확대"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
       <button class="mapbtn" id="btnZoomOut" aria-label="축소"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
     </div>
-    <button class="mapbtn" id="btnNorth" hidden aria-label="북쪽으로 맞추기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2 15.4 12 12 10.2 8.6 12 12 3.2Z" fill="currentColor" stroke="none"/><path d="M12 10.2 15.4 12 12 20.8 8.6 12 12 10.2Z" opacity=".38"/></svg></button>
+    <button class="mapbtn" id="btnNorth" hidden aria-label="북쪽으로 맞추기"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="n" d="M12 3.2 15.4 12 12 10.2 8.6 12 12 3.2Z"/><path class="s" d="M12 10.2 15.4 12 12 20.8 8.6 12 12 10.2Z"/></svg></button>
     <button class="mapbtn locbtn" id="btnLoc" aria-label="내 위치">
       <svg class="ic-crosshair" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M12 1.6v3.2M12 19.2v3.2M1.6 12h3.2M19.2 12h3.2"/></svg>
       <svg class="ic-nav" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2 19 20.4 12 16.6 5 20.4 12 3.2Z" fill="currentColor" stroke="currentColor" stroke-linejoin="round"/></svg>

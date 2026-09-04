@@ -819,7 +819,7 @@ function applyMapRotation() {
 }
 map.on('rotate', applyMapRotation);
 $('btnNorth').onclick = () => {
-  map.setBearing(0);
+  map.setBearing(0, true);
   // 손으로 북쪽에 맞췄으면 방향 따라가기는 그만둔다 — 안 그러면 곧 다시 돌아간다
   if (headingOn) { headingOn = false; heading = null; $('btnLoc').classList.remove('heading'); }
   applyHeading();
@@ -839,6 +839,8 @@ function onOrientation(e) {
   const h = e.webkitCompassHeading != null ? e.webkitCompassHeading
           : (e.absolute && e.alpha != null ? 360 - e.alpha : null);
   if (h == null || Number.isNaN(h)) return;
+  // 나침반은 가만히 있어도 1~2° 씩 떤다. 그만큼은 흘려보낸다.
+  if (heading !== null && Math.abs(((h - heading + 540) % 360) - 180) < 1.2) return;
   heading = h;
   // 내가 보는 쪽이 화면 위로 오게 — MapLibre 의 bearing 이 곧 '위쪽 방위'다
   if (headingOn) map.setBearing(h);
@@ -849,7 +851,7 @@ async function toggleHeading() {
   if (headingOn) {                       // 끄기
     headingOn = false; heading = null;
     $('btnLoc').classList.remove('heading');
-    map.setBearing(0);                   // 방향 모드를 껐으면 북쪽으로
+    map.setBearing(0, true);             // 방향 모드를 껐으면 북쪽으로
     applyHeading();
     return;
   }
@@ -1724,9 +1726,26 @@ function drawSuggest(list) {
 
 for (const [id, field] of [['inFrom', 'from'], ['inTo', 'to']]) {
   $(id).addEventListener('input', e => { activeField = field; drawSuggest(search(e.target.value, myLL)); });
-  $(id).addEventListener('focus', e => { activeField = field; drawSuggest(search(e.target.value, myLL)); });
+  $(id).addEventListener('focus', e => {
+    activeField = field;
+    /* "내 위치" 는 우리가 채워 넣은 것이지 사용자가 친 것이 아니다. 다른 데를
+       고르려고 누른 것이니 비켜 준다 — 안 그러면 지우고 시작해야 한다.
+       되돌리려면 옆의 ◎ 를 누르면 되고, 빈 채로 나가면 도로 채운다. */
+    if (e.target.value === T.here) {
+      e.target.value = '';
+      if (field === 'from') tripFrom = null; else tripTo = null;
+    }
+    drawSuggest(search(e.target.value, myLL));
+  });
   $(id).addEventListener('blur', () => setTimeout(() => {
-    if (!$('trip').contains(document.activeElement)) $('suggest').innerHTML = '';
+    if ($('trip').contains(document.activeElement)) return;
+    $('suggest').innerHTML = '';
+    // 출발지를 빈 채로 두고 나갔으면 원래대로
+    if (field === 'from' && !tripFrom && !$('inFrom').value && myLL) {
+      tripFrom = { ll: myLL, label: T.here };
+      $('inFrom').value = T.here;
+      runTrip();
+    }
   }, 150));
 }
 $('btnHere').onclick = () => {
