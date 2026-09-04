@@ -508,7 +508,7 @@ map.on('zoomend', () => { drawStops(); paintLabels(); });
 const busMarkers = new Map();
 /* 고른 버스를 따라간다. 그 차를 보겠다고 누른 것이니 화면 밖으로 나가면
    안 된다. 지도를 끌면 놓아 준다 — 그때는 다른 데를 보겠다는 뜻이다. */
-let followBus = false;
+let followBus = false, followTick = 0;
 
 function drawBuses(t) {
   const routeIds = guiding()
@@ -565,12 +565,22 @@ function drawBuses(t) {
     );
   }
   for (const [k, m] of busMarkers) if (!keep.has(k)) { layerBuses.removeLayer(m); busMarkers.delete(k); }
-  /* 따라가기. panTo 는 애니메이션이라 매 프레임 부르면 서로 잡아먹는다 —
-     버스가 이미 부드럽게 움직이므로 그냥 그 자리에 맞추면 된다. */
+  /* 따라가기. 매 프레임 지도를 다시 앉히면 화면 전체가 미세하게 떨리고
+     (게다가 시트 높이를 재느라 매번 레이아웃이 걸린다), 버스가 제자리에
+     붙박인 채 배경만 움직여 오히려 어색하다. 화면 밖으로 밀려날 때만
+     한 번씩 데려온다 — 그 사이 버스는 화면 안에서 자유롭게 움직인다. */
   if (followBus) {
     const b = live.find(x => x.key === selectedBus);
-    if (b) map.setView(offsetForSheet(b.ll), map.getZoom());
-    else followBus = false;                 // 운행이 끝났다
+    if (!b) followBus = false;              // 운행이 끝났다
+    else if (++followTick % 10 === 0) {     // 초당 예닐곱 번이면 충분하다
+      const p = map.latLngToContainerPoint(b.ll);
+      const s = map.getSize();
+      const top = topInset(), bot = s.y - sheetHeight();
+      const mx = s.x * 0.22, my = Math.max(60, (bot - top) * 0.22);
+      if (p.x < mx || p.x > s.x - mx || p.y < top + my || p.y > bot - my) {
+        map.panTo(offsetForSheet(b.ll));
+      }
+    }
   }
   return live;
 }
@@ -2133,7 +2143,7 @@ $('planStrip').addEventListener('scroll', () => {
  * 바텀시트 (모바일)
  * ================================================================== */
 const sheet = (() => {
-  const el = $('panel');
+  const el = $('panel'), grab = $('grab');
   const isMobile = () => window.matchMedia('(max-width:820px)').matches;
   /* 키보드가 올라오면 쓸 수 있는 높이가 줄어든다. innerHeight 로 재면 iOS 는
      그대로라서, 88% 로 잡은 시트가 화면 아래로 넘쳐 버린다. 실제로 보이는
@@ -2168,9 +2178,54 @@ const sheet = (() => {
     apply(snaps()[cur], animate);
     // 시트를 끝까지 올리면 지도가 거의 가려진다. 버튼 열이 겹치므로 감춘다.
     document.body.classList.toggle('sheet-full', isMobile() && cur === 2);
+    grab.setAttribute('aria-expanded', String(cur > 0));
+    grab.setAttribute('aria-label', cur === 0 ? T.sheetOpen : T.sheetClose);
     return cur;
   }
   function height() { return isMobile() ? snaps()[cur] : 0; }
+
+  /* --- 손잡이 --- *
+   * 높이는 탭이 정하지만, 접고 펴는 것은 손으로 해야 한다. 탭만 두었더니
+   * 정류장을 고른 뒤 시트를 내릴 방법이 없었다. */
+  let startY = 0, startPx = 0, dragging = false;
+  const onDown = e => {
+    if (!isMobile()) return;
+    dragging = true; startY = (e.touches ? e.touches[0] : e).clientY;
+    startPx = snaps()[cur];
+    el.classList.add('dragging');
+  };
+  const onMove = e => {
+    if (!dragging) return;
+    e.preventDefault();
+    const y = (e.touches ? e.touches[0] : e).clientY;
+    apply(Math.max(60, Math.min(vh() * 0.88, startPx + (startY - y))), false);
+  };
+  const onUp = e => {
+    if (!dragging) return;
+    dragging = false; el.classList.remove('dragging');
+    const y = (e.changedTouches ? e.changedTouches[0] : e).clientY;
+    const px = startPx + (startY - y);
+    const s = snaps();
+    let bi = 0;                                  // 가장 가까운 자리로
+    s.forEach((v, i) => { if (Math.abs(v - px) < Math.abs(s[bi] - px)) bi = i; });
+    goto(bi);
+  };
+  grab.addEventListener('touchstart', onDown, { passive: true });
+  grab.addEventListener('mousedown', onDown);
+  window.addEventListener('touchmove', onMove, { passive: false });
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('touchend', onUp);
+  window.addEventListener('mouseup', onUp);
+  grab.addEventListener('click', () => { if (isMobile()) goto(cur === 2 ? 0 : cur + 1); });
+  grab.addEventListener('keydown', e => {
+    if (e.key === 'ArrowUp') { e.preventDefault(); goto(cur + 1); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); goto(cur - 1); }
+  });
+  /* 목록을 맨 위까지 올렸을 때만 시트를 끌어내린다 */
+  $('panelScroll').addEventListener('touchstart', e => {
+    if (!isMobile() || $('panelScroll').scrollTop > 0) return;
+    onDown(e);
+  }, { passive: true });
 
   const reflow = () => { if (isMobile()) apply(snaps()[cur], false); };
   window.addEventListener('resize', reflow);

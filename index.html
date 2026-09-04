@@ -96,8 +96,15 @@ button{cursor:pointer}
 /* bottom 이 --kb 인 이유: iOS 는 키보드가 올라와도 레이아웃 뷰포트가 줄지
    않아서, bottom:0 인 고정 요소가 키보드 뒤로 들어간다. 보이는 영역의
    바닥에 붙인다. */
+.grab{
+  height:22px;width:100%;border:0;background:none;padding:0;
+  display:grid;place-items:center;flex:0 0 auto;cursor:grab;touch-action:none;
+}
+.grab span{width:38px;height:4px;border-radius:99px;background:#D3D7DE}
+.grab:active{cursor:grabbing}
+@media (min-width:821px){ .grab{display:none} }
+
 .panel{
-  padding-top:10px;
   position:fixed;left:0;right:0;bottom:calc(var(--kb) + var(--tabs-h));z-index:900;
   height:var(--sheet-max);
   background:#fff;border-radius:20px 20px 0 0;
@@ -846,6 +853,7 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
 </header>
 
 <aside class="panel" id="panel" aria-label="정류장과 길찾기">
+  <button class="grab" id="grab" aria-expanded="false" aria-controls="panelScroll"><span aria-hidden="true"></span></button>
   <button class="hero" id="hero" aria-live="polite" aria-atomic="true"></button>
   <div class="trip" id="trip">
     <div class="trip-summary" id="tripSummary" hidden></div>
