@@ -259,8 +259,13 @@
     this._gl.addControl(new global.maplibregl.AttributionControl({ compact: true }), 'bottom-right');
     this._gl.touchZoomRotate.enableRotation();
     // 스타일이 갈릴 때마다 우리가 얹은 것이 지워지므로 다시 얹는다
-    // 스타일을 갈면 우리가 얹은 소스·레이어가 함께 지워진다
-    this._gl.on('style.load', () => this._restore());
+    /* 스타일을 갈면 우리가 얹은 소스·레이어가 함께 지워진다.
+       그리고 스타일이 준비됐는지는 우리가 따로 센다 — isStyleLoaded() 는
+       타일을 받는 중에도 false 가 되는데, 그때 style.load 를 기다리게 두면
+       스타일은 이미 로드된 뒤라 그 이벤트가 다시 오지 않는다. 그렇게
+       사라진 선들이 버스 자취를 흰 테두리만 남기고 있었다. */
+    this._ready = false;
+    this._gl.on('style.load', () => { this._ready = true; this._restore(); });
   }
   Map.prototype = {
     /* --- 자리에 얹기 --- *
@@ -283,7 +288,8 @@
           this._gl.setPaintProperty(slot.id, k, v);
         }
       };
-      this._gl.isStyleLoaded() ? put() : this._gl.once('style.load', put);
+      // 아직이면 자리만 적어 둔다 — style.load 에서 _restore 가 다 얹는다
+      if (this._ready) put();
     },
     _putLine(l) {
       this._put(l._slot, 'line',
@@ -312,6 +318,8 @@
       if (!slot) return;
       this._slots.delete(slot);
       slot.kind = null;
+      // 스타일이 오기 전에는 지도에 물어보면 안 된다 (아직 아무것도 없다)
+      if (!this._ready) return;
       if (this._gl.getLayer(slot.id)) this._gl.removeLayer(slot.id);
       if (this._gl.getSource(slot.id)) this._gl.removeSource(slot.id);
     },
