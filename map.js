@@ -905,6 +905,9 @@ function render() {
     html += `<div class="notice warn">${T.notRunning}</div>`;
   }
 
+  if (sourceAge() > STALE_DAYS) {
+    html += `<div class="notice warn">${T.staleWarn(DATA.source.checkedAt)}</div>`;
+  }
   html += `<div class="source">${sourceNote()}</div>`;
   html += `<div class="panel-links">
     <a href="./timetable.html">${T.allTimetable}</a>
@@ -1321,13 +1324,24 @@ function periodSwitch() {
 
 /* 어느 시점의 시간표인지 밝힌다. 시간표가 바뀌었는데 모르고 쓰는 것이
    이 앱에서 가장 조용히 위험한 상황이다. */
+/* 주간 갱신이 멈추면 이 날짜도 멈춘다. 세 번을 거르면 무언가 잘못된 것이니
+   날짜를 읽어 알아채기를 기대하지 말고 앱이 말하게 한다. */
+const STALE_DAYS = 21;
+
+function sourceAge() {
+  const d = DATA.source?.checkedAt;
+  if (!d) return null;
+  return Math.floor((Date.now() - new Date(d + 'T00:00:00').getTime()) / 86400000);
+}
+
 function sourceNote() {
   const s = DATA.source || {};
+  const age = sourceAge();
+  const stale = age !== null && age > STALE_DAYS;
   const parts = [];
-  if (s.effectiveFrom) parts.push(T.effectiveFrom(s.effectiveFrom));
-  else parts.push(T.effectiveUnknown);
-  if (s.checkedAt) parts.push(T.checkedAt(s.checkedAt));
-  return parts.join(' · ');
+  parts.push(s.effectiveFrom ? T.effectiveFrom(s.effectiveFrom) : T.effectiveUnknown);
+  if (s.checkedAt) parts.push(stale ? T.staleCheck(age) : T.checkedAt(s.checkedAt));
+  return `<span class="${stale ? 'stale' : ''}">${parts.join(' · ')}</span>`;
 }
 
 function planCard(plan, i) {
