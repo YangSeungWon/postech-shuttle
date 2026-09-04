@@ -693,7 +693,9 @@ if (new URLSearchParams(location.search).has('debug')) {
   };
   map.on('moveend', check);
   setTimeout(check, 1200);
-  console.log('[debug] 정류장', STOP_LIST.length, '곳에 GL 원. 지도를 한 번 움직이면 표가 나온다');
+  // 어느 코드가 돌고 있는지 헷갈리지 않게 표시를 남긴다
+  console.log('[debug] BUILD-2 · 정류장', STOP_LIST.length,
+              '곳에 GL 원. 지도를 한 번 움직이면 줄이 나온다');
 }
 
 /* --- 내 위치 --- */
