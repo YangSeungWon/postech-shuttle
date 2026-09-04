@@ -859,7 +859,11 @@ function selectStop(name) {
 }
 
 /* 시트에 가리는 만큼 지도 중심을 위로 올린 좌표 */
-const sheetHeight = () => (typeof sheet === 'undefined' ? 0 : sheet.height());
+const sheetHeight = () => {
+  // 카드 띠가 떠 있으면 시트는 물러나 있고, 아래를 가리는 건 띠다
+  if (document.body.classList.contains('strip-on')) return $('planStrip').offsetHeight;
+  return typeof sheet === 'undefined' ? 0 : sheet.height();
+};
 function offsetForSheet(ll) {
   const h = sheetHeight();
   if (!h) return ll;
@@ -1083,11 +1087,15 @@ function render() {
 
   let html = '';
 
+  // 카드 띠는 모바일에서 길찾기 결과가 있을 때만 남는다
+  if (wideScreen() || !$('trip').classList.contains('show') || !tripPlans.length) hideStrip();
   if ($('trip').classList.contains('show')) {
     $('hero').hidden = true;
     // 길찾기 중에는 노선 칩이 할 일이 없다 — 지도는 고른 경로를 그린다
     $('filters').hidden = true;
     if (tripPlans.length) {
+      // 모바일은 시트에 쌓지 않고 아래에 가로로 넘겨 본다
+      if (!wideScreen()) { drawStrip(); return; }
       html += `<div class="sec-title">${T.suggested}</div>`;
       if (tripPlans[0]?.late) html += `<div class="notice warn">${T.tooLate(fmt(simMinutes))}</div>`;
       html += tripPlans.map(planCard).join('');
@@ -1540,15 +1548,15 @@ function collapseForm(on) {
   $('trip').classList.toggle('done', on);
   $('tripSummary').hidden = !on;
   if (!on) return;
-  const end = (which, pin, label) =>
+  const end = (which, label) =>
     `<button type="button" class="ts-end" data-end="${which}"
              aria-label="${which === 'from' ? T.editFrom : T.editTo}">
-       <span class="pin ${which}">${pin}</span><span>${label}</span>
+       <span class="pin ${which}" aria-hidden="true"></span><span>${label}</span>
      </button>`;
   $('tripSummary').innerHTML =
-    end('from', T.from, tripFrom.label)
+    end('from', tripFrom.label)
     + `<span class="arrow" aria-hidden="true">→</span>`
-    + end('to', T.to, tripTo.label)
+    + end('to', tripTo.label)
     + `<button type="button" class="mini" id="tsSwap" aria-label="${T.swap}">⇅</button>`;
   $('tripSummary').querySelectorAll('.ts-end').forEach(el => el.onclick = () => editEnd(el.dataset.end));
   $('tsSwap').onclick = () => $('btnSwap').click();
@@ -1618,6 +1626,7 @@ function runTrip() {
     ? planArriveBy(tripFrom, tripTo, simMinutes, earliest, ctx)
     : planTripSeries(tripFrom, tripTo, t, ctx);
   // 시트를 먼저 낮춰야 지도에 맞출 때 가려지는 높이를 제대로 계산한다
+  stripIdx = 0;                       // 새 결과는 첫 장부터 본다
   collapseForm(tripPlans.length > 0);
   if (tripPlans.length) sheet.goto(1);
   drawRoutes();
@@ -1662,7 +1671,8 @@ function drawPlan(plan) {
   }
   for (const [pt, cls] of [[tripFrom.ll, 'from'], [tripTo.ll, 'to']]) {
     L.marker(pt, {
-      icon: L.divIcon({ className: '', iconSize: [18, 18], iconAnchor: [9, 9],
+      // 물방울 끝이 지점이다 — 가운데가 아니라 아래 끝에 맞춘다
+      icon: L.divIcon({ className: '', iconSize: [22, 26], iconAnchor: [11, 25],
         html: `<div class="trip-pin ${cls}"></div>` }),
       zIndexOffset: 600, interactive: false, keyboard: false,
     }).addTo(layerTrip);
@@ -1739,6 +1749,62 @@ function planCard(plan, i) {
     </button>`;
 }
 
+
+/* --- 추천 경로를 아래에 가로로 --- *
+ * 한 장이 지도에 그려진 한 경로다. 넘기면 지도가 따라 바뀐다. */
+let stripIdx = 0;
+function drawStrip() {
+  const el = $('planStrip');
+  const late = tripPlans[0]?.late
+    ? `<div class="notice warn">${T.tooLate(fmt(simMinutes))}</div>` : '';
+  el.innerHTML = late + tripPlans.map(planCard).join('');
+  el.hidden = false;
+  document.body.classList.add('strip-on');
+  stripIdx = Math.min(stripIdx, tripPlans.length - 1);
+  const cards = el.querySelectorAll('.itin');
+  cards.forEach((c, i) => {
+    c.classList.toggle('best', i === stripIdx);
+    c.setAttribute('aria-pressed', String(i === stripIdx));
+    // 넘기지 않고 눌러서 고를 수도 있어야 한다 (키보드·마우스)
+    c.onclick = () => focusStrip(i, true);
+  });
+  // 지도 버튼이 카드 위로 올라오도록 실제 높이를 알려 준다
+  requestAnimationFrame(() => document.documentElement.style
+    .setProperty('--strip', el.offsetHeight + 'px'));
+}
+function hideStrip() {
+  $('planStrip').hidden = true;
+  $('planStrip').innerHTML = '';
+  document.body.classList.remove('strip-on');
+  document.documentElement.style.setProperty('--strip', '0px');
+}
+function focusStrip(i, scroll) {
+  if (i === stripIdx || !tripPlans[i]) return;
+  stripIdx = i;
+  const cards = $('planStrip').querySelectorAll('.itin');
+  cards.forEach((c, k) => {
+    c.classList.toggle('best', k === i);
+    c.setAttribute('aria-pressed', String(k === i));
+  });
+  if (scroll) cards[i]?.scrollIntoView({ inline: 'center', block: 'nearest',
+                                         behavior: 'smooth' });
+  drawPlan(tripPlans[i]);
+}
+/* 스크롤이 멎으면 가운데 있는 장을 고른 것으로 본다 */
+let stripTimer = null;
+$('planStrip').addEventListener('scroll', () => {
+  clearTimeout(stripTimer);
+  stripTimer = setTimeout(() => {
+    const el = $('planStrip');
+    const mid = el.scrollLeft + el.clientWidth / 2;
+    let bi = 0, bd = Infinity;
+    el.querySelectorAll('.itin').forEach((c, i) => {
+      const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - mid);
+      if (d < bd) { bd = d; bi = i; }
+    });
+    focusStrip(bi, false);
+  }, 90);
+}, { passive: true });
 
 /* ================================================================== *
  * 바텀시트 (모바일)
@@ -1871,8 +1937,9 @@ function applyLang() {
   // 아이콘 버튼이므로 글자를 넣지 않는다 (넣으면 아이콘이 사라진다)
   $('btnRoute').title = $('btnRoute').ariaLabel = T.route;
   set('lnkTimetable', T.timetable);
-  set('pinFrom', T.from);
-  set('pinTo', T.to);
+  // 출발·도착 딱지는 모양이다 — 글자를 넣으면 모양이 사라진다
+  $('pinFrom').ariaLabel = T.from;
+  $('pinTo').ariaLabel = T.to;
   set('editHint', T.editHint);
   set('btnCopy', T.copyJson);
   set('btnResetCoords', T.resetCoords);

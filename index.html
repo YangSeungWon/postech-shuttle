@@ -178,27 +178,28 @@ button{cursor:pointer}
 /* ---------- trip planner ---------- */
 .trip{display:none;padding:12px 14px;border-bottom:1px solid var(--line);background:#FBFBFC}
 .trip-top{
-  position:fixed;z-index:920;
-  top:calc(env(safe-area-inset-top) + 10px);
-  left:max(10px, env(safe-area-inset-left));
-  right:max(10px, env(safe-area-inset-right));
+  position:fixed;z-index:920;top:0;left:0;right:0;
+  padding-top:env(safe-area-inset-top);background:#fff;
+  box-shadow:0 2px 14px rgba(0,0,0,.12);
 }
 .trip-top[hidden]{display:none}
 .trip-top .trip{
-  border:1px solid var(--line);border-bottom:1px solid var(--line);
-  border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.14);background:#fff;
-  padding:10px 11px;
+  border:0;border-bottom:1px solid var(--line);background:#fff;
+  padding:10px calc(12px + env(safe-area-inset-right)) 10px calc(12px + env(safe-area-inset-left));
 }
 .trip-top .trip-row{margin-bottom:6px}
 .trip-top .trip-row:last-of-type{margin-bottom:0}
 .trip.show{display:block}
 .trip-row{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+/* 글자("출발"/"도착")는 뺐다 — 자리와 안내문이 이미 말하고 있었다.
+   색은 남긴다. 출발 초록·도착 빨강은 지도 앱들의 관행이라 이미 읽힌다.
+   색만으로 나르지는 않는다 — 모양도 다르고(빈 동그라미/채운 물방울),
+   지도 위 핀과 같은 색을 쓴다. */
 .pin{
-  flex:0 0 auto;font-size:12.5px;font-weight:900;color:#fff;border-radius:6px;
-  padding:4px 6px;letter-spacing:-.02em;
+  flex:0 0 auto;width:13px;height:13px;border-radius:50%;
+  border:3px solid #1a8a4a;background:#fff;
 }
-.pin.from{background:#1a73e8}
-.pin.to{background:var(--postech-red)}
+.pin.to{border:0;background:var(--postech-red);border-radius:50% 50% 50% 0;transform:rotate(-45deg)}
 .trip input{
   flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;
   padding:8px 11px;font-size:15px;font-weight:700;background:#fff;
@@ -223,7 +224,8 @@ button{cursor:pointer}
   color:var(--ink);text-align:left;letter-spacing:-.03em;
 }
 .ts-end:hover{border-color:#bfc6d0;background:#fcfcfd}
-.ts-end .pin{padding:3px 5px;font-size:10.5px}
+.ts-end .pin{width:11px;height:11px;border-width:2.5px}
+.ts-end .pin.to{border-width:0}
 .ts-end span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .trip-summary .arrow{flex:0 0 auto;color:var(--muted);font-weight:900;font-size:14px}
 
@@ -564,6 +566,26 @@ button{cursor:pointer}
   stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;
 }
 .mapbtn[hidden]{display:none}
+.plan-strip{
+  position:fixed;z-index:900;left:0;right:0;bottom:var(--kb);
+  display:flex;gap:10px;overflow-x:auto;overscroll-behavior-x:contain;
+  scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
+  padding:4px calc(7vw + env(safe-area-inset-left))
+          calc(12px + env(safe-area-inset-bottom)) calc(7vw + env(safe-area-inset-left));
+  scrollbar-width:none;
+}
+.plan-strip::-webkit-scrollbar{display:none}
+.plan-strip[hidden]{display:none}
+.plan-strip .itin{
+  flex:0 0 86vw;scroll-snap-align:center;margin:0;
+  max-height:44dvh;overflow-y:auto;
+  box-shadow:0 6px 22px rgba(0,0,0,.16);
+}
+/* 가로로 넘기는 동안에는 어느 장이 지도에 그려진 것인지가 유일한 단서다 */
+.plan-strip .itin:not(.best){opacity:.72}
+/* 경로 카드가 아래를 차지하면 시트는 물러난다 */
+body.strip-on .panel{transform:translateY(100%)}
+body.strip-on .mapbtns{bottom:calc(var(--strip) + var(--kb) + 14px)}
 .mapbtns.left{left:max(12px, env(safe-area-inset-left));right:auto;align-items:flex-start}
 .mapbtns.left[hidden]{display:none}
 /* 시각을 바꿔 두면 아이콘만으로는 알 수 없다. 설정한 시각을 배지로 붙인다. */
@@ -573,6 +595,19 @@ button{cursor:pointer}
   font-size:11px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em;
 }
 .clock-tag[hidden]{display:none}
+/* 지도 위 출발·도착. 여태 CSS 가 없어 빈 div 만 놓여 안 보였다.
+   물방울 뒤집은 모양 — 뾰족한 끝이 실제 지점이다. */
+.trip-pin{
+  width:20px;height:20px;margin:1px;border-radius:50% 50% 50% 0;
+  transform:rotate(-45deg);border:2.5px solid #fff;
+  background:#1a8a4a;box-shadow:0 2px 7px rgba(0,0,0,.4);
+}
+.trip-pin.to{background:var(--postech-red)}
+/* 승하차 지점은 노선 색 테두리를 인라인으로 받는다 */
+.trip-stop{
+  width:16px;height:16px;border-radius:50%;background:#fff;
+  border:4px solid #888;box-shadow:0 1px 4px rgba(0,0,0,.35);
+}
 /* 길찾기 폼이 상단을 차지하면 설치 안내는 물러난다 */
 body.trip-top-on .install-bar{display:none}
 #btnClock{position:relative;overflow:visible}
@@ -686,12 +721,12 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
     <div class="trip-summary" id="tripSummary" hidden></div>
     <div class="trip-fields" id="tripFields">
       <div class="trip-row">
-        <span class="pin from" id="pinFrom">출발</span>
+        <span class="pin from" id="pinFrom" role="img" aria-label="출발"></span>
         <input id="inFrom" placeholder="출발지" autocomplete="off" aria-label="출발지">
         <button class="mini" id="btnHere" title="내 위치로" aria-label="내 위치로">◎</button>
       </div>
       <div class="trip-row">
-        <span class="pin to" id="pinTo">도착</span>
+        <span class="pin to" id="pinTo" role="img" aria-label="도착"></span>
         <input id="inTo" placeholder="도착지" autocomplete="off" aria-label="도착지">
         <button class="mini" id="btnSwap" title="출발·도착 바꾸기" aria-label="출발·도착 바꾸기">⇅</button>
       </div>
@@ -705,6 +740,10 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
 <!-- 모바일에서는 길찾기 폼을 화면 위에 고정한다. 지도 앱들의 방식이고,
      그래야 시트를 끝까지 올리지 않고도 입력할 수 있다. -->
 <div class="trip-top" id="tripTop" hidden></div>
+
+<!-- 추천 경로. 모바일에서는 시트에 쌓지 않고 아래에 가로로 넘겨 본다.
+     한 장이 지도에 그려진 한 경로다. -->
+<div class="plan-strip" id="planStrip" hidden role="group" aria-label="추천 경로"></div>
 
 <div id="map" role="region" aria-label="노선 지도">
   <div class="editbar" id="editbar" role="status">
