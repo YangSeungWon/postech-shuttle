@@ -242,14 +242,13 @@ function activeBuses(t) {
 /* ================================================================== *
  * 지도
  * ================================================================== */
+/* 배경과 노선이 같은 엔진 안에 있어야 돌릴 때 따로 놀지 않는다.
+   Leaflet 을 걷어내고 MapLibre 로 옮겼다 — glmap.js 가 Leaflet 이 쓰던
+   이름만큼만 흉내내므로 아래 그리는 코드는 그대로다. */
 const map = L.map('map', {
-  center: CENTER, zoom: 15, zoomControl: false, attributionControl: true,
-  maxBoundsViscosity: 1,          // 경계 밖으로는 끌리지 않게
+  center: CENTER, zoom: 15,
+  style: LANG === 'en' ? './style-muted-en.json' : './style-muted.json',
 });
-/* 지도 회전은 접었다. leaflet-rotate 로 붙여 봤지만, 벡터 배경(MapLibre)이
-   Leaflet 안에 레이어로 얹힌 구조라 배경만 따로 놀았다. 라이브러리 내부
-   계산을 두 군데 고쳐 봤는데 위치는 잡혔어도 확대·축소가 망가졌다.
-   제대로 하려면 지도 엔진을 MapLibre 로 옮겨야 한다. */
 /* 확대·축소도 다른 지도 버튼과 같은 모양으로 둔다 */
 $('btnZoomIn').onclick = () => map.zoomIn();
 $('btnZoomOut').onclick = () => map.zoomOut();
@@ -274,33 +273,15 @@ const LS_BASE = 'postech-shuttle-basemap';
 let baseIdx = Math.max(0, BASE_STYLES.findIndex(b => {
   try { return b.id === localStorage.getItem(LS_BASE); } catch (e) { return false; }
 }));
-let baseLayer = null;
-
-/* WebGL 이 없으면 래스터로 물러난다.
-   maplibregl.supported() 는 v3 에서 없어졌으므로 직접 확인한다. */
-const canVector = (() => {
-  let ok = null;
-  return () => {
-    if (ok !== null) return ok;
-    try {
-      if (typeof maplibregl === 'undefined' || typeof L.maplibreGL !== 'function') return (ok = false);
-      const c = document.createElement('canvas');
-      ok = !!(c.getContext('webgl2') || c.getContext('webgl'));
-    } catch (e) { ok = false; }
-    return ok;
-  };
-})();
+let started = false;              // 첫 스타일은 지도를 만들 때 이미 걸렸다
 
 function setBasemap(i) {
   baseIdx = ((i % BASE_STYLES.length) + BASE_STYLES.length) % BASE_STYLES.length;
   const b = BASE_STYLES[baseIdx];
-  if (baseLayer) { map.removeLayer(baseLayer); baseLayer = null; }
-  baseLayer = canVector()
-    ? L.maplibreGL({ style: b.style(), attribution: b.attr })
-    : L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  { maxZoom: 19, attribution: OSM_ATTR, className: 'raster-fallback' });
-  baseLayer.addTo(map);
-  if (baseLayer.bringToBack) baseLayer.bringToBack();
+  /* 스타일을 갈면 우리가 얹은 노선·정류장 소스도 함께 지워진다.
+     glmap 이 styledata 를 듣고 다시 얹는다. */
+  if (started) map._gl.setStyle(b.style());
+  started = true;
   try { localStorage.setItem(LS_BASE, b.id); } catch (e) {}
   // 아이콘은 그대로 두고 상태만 표시한다 (글자로 덮어쓰면 아이콘이 사라진다)
   const btn = document.getElementById('btnBase');
@@ -616,7 +597,9 @@ function drawArrows(coords, layer = layerBusPath, every = 130, max = 18) {
     const deg = Math.atan2((b[1] - a[1]) * Math.cos(la), b[0] - a[0]) * 180 / Math.PI;
     L.marker([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], {
       icon: L.divIcon({ className: '', iconSize: [14, 14], iconAnchor: [7, 7],
-        html: `<div class="dirarrow" style="transform:rotate(${deg.toFixed(0)}deg)">
+        // 지도가 돌아가 있으면 그만큼 빼야 화면에서 맞는 쪽을 가리킨다
+        html: `<div class="dirarrow" data-deg="${deg.toFixed(1)}"
+                    style="transform:rotate(${(deg - map.getBearing()).toFixed(0)}deg)">
                  <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3.4 8.6 7 5l3.6 3.6"/></svg>
                </div>` }),
       zIndexOffset: 340, interactive: false, keyboard: false,
@@ -817,15 +800,38 @@ const ASKED_KEY = 'geo-asked';
  */
 let headingOn = false, heading = null, headingBound = false;
 
+/* 지도가 돌아가면 마커 안의 방향 표시는 따라 돌지 않는다(똑바로 서 있어야
+   읽히니 일부러 그렇게 둔다). 방위 θ 는 화면에서 θ − bearing 쪽을 가리킨다 —
+   MapLibre 의 bearing 은 '화면 위쪽이 가리키는 방위'다. */
+function applyMapRotation() {
+  const b = map.getBearing();
+  for (const el of document.querySelectorAll('.dirarrow')) {
+    el.style.transform = `rotate(${(parseFloat(el.dataset.deg || '0') - b).toFixed(0)}deg)`;
+  }
+  const beam = $('meBeam');
+  if (beam && heading !== null) beam.style.transform = `rotate(${(heading - b).toFixed(0)}deg)`;
+  // 나침반은 돌아가 있을 때만 나온다. 바늘은 늘 북쪽을 가리킨다.
+  const n = $('btnNorth');
+  if (n) {
+    n.hidden = Math.abs(((b + 180) % 360) - 180) < 0.5;
+    n.querySelector('svg').style.transform = `rotate(${(-b).toFixed(0)}deg)`;
+  }
+}
+map.on('rotate', applyMapRotation);
+$('btnNorth').onclick = () => {
+  map.setBearing(0);
+  // 손으로 북쪽에 맞췄으면 방향 따라가기는 그만둔다 — 안 그러면 곧 다시 돌아간다
+  if (headingOn) { headingOn = false; heading = null; $('btnLoc').classList.remove('heading'); }
+  applyHeading();
+};
+
 function applyHeading() {
   // ◎ 는 상태가 셋이라 버튼 이름도 따라가야 한다
   $('btnLoc').ariaLabel = headingOn ? T.headingOn : (followMe ? T.following : T.myLocation);
   const w = $('meWrap');
   if (!w) return;
   w.classList.toggle('heading', headingOn && heading !== null);
-  // 지도는 북쪽 고정이므로 부채꼴은 방위 그대로 돌리면 된다
-  const beam = $('meBeam');
-  if (beam && heading !== null) beam.style.transform = `rotate(${heading.toFixed(0)}deg)`;
+  applyMapRotation();
 }
 
 function onOrientation(e) {
@@ -834,6 +840,8 @@ function onOrientation(e) {
           : (e.absolute && e.alpha != null ? 360 - e.alpha : null);
   if (h == null || Number.isNaN(h)) return;
   heading = h;
+  // 내가 보는 쪽이 화면 위로 오게 — MapLibre 의 bearing 이 곧 '위쪽 방위'다
+  if (headingOn) map.setBearing(h);
   applyHeading();
 }
 
@@ -841,6 +849,7 @@ async function toggleHeading() {
   if (headingOn) {                       // 끄기
     headingOn = false; heading = null;
     $('btnLoc').classList.remove('heading');
+    map.setBearing(0);                   // 방향 모드를 껐으면 북쪽으로
     applyHeading();
     return;
   }
@@ -1501,7 +1510,7 @@ addEventListener('keydown', e => {
   if (!$('ask').hidden) { closeAsk(); return; }
   if (!$('whenPop').hidden) { closeWhen(); $('btnClock').focus(); return; }
   if (pickingMe) { $('pickCancel').click(); return; }
-  if (map.getPane('popupPane')?.querySelector('.leaflet-popup')) { map.closePopup(); return; }
+  if (map._popup) { map.closePopup(); return; }
   if (!wideScreen() && $('trip').classList.contains('show')) openTrip(false);
 });
 /* 카드 안에서 Tab 이 밖으로 새지 않게 */
@@ -2185,6 +2194,7 @@ function applyLang() {
   $('btnHere').title = $('btnHere').ariaLabel = T.here;
   $('btnSwap').title = $('btnSwap').ariaLabel = T.swap;
   $('btnLoc').title = T.myLocation;
+  $('btnNorth').title = $('btnNorth').ariaLabel = T.northUp;
   applyHeading();
   $('btnFit').title = $('btnFit').ariaLabel = T.fitAll;
   $('btnBase').title = $('btnBase').ariaLabel = T[BASE_STYLES[baseIdx].key];
