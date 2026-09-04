@@ -678,14 +678,12 @@ html[lang="en"] .arr .badge{--badge-w:58px}
 .pick-cursor{
   position:fixed;left:50%;z-index:895;pointer-events:none;
   top:calc((var(--pick-top, 0px) + 100dvh - var(--sheet) - var(--tabs-h) - var(--kb)) / 2);
-  transform:translate(-50%,-100%);
 }
 .pick-cursor[hidden]{display:none}
-.pick-cursor i{
-  display:block;width:24px;height:24px;margin:1px;border-radius:50% 50% 50% 0;
-  transform:rotate(-45deg);border:3px solid #fff;
-  background:#1a73e8;box-shadow:0 3px 9px rgba(0,0,0,.45);
-}
+/* 물방울 꼭짓점(아래에서 2px 위)이 고르는 점이다 */
+.pick-cursor{transform:translate(-50%, calc(-100% + 2px))}
+.pick-cursor .trip-pin{filter:drop-shadow(0 3px 9px rgba(0,0,0,.45))}
+.trip-pin.me{--pc:#1a73e8}
 @media (min-width:821px){ .pick-cursor{left:calc(50% + var(--panel-w) / 2)} }
 
 .pick-hint{
@@ -1043,7 +1041,7 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
   </div>
   <!-- 지도에서 자리 고르기. 손가락으로 한 점을 정확히 찍는 것은 무리라,
        핀을 화면 가운데 붙박아 두고 지도를 움직이게 한다. -->
-  <div class="pick-cursor" id="pickPin" hidden aria-hidden="true"><i></i></div>
+  <div class="pick-cursor" id="pickPin" hidden aria-hidden="true"></div>
   <div class="pick-hint" id="pickHint" hidden>
     <span id="pickHintText">지도를 움직여 자리를 맞춰 주세요</span>
     <button id="pickCancel">취소</button>

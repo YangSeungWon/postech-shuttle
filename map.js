@@ -343,6 +343,16 @@ const layerPick = L.layerGroup().addTo(map);
    글자를 붙이는 이유도 같다. 지도 위에서는 자리로 구별할 수가 없어 색만
    남는데, 색 하나에 뜻을 다 실을 수는 없다. */
 const layerEnds = L.layerGroup().addTo(map);
+/* 출발·도착 물방울. 지도에 세우는 것과 자리를 고를 때 따라다니는 것이
+   같은 모양·같은 색이어야 무엇을 찍는 중인지 알 수 있다. */
+function pinHTML(cls, label) {
+  return `<div class="trip-pin ${cls}">
+      <svg viewBox="-23 -23 46 55" aria-hidden="true">
+        <path d="M0 30 L-14.7 12.03 A19 19 0 1 1 14.7 12.03 Z"/>
+      </svg><span>${label}</span>
+    </div>`;
+}
+
 function drawEnds() {
   layerEnds.clearLayers();
   for (const [pt, cls, label] of [[tripFrom?.ll, 'from', T.from], [tripTo?.ll, 'to', T.to]]) {
@@ -351,11 +361,7 @@ function drawEnds() {
       // 물방울 끝이 지점이다 — 가운데가 아니라 아래 끝에 맞춘다
       // 물방울 꼭짓점(아래 한가운데)이 실제 지점이다
       icon: L.divIcon({ className: 'end-icon', iconSize: [46, 55], iconAnchor: [23, 53],
-        html: `<div class="trip-pin ${cls}">
-                 <svg viewBox="-23 -23 46 55" aria-hidden="true">
-                   <path d="M0 30 L-14.7 12.03 A19 19 0 1 1 14.7 12.03 Z"/>
-                 </svg><span>${label}</span>
-               </div>` }),
+        html: pinHTML(cls, label) }),
       zIndexOffset: 600, interactive: false, keyboard: false,
     }).addTo(layerEnds);
   }
@@ -921,6 +927,10 @@ function pickOnMap(which) {
   closeAsk();
   $('pickHintText').textContent = which === 'me' ? T.pickHintMe : T.pickHint;
   $('pickHint').hidden = false;
+  // 무엇을 찍는 중인지 핀이 말한다 — 지도에 세울 것과 같은 모양·같은 색
+  $('pickPin').innerHTML = pinHTML(
+    which === 'me' ? 'me' : which,
+    which === 'from' ? T.from : which === 'to' ? T.to : T.here);
   $('pickPin').hidden = false;
   sheet.goto(0);
   // 핀이 서는 자리는 위쪽 가림도 셈해야 한다
