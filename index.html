@@ -487,6 +487,15 @@ button{cursor:pointer}
   color:#fff;font-size:12px;font-weight:900;line-height:1;
   letter-spacing:-.04em;white-space:nowrap;
 }
+/* 향한 쪽. 선 위에 화살표를 뿌리는 것보다 버스가 달고 다니는 편이 읽힌다 —
+   어차피 알고 싶은 것은 "이 차가 어디로 가나" 하나다. */
+.bus-dir{position:absolute;left:50%;top:50%;width:0;height:0;pointer-events:none}
+.bus-dir::before{
+  content:'';position:absolute;left:-7px;top:-31px;
+  border-left:7px solid transparent;border-right:7px solid transparent;
+  border-bottom:10px solid var(--c);
+}
+.bus-dir[hidden]{display:none}
 .bus-win{                                   /* 앞유리 */
   position:absolute;left:5px;right:5px;top:5px;height:6px;
   border-radius:3px;background:rgba(255,255,255,.85);
@@ -674,14 +683,7 @@ body.strip-on .mapbtns{bottom:calc(var(--strip) + var(--kb) + var(--tabs-h) + 22
 }
 .trip-pin.to{background:var(--postech-red)}
 /* 승하차 지점은 노선 색 테두리를 인라인으로 받는다 */
-/* 진행 방향 화살표. 노선 색 선 위에 얹히므로 흰색으로 두고,
-   가장자리에 그늘을 줘 밝은 노선(초록·주황)에서도 보이게 한다. */
-.dirarrow{width:14px;height:14px;display:grid;place-items:center}
-.dirarrow svg{
-  width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2.6;
-  stroke-linecap:round;stroke-linejoin:round;
-  filter:drop-shadow(0 0 1.4px rgba(0,0,0,.55));
-}
+
 .trip-stop{
   width:16px;height:16px;border-radius:50%;background:#fff;
   border:4px solid #888;box-shadow:0 1px 4px rgba(0,0,0,.35);

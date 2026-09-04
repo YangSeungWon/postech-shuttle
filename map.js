@@ -65,6 +65,15 @@ for (const p of Object.values(DATA.paths)) {
   for (let i = 1; i < p.coords.length; i++) p.cum.push(p.cum[i - 1] + dist(p.coords[i - 1], p.coords[i]));
 }
 
+/* 두 점 사이의 방위(도). 경도 차이는 위도만큼 좁아진다. */
+function bearingOf(a, b) {
+  if (!a || !b) return null;
+  const la = (a[0] + b[0]) / 2 * Math.PI / 180;
+  const dLat = b[0] - a[0], dLng = (b[1] - a[1]) * Math.cos(la);
+  if (!dLat && !dLng) return null;
+  return Math.atan2(dLng, dLat) * 180 / Math.PI;
+}
+
 /* 노선 i번째 구간에서 진행률 f(0~1)일 때의 좌표 */
 function posOnLeg(path, legIdx, f) {
   const a = path.idx[legIdx], b = path.idx[legIdx + 1];
@@ -213,10 +222,14 @@ function activeBuses(t) {
         while (leg < trip.length - 2 && t >= trip[leg + 1]) leg++;
         const span = trip[leg + 1] - trip[leg];
         const f = span > 0 ? Math.min(1, Math.max(0, (t - trip[leg]) / span)) : 0;
+        const at = posOnLeg(r.path, leg, f);
+        // 조금 앞의 자리를 같이 구해 향한 쪽을 잰다 (구간 끝에서는 뒤를 본다)
+        const ahead = posOnLeg(r.path, leg, Math.min(1, f + 0.04));
+        const back  = posOnLeg(r.path, leg, Math.max(0, f - 0.04));
         buses.push({
           key: r.id + '#' + ti,
           route: r,
-          ll: posOnLeg(r.path, leg, f),
+          ll: at, dir: bearingOf(back, ahead),
           from: r.stops[leg], to: r.stops[leg + 1], arriveAt: trip[leg + 1],
           trip, legIdx: leg,
         });
@@ -505,6 +518,7 @@ function drawBuses(t) {
         icon: L.divIcon({
           className: 'bus-icon', iconSize: null, iconAnchor: [0, 0],
           html: `<div class="bus ${b.waiting ? 'waiting' : ''}" style="--c:${b.route.color}">
+                   <i class="bus-dir"></i>
                    <span class="bus-body"><span class="bus-win"></span>${label}</span>
                    <i class="wheel"></i><i class="wheel r"></i>
                  </div>`
@@ -517,6 +531,15 @@ function drawBuses(t) {
     } else {
       m.setLatLng(b.ll);
       m.getElement()?.firstElementChild?.classList.toggle('waiting', !!b.waiting);
+    }
+    // 향한 쪽. 서 있는 차에는 붙이지 않는다 — 아직 갈 방향이 없다.
+    const dir = m.getElement()?.querySelector('.bus-dir');
+    if (dir) {
+      dir.hidden = b.dir == null;
+      if (b.dir != null) {
+        dir.dataset.deg = b.dir.toFixed(1);
+        dir.style.transform = `rotate(${(b.dir - map.getBearing()).toFixed(0)}deg)`;
+      }
     }
     m.getElement()?.setAttribute('aria-label', b.waiting
       ? T.waitingAt(stopLabel(b.at), Math.max(1, Math.round(b.departAt - t)), fmt(b.departAt))
@@ -563,20 +586,9 @@ function drawBusPath(b) {
   }
   L.polyline(rest, { color: '#fff', weight: 11, opacity: .9, lineCap: 'round', interactive: false }).addTo(layerBusPath);
   L.polyline(rest, { color: b.route.color, weight: 6, opacity: 1, lineCap: 'round', interactive: false }).addTo(layerBusPath);
-  /* 남은 길 전체에 화살표를 뿌리면 오히려 못 읽는다 — 고리 노선은 같은
-     도로를 갈 때 한 번, 올 때 한 번 지나므로 반대 방향 화살표가 한 줄에
-     겹친다. 지금 어디로 가고 있는지만 알면 되니, 버스에서 다음 정류장까지만
-     얹는다. 그 구간은 절대 겹치지 않는다. */
-  const nextI = Math.min((b.legIdx < 0 ? 0 : b.legIdx + 1), p.idx.length - 1);
-  const upTo = p.idx[nextI];
-  if (upTo > here) {
-    let bi = here, bd = Infinity;
-    for (let i = here; i <= upTo; i++) {
-      const d = dist(p.coords[i], b.ll);
-      if (d < bd) { bd = d; bi = i; }
-    }
-    drawArrows([b.ll, ...p.coords.slice(bi + 1, upTo + 1)], layerBusPath, 55, 5);
-  }
+  /* 진행 방향은 버스 자신이 달고 있다. 선 위에 또 뿌리면 같은 말을 두 번
+     하는 데다, 고리 노선은 같은 도로를 오갈 때 반대 방향 화살표가 한 줄에
+     겹쳐 오히려 못 읽는다. */
   for (let i = b.legIdx < 0 ? 0 : b.legIdx + 1; i < b.route.stops.length; i++) {
     const ll = STOPS[canon(b.route.stops[i])];
     if (!ll) continue;
@@ -588,31 +600,8 @@ function drawBusPath(b) {
   }
 }
 
-/* 좌표열을 따라 일정 간격으로 진행 방향 화살표를 놓는다 */
-function drawArrows(coords, layer = layerBusPath, every = 130, max = 18) {
-  let acc = every * 0.55;              // 첫 화살표는 조금 가서
-  let put = 0;
-  for (let i = 1; i < coords.length && put < max; i++) {
-    const a = coords[i - 1], b = coords[i];
-    const seg = dist(a, b);
-    if (seg < 1) continue;
-    acc += seg;
-    if (acc < every) continue;
-    acc = 0; put++;
-    // 화면 기준 방위 — 경도차는 위도만큼 좁아진다
-    const la = (a[0] + b[0]) / 2 * Math.PI / 180;
-    const deg = Math.atan2((b[1] - a[1]) * Math.cos(la), b[0] - a[0]) * 180 / Math.PI;
-    L.marker([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], {
-      icon: L.divIcon({ className: '', iconSize: [14, 14], iconAnchor: [7, 7],
-        // 지도가 돌아가 있으면 그만큼 빼야 화면에서 맞는 쪽을 가리킨다
-        html: `<div class="dirarrow" data-deg="${deg.toFixed(1)}"
-                    style="transform:rotate(${(deg - map.getBearing()).toFixed(0)}deg)">
-                 <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3.4 8.6 7 5l3.6 3.6"/></svg>
-               </div>` }),
-      zIndexOffset: 340, interactive: false, keyboard: false,
-    }).addTo(layer);
-  }
-}
+/* 진행 방향은 버스가 스스로 달고 다닌다. 선 위에 화살표를 뿌려 봤지만
+   작아서 알아보기 어려웠고, 고리 노선에서는 오가는 방향이 한 줄에 겹쳤다. */
 
 /* --- 내 위치 --- */
 let myLL = null, myMarker = null, myCircle = null, watchId = null, followMe = false;
@@ -812,7 +801,7 @@ let headingOn = false, heading = null, headingBound = false;
    MapLibre 의 bearing 은 '화면 위쪽이 가리키는 방위'다. */
 function applyMapRotation() {
   const b = map.getBearing();
-  for (const el of document.querySelectorAll('.dirarrow')) {
+  for (const el of document.querySelectorAll('.bus-dir')) {
     el.style.transform = `rotate(${(parseFloat(el.dataset.deg || '0') - b).toFixed(0)}deg)`;
   }
   const beam = $('meBeam');
@@ -1945,8 +1934,6 @@ function drawPlan(plan) {
       const seg = p.coords.slice(p.idx[leg.fromIdx], p.idx[leg.toIdx] + 1);
       L.polyline(seg, { color: '#fff', weight: 11, opacity: .9, lineCap: 'round' }).addTo(layerTrip);
       L.polyline(seg, { color: leg.route.color, weight: 6.5, opacity: 1, lineCap: 'round' }).addTo(layerTrip);
-      // 승차 지점에서 어느 쪽으로 떠나는지만 — 구간 전체에 뿌리면 고리에서 겹친다
-      drawArrows(seg.slice(0, Math.max(2, Math.ceil(seg.length / 3))), layerTrip, 70, 4);
       pts.push(...seg);
     }
   }
