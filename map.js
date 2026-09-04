@@ -1714,8 +1714,9 @@ function render() {
 
   if (selected) {
     const g = groupOfStop(selected);
-    html += `<div class="sec-title">${T.selected}</div>`
-          + stopCard(selected, t, g ? walkTo(g) : null);
+    /* "선택한 정류장" 이라는 제목은 두지 않는다 — 카드가 맨 위에 있고,
+       지도에는 붉은 테두리와 물방울이 그 자리를 가리키고 있다. */
+    html += stopCard(selected, t, g ? walkTo(g) : null);
   }
 
   const near = STOP_GROUPS
@@ -1776,7 +1777,7 @@ function render() {
   }
   html += `<div class="source">${sourceNote()}</div>`;
   html += `<div class="panel-links">
-    <button type="button" id="lnkTimetable2">${T.allTimetable}</button>
+    ${sheet.isMobile() ? '' : `<button type="button" id="lnkTimetable2">${T.allTimetable}</button>`}
     ${canInstall() ? `<button type="button" id="lnkInstall">${T.installApp}</button>` : ''}
     <span class="lang" role="group" aria-label="Language">
       <button type="button" id="langKo" class="${LANG === 'ko' ? 'on' : ''}"
