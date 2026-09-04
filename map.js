@@ -1204,8 +1204,13 @@ function setHero(el, html, onclick, label) {
 }
 function drawHero(t, walks, walkTo) {
   const el = $('hero');
-  // 길찾기 중에는 입력칸이 그 자리를 쓴다
-  if (guiding() || $('trip').classList.contains('show')) { el.hidden = true; return; }
+  /* hero 는 "아무것도 안 물었을 때의 답"이다 — 가장 가까운 정류장의 다음 차.
+     다른 것을 물었으면(이 버스는 어디로 가나, 이 노선은 어디를 서나,
+     이 정류장은 언제 오나) 묻지도 않은 답이 맨 위를 차지할 이유가 없다. */
+  const idle = !guiding() && !$('trip').classList.contains('show')
+    && view !== 'timetable' && !selected && !selectedBus
+    && (!sheet.isMobile() || tab === 'near');
+  if (!idle) { el.hidden = true; return; }
   el.hidden = false;
 
   if (!myLL) {
