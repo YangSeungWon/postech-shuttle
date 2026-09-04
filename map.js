@@ -2352,6 +2352,7 @@ function planCard(plan, i) {
      것처럼 읽힌다. 실제로 나가야 하는 시각을 기준으로 잡는다. */
   const leave = plan.leave ?? plan.depart;
   const dur = Math.round(plan.arrive - leave);
+  const when = plan.nextDay ? dayLabel(nextServiceDay()?.days || 1) : '';
   const rides = plan.legs.filter(l => l.kind === 'ride');
   const legs = plan.legs.map(l => l.kind === 'walk'
     ? `<div class="leg">
@@ -2370,7 +2371,7 @@ function planCard(plan, i) {
             aria-pressed="${i === 0}">
       <div class="itin-head">
         <span class="itin-dur">${T.min(dur)}</span>
-        <span class="itin-time">${fmt(leave)} → ${fmt(plan.arrive)}</span>
+        <span class="itin-time">${plan.nextDay ? dayLabel(nextServiceDay()?.days || 1) + ' ' : ''}${fmt(leave)} → ${fmt(plan.arrive)}</span>
         ${tag ? `<span class="itin-tag">${tag}</span>` : ''}
       </div>
       ${legs}

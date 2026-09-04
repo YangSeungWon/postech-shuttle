@@ -177,7 +177,17 @@ function planTripSeries(from, to, depart, ctx, want = 3) {
       if (!seen.has(sig) && sane(r)) { seen.add(sig); pool.push(r); }
     }
   }
-  return rank(pool, want);
+  const out = rank(pool, want);
+  /* 오늘은 그 방향 버스가 더 없을 수 있다 — 유강·지곡은 출퇴근 한 방향씩만
+     다니므로, 유강사거리에서 북쪽으로 가는 차는 아침 세 대가 전부다. 그때
+     "걸어가세요" 만 내놓으면 버스가 아예 없는 노선처럼 읽힌다. 그날 첫차를
+     찾아 다음 운행일 것으로 붙여 준다. */
+  if (!out.some(r => r.legs.some(l => l.kind === 'ride'))) {
+    const firstOfDay = planTrip(from, to, 0, ctx)
+      .find(r => r.legs.some(l => l.kind === 'ride'));
+    if (firstOfDay) { firstOfDay.nextDay = true; out.push(firstOfDay); }
+  }
+  return out;
 }
 
 function finish(results) {
