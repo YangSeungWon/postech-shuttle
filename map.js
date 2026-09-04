@@ -796,8 +796,61 @@ const ASKED_KEY = 'geo-asked';
   askLocation();
 })();
 
-/* ◎ 버튼의 진입점 */
+/* --- 폰이 향한 쪽 --- *
+ * Leaflet 은 지도를 돌리지 못한다(MapLibre 는 되지만 그 위에 얹은 Leaflet
+ * 레이어가 따라 돌지 않아 어긋난다). 그래서 지도를 돌리는 대신 내 위치에
+ * 부채꼴을 띄워 어느 쪽을 보고 있는지 알린다.
+ */
+let headingOn = false, heading = null, headingBound = false;
+
+function applyHeading() {
+  // ◎ 는 상태가 셋이라 버튼 이름도 따라가야 한다
+  $('btnLoc').ariaLabel = headingOn ? T.headingOn : (followMe ? T.following : T.myLocation);
+  const w = $('meWrap');
+  if (!w) return;
+  w.classList.toggle('heading', headingOn && heading !== null);
+  const beam = $('meBeam');
+  if (beam && heading !== null) beam.style.transform = `rotate(${heading.toFixed(0)}deg)`;
+}
+
+function onOrientation(e) {
+  // iOS 는 진북 기준 값을 따로 준다. 안드로이드는 alpha 가 반시계라 뒤집는다.
+  const h = e.webkitCompassHeading != null ? e.webkitCompassHeading
+          : (e.absolute && e.alpha != null ? 360 - e.alpha : null);
+  if (h == null || Number.isNaN(h)) return;
+  heading = h;
+  applyHeading();
+}
+
+async function toggleHeading() {
+  if (headingOn) {                       // 끄기
+    headingOn = false; heading = null;
+    $('btnLoc').classList.remove('heading');
+    applyHeading();
+    return;
+  }
+  // iOS 13+ 는 사용자가 누른 그 자리에서 물어봐야 한다
+  const DOE = window.DeviceOrientationEvent;
+  if (DOE && typeof DOE.requestPermission === 'function') {
+    try {
+      if (await DOE.requestPermission() !== 'granted') return;
+    } catch (e) { return; }
+  } else if (!DOE) {
+    return;                              // 나침반이 없는 기기 — 조용히 넘어간다
+  }
+  headingOn = true;
+  $('btnLoc').classList.add('heading');
+  if (!headingBound) {
+    headingBound = true;
+    addEventListener('deviceorientationabsolute', onOrientation);
+    addEventListener('deviceorientation', onOrientation);
+  }
+  applyHeading();
+}
+
+/* ◎ 버튼의 진입점. 세 단계로 돈다 — 끔 → 따라가기 → 방향까지. */
 async function requestLocation() {
+  if (myLL && followMe) { toggleHeading(); return; }
   if (myLL) { followMe = true; $('btnLoc').classList.add('on'); map.setView(myLL, 16); return; }
   const state = await geoPermission();
   if (state === 'granted') startLocate();
@@ -846,9 +899,14 @@ function setMyLocation(ll, accuracy) {
     $('btnLoc').classList.toggle('on', followMe);
     if (!myMarker) {
       myMarker = L.marker(myLL, {
-        icon: L.divIcon({ className: '', iconSize: [16, 16], iconAnchor: [8, 8], html: '<div class="me"></div>' }),
+        icon: L.divIcon({ className: '', iconSize: [16, 16], iconAnchor: [8, 8],
+          html: `<div class="me-wrap" id="meWrap">
+                   <div class="me-glow"></div><div class="me-beam" id="meBeam"></div>
+                   <div class="me"></div>
+                 </div>` }),
         zIndexOffset: 500, interactive: false, keyboard: false,
       }).addTo(map);
+      applyHeading();
       myCircle = L.circle(myLL, { radius: accuracy, color: '#1a73e8', weight: 1, fillOpacity: .08, interactive: false }).addTo(map);
       /* 위치가 잡혔다고 지도를 옮기지는 않는다. 노선이 캠퍼스 한 뙈기라
          첫 화면에 이미 정류장이 다 들어와 있고, 그중 내가 어디인지는
@@ -889,7 +947,11 @@ function explainGeoError(err) {
   return { title: '위치를 가져오지 못했습니다.', how: err.message || null };
 }
 
-map.on('dragstart', () => { followMe = false; document.getElementById('btnLoc').classList.remove('on'); });
+map.on('dragstart', () => {
+  followMe = false;
+  $('btnLoc').classList.remove('on');
+  if (headingOn) { headingOn = false; $('btnLoc').classList.remove('heading'); applyHeading(); }
+});
 
 function selectStop(name) {
   // 지도에서 고르면 그 카드를 볼 만큼만 올린다
@@ -2051,7 +2113,7 @@ function applyLang() {
   $('inTo').placeholder = $('inTo').ariaLabel = T.toPh;
   $('btnHere').title = $('btnHere').ariaLabel = T.here;
   $('btnSwap').title = $('btnSwap').ariaLabel = T.swap;
-  $('btnLoc').title = $('btnLoc').ariaLabel = T.myLocation;
+  $('btnLoc').title = T.myLocation; applyHeading();
   $('btnFit').title = $('btnFit').ariaLabel = T.fitAll;
   $('btnBase').title = $('btnBase').ariaLabel = T[BASE_STYLES[baseIdx].key];
   if ($('btnEdit')) $('btnEdit').title = $('btnEdit').ariaLabel = T.fixCoords;

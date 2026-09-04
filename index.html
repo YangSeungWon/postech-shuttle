@@ -495,10 +495,35 @@ button{cursor:pointer}
 .bus.waiting .bus-win{background:var(--c);opacity:.22}
 .bus.waiting .wheel{background:var(--c);border-color:#fff}
 
+/* 내 위치. 점만 있으면 노선 색 사이에 묻혀서, 지도 앱들처럼 파란 번짐을
+   둘러 둔다. 정확도 원(반지름이 실제 오차)과는 다른 것이다 — 이건 눈에
+   띄라고 두는 장식이다. */
+.me-wrap{position:relative;width:16px;height:16px}
 .me{
-  width:16px;height:16px;border-radius:50%;background:#1a73e8;border:3px solid #fff;
+  position:absolute;inset:0;width:16px;height:16px;border-radius:50%;
+  background:#1a73e8;border:3px solid #fff;
   box-shadow:0 0 0 2px rgba(26,115,232,.35),0 2px 6px rgba(0,0,0,.3);
 }
+.me-glow{
+  position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;
+  border-radius:50%;background:radial-gradient(circle,rgba(26,115,232,.34) 0%,rgba(26,115,232,.14) 45%,rgba(26,115,232,0) 70%);
+  animation:mePulse 2.4s ease-out infinite;
+}
+@keyframes mePulse{
+  0%{transform:scale(.62);opacity:.95}
+  70%{transform:scale(1.12);opacity:.25}
+  100%{transform:scale(1.2);opacity:0}
+}
+/* 폰이 향한 쪽. 지도를 돌릴 수는 없으니 부채꼴로 알린다. */
+.me-beam{
+  position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px;
+  border-radius:50%;display:none;
+  background:conic-gradient(from -32deg,rgba(26,115,232,.42) 0deg,rgba(26,115,232,.12) 36deg,rgba(26,115,232,0) 64deg);
+  -webkit-mask-image:radial-gradient(circle,#000 26%,#000 52%,transparent 72%);
+  mask-image:radial-gradient(circle,#000 26%,#000 52%,transparent 72%);
+}
+.me-wrap.heading .me-beam{display:block}
+@media (prefers-reduced-motion:reduce){ .me-glow{animation:none;opacity:.5;transform:scale(1)} }
 .leaflet-container{font-family:inherit}
 
 
@@ -679,6 +704,8 @@ body.trip-top-on{--tabs-h:0px}
 }
 body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
 .mapbtn.on{background:var(--postech-red);border-color:var(--postech-red);color:#fff}
+/* 방향까지 따라가는 중 — 한 번 더 누른 상태 */
+.mapbtn.heading{background:#1a73e8;border-color:#1a73e8;color:#fff}
 /* 길찾기는 이 화면의 주된 동작이라 채워서 눈에 띄게 둔다 */
 .mapbtn.primary{
   background:var(--postech-red);border-color:var(--postech-red);color:#fff;
