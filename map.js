@@ -588,31 +588,6 @@ let geoError = null;                         // 실패 사유를 패널에 안�
  * 안드로이드·데스크톱 크롬은 프롬프트를 잡아 두었다가 띄우고,
  * iOS 사파리는 프롬프트가 없으므로 방법을 알려 준다.
  */
-let installPrompt = null;
-let alreadyInstalled = false;          // 브라우저 탭으로 보는 중이지만 설치는 되어 있음
-const isStandalone = () =>
-  matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-const ua = () => navigator.userAgent;
-const isIOS = () => /iPad|iPhone|iPod/.test(ua());
-const isAndroid = () => /Android/.test(ua());
-
-/* 크롬은 프롬프트를 주고, 그렇지 않은 브라우저(iOS 사파리, 안드로이드 파이어폭스
-   등)는 직접 띄울 방법이 없어 경로만 알려 준다. 설치할 수 없는 데스크톱
-   파이어폭스에서는 아무것도 보이지 않는다. */
-const canInstall = () =>
-  !isStandalone() && !alreadyInstalled && (!!installPrompt || isIOS() || isAndroid());
-
-addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; render(); });
-addEventListener('appinstalled', () => { installPrompt = null; alreadyInstalled = true; render(); });
-
-/* 설치했는지 물어볼 수 있는 브라우저에서는 물어본다 (크롬 계열) */
-(async () => {
-  try {
-    const apps = await navigator.getInstalledRelatedApps?.();
-    if (apps?.length) { alreadyInstalled = true; render(); }
-  } catch (e) { /* 지원하지 않는 브라우저 */ }
-})();
-
 /* 한 번 물러나면 다시 권하지 않는다 */
 const LS_NUDGE = 'postech-shuttle-install-nudge';
 let nudgeOff = false;
@@ -624,10 +599,28 @@ function dismissNudge() {
   render();
 }
 
+let installPrompt = null;
+const isStandalone = () =>
+  matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const ua = () => navigator.userAgent;
+const isIOS = () => /iPad|iPhone|iPod/.test(ua());
+const isAndroid = () => /Android/.test(ua());
+/* 데스크톱 크롬 계열 — beforeinstallprompt 가 늦거나 오지 않아도 설치는 된다 */
+const isChromium = () => /Chrome|Chromium|Edg\//.test(ua()) && !/Firefox/.test(ua());
+
+/* 지금 창이 앱이면(standalone) 권하지 않는다. 그 밖에는 설치가 아예 불가능한
+   경우(데스크톱 파이어폭스·사파리)만 빼고 보여 준다.
+   "설치했지만 브라우저 탭으로 보는 중"은 크롬에서만 알 수 있어 기준으로 쓰지 않는다. */
+const canInstall = () =>
+  !isStandalone() && (!!installPrompt || isIOS() || isAndroid() || isChromium());
+
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; render(); });
+addEventListener('appinstalled', () => { installPrompt = null; dismissNudge(); });
+
 /* 브라우저마다 경로가 다르다 */
 function installSteps() {
   if (isIOS()) return T.stepsIOS;
-  if (isAndroid()) return /Firefox|FxiOS/.test(ua()) ? T.stepsFirefox : T.stepsAndroid;
+  if (isAndroid()) return /Firefox/.test(ua()) ? T.stepsFirefox : T.stepsAndroid;
   return T.stepsDesktop;
 }
 
