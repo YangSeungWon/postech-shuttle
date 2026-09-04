@@ -86,13 +86,16 @@ button{cursor:pointer}
  * 모바일이 기본. 지도는 화면 전체를 채우고 패널이 바텀시트로 그 위에 뜬다.
  * 시트가 가리는 높이를 --sheet 로 알려 주어 지도 버튼과 fitBounds 가 피해 간다.
  */
-:root{ --sheet:46dvh; --sheet-max:88dvh; }  /* JS 가 로드되면 px 값으로 덮어쓴다 */
+:root{ --sheet:46dvh; --sheet-max:88dvh; --kb:0px; }  /* JS 가 로드되면 px 값으로 덮어쓴다 */
 
 #map{
   position:fixed;left:0;right:0;top:var(--header-h);bottom:0;background:#e8eaed;
 }
+/* bottom 이 --kb 인 이유: iOS 는 키보드가 올라와도 레이아웃 뷰포트가 줄지
+   않아서, bottom:0 인 고정 요소가 키보드 뒤로 들어간다. 보이는 영역의
+   바닥에 붙인다. */
 .panel{
-  position:fixed;left:0;right:0;bottom:0;z-index:900;
+  position:fixed;left:0;right:0;bottom:var(--kb);z-index:900;
   height:var(--sheet-max);
   background:#fff;border-radius:20px 20px 0 0;
   box-shadow:0 -6px 28px rgba(0,0,0,.16);
@@ -535,7 +538,7 @@ button{cursor:pointer}
 .mapbtns{
   position:fixed;z-index:850;display:flex;flex-direction:column;gap:9px;
   right:max(12px, env(safe-area-inset-right));
-  bottom:calc(var(--sheet) + 14px);
+  bottom:calc(var(--sheet) + var(--kb) + 14px);
   transition:bottom .26s cubic-bezier(.22,.7,.3,1);
 }
 .mapbtn{

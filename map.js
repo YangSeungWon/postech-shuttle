@@ -1693,7 +1693,14 @@ function planCard(plan, i) {
 const sheet = (() => {
   const el = $('panel'), grab = $('grab');
   const isMobile = () => window.matchMedia('(max-width:820px)').matches;
-  const vh = () => window.innerHeight;
+  /* 키보드가 올라오면 쓸 수 있는 높이가 줄어든다. innerHeight 로 재면 iOS 는
+     그대로라서, 88% 로 잡은 시트가 화면 아래로 넘쳐 버린다. 실제로 보이는
+     영역(visualViewport)을 기준으로 잰다. */
+  const vv = window.visualViewport;
+  const vh = () => Math.round(vv ? vv.height : window.innerHeight);
+  const kb = () => vv
+    ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))
+    : 0;
   const snaps = () => [Math.round(vh() * 0.16), Math.round(vh() * 0.46), Math.round(vh() * 0.88)];
   let cur = 1;
 
@@ -1701,6 +1708,7 @@ const sheet = (() => {
     el.classList.toggle('dragging', !animate);
     // dvh 와 innerHeight 가 어긋나는 브라우저가 있어 높이를 전부 px 로 통일한다
     const root = document.documentElement.style;
+    root.setProperty('--kb', kb() + 'px');
     root.setProperty('--sheet-max', Math.round(vh() * 0.88) + 'px');
     root.setProperty('--sheet', Math.round(px) + 'px');
   }
@@ -1759,7 +1767,11 @@ const sheet = (() => {
     onDown(e);
   }, { passive: true });
 
-  window.addEventListener('resize', () => { if (isMobile()) apply(snaps()[cur], false); });
+  const reflow = () => { if (isMobile()) apply(snaps()[cur], false); };
+  window.addEventListener('resize', reflow);
+  // 키보드가 뜨고 지는 것은 resize 로 오지 않는 브라우저가 있다
+  vv?.addEventListener('resize', reflow);
+  vv?.addEventListener('scroll', reflow);
   if (isMobile()) goto(0, false);
   const raise = i => { if (isMobile() && cur < i) goto(i); };
   return { goto, raise, height, isMobile, relabel: () => goto(cur, false) };
