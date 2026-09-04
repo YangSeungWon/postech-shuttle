@@ -214,18 +214,17 @@ button{cursor:pointer}
 .trip-summary .arrow{flex:0 0 auto;color:var(--muted);font-weight:900;font-size:14px}
 
 /* 출발 시각 */
-.trip-when{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:8px}
-.trip-when .mode{
+.when-pop .mode{
   border:1px solid var(--line);border-radius:9px;padding:6px 10px;
   background:#fff;color:#69717d;font-size:12.5px;font-weight:900;text-decoration:none;
 }
-.trip-when .mode:hover{background:var(--soft);color:var(--ink)}
-.trip-when button{
+.when-pop .mode:hover{background:var(--soft);color:var(--ink)}
+.when-pop button{
   border:0;background:none;color:var(--muted);font-size:14.5px;font-weight:800;
   padding:6px 2px;text-decoration:underline;text-underline-offset:3px;
 }
-.trip-when button:hover{color:var(--postech-red)}
-.trip-when input[type=time]{
+.when-pop button:hover{color:var(--postech-red)}
+.when-pop input[type=time]{
   border:1px solid var(--line);border-radius:10px;padding:7px 10px;font-size:16.5px;font-weight:800;
 }
 .suggest{max-height:230px;overflow-y:auto;margin:0 0 7px;border-radius:11px}
@@ -551,6 +550,22 @@ button{cursor:pointer}
   stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;
 }
 .mapbtn[hidden]{display:none}
+.mapbtns.left{left:max(12px, env(safe-area-inset-left));right:auto;align-items:flex-start}
+.mapbtns.left[hidden]{display:none}
+/* 시각을 바꿔 두면 아이콘만으로는 알 수 없다. 설정한 시각을 배지로 붙인다. */
+.clock-tag{
+  position:absolute;left:50%;transform:translateX(-50%);bottom:-7px;
+  background:var(--postech-red);color:#fff;border-radius:7px;padding:1px 5px;
+  font-size:11px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em;
+}
+.clock-tag[hidden]{display:none}
+#btnClock{position:relative;overflow:visible}
+.when-pop{
+  max-width:min(320px, calc(100vw - 28px));
+  background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);
+  padding:8px 10px;margin-bottom:9px;display:flex;align-items:center;gap:9px;
+}
+.when-pop[hidden]{display:none}
 /* 확대·축소는 지도 앱 관행대로 한 덩어리로 붙인다 */
 .zoomer{
   display:flex;flex-direction:column;border-radius:14px;overflow:hidden;
@@ -562,6 +577,7 @@ button{cursor:pointer}
 .zoomer .mapbtn+.mapbtn{border-top:0}
 @media (min-width:821px){
   .mapbtns{bottom:26px;transition:none}
+  .mapbtns.left{left:calc(var(--panel-w) + 14px)}
 }
 body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
 .mapbtn.on{background:var(--postech-red);border-color:var(--postech-red);color:#fff}
@@ -661,11 +677,6 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
       </div>
       <div class="suggest" id="suggest" role="listbox" aria-label="검색 결과"></div>
     </div>
-    <div class="trip-when">
-      <button id="btnMode" class="mode" aria-label="출발·도착 기준 바꾸기">출발</button>
-      <button id="btnWhen">지금 출발</button>
-      <input type="time" id="whenTime" hidden aria-label="시각">
-    </div>
   </div>
   <div class="filters" id="filters" role="group" aria-label="노선 선택"></div>
   <div class="panel-scroll" id="panelScroll" tabindex="-1"></div>
@@ -703,6 +714,15 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
     <button type="button" class="install-x" id="installNo" aria-label="닫기">✕</button>
   </div>
   <div class="map-top">    <button class="mapbtn" id="btnBase" aria-label="지도 종류"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.5 8 12 13l9.5-5L12 3Z"/><path d="M2.5 13.5 12 18.5l9.5-5"/></svg></button>
+  </div>
+  <div class="mapbtns left" id="whenBtns" hidden>
+    <div class="when-pop" id="whenPop" hidden role="group" aria-label="출발·도착 시각">
+      <button id="btnMode" class="mode" aria-label="출발·도착 기준 바꾸기">출발</button>
+      <button id="btnWhen">지금 출발</button>
+      <input type="time" id="whenTime" hidden aria-label="시각">
+    </div>
+    <button class="mapbtn" id="btnClock" aria-expanded="false" aria-controls="whenPop"
+            aria-label="출발·도착 시각"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.2V12l3.2 2"/></svg><span class="clock-tag" id="clockTag" hidden></span></button>
   </div>
   <div class="mapbtns">
     <div class="zoomer desk">

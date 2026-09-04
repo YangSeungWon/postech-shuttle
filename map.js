@@ -1254,6 +1254,7 @@ if ($('lnkTimetable')) $('lnkTimetable').onclick = showTimetable;
 addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (!$('ask').hidden) { closeAsk(); return; }
+  if (!$('whenPop').hidden) { closeWhen(); $('btnClock').focus(); return; }
   if (pickingMe) { $('pickCancel').click(); return; }
   if (map.getPane('popupPane')?.querySelector('.leaflet-popup')) { map.closePopup(); return; }
   if (!wideScreen() && $('trip').classList.contains('show')) openTrip(false);
@@ -1360,6 +1361,7 @@ function openTrip(on, suggest = true) {
   // 데스크톱 사이드바에서는 길찾기를 닫지 않는다
   const show = wideScreen() ? true : (on ?? !$('trip').classList.contains('show'));
   $('trip').classList.toggle('show', show);
+  showWhen(show);
   $('btnRoute').classList.toggle('on', show);
   $('btnRoute').setAttribute('aria-expanded', String(show));
   // 닫으면 첫 화면 상태(접힘)로 돌아간다. 고른 정류장이 있으면 그것만 보이게 절반.
@@ -1459,7 +1461,34 @@ function whenLabel() {
   $('btnWhen').textContent = simMinutes === null
     ? (tripMode === 'depart' ? T.now : T.pickTime)
     : (tripMode === 'depart' ? T.departAt(fmt(simMinutes)) : T.arriveBy(fmt(simMinutes)));
+  /* 시계는 아이콘 하나뿐이라, 시각을 바꿔 두면 그 사실이 보이지 않는다.
+     설정한 시각을 배지로 붙이고 버튼을 채운다. */
+  const set = simMinutes !== null;
+  const tag = $('clockTag');
+  tag.hidden = !set;
+  if (set) tag.textContent = fmt(simMinutes);
+  $('btnClock').classList.toggle('on', set);
+  // 아이콘만으로는 출발 기준인지 도착 기준인지 알 수 없다
+  $('btnClock').setAttribute('aria-label',
+    set ? (tripMode === 'depart' ? T.departAt(fmt(simMinutes)) : T.arriveBy(fmt(simMinutes)))
+        : T.whenTitle);
 }
+/* 시각 조정은 길찾기 중에만 뜻이 있다 */
+function showWhen(on) {
+  $('whenBtns').hidden = !on;
+  if (!on) closeWhen();
+}
+function closeWhen() {
+  $('whenPop').hidden = true;
+  $('btnClock').setAttribute('aria-expanded', 'false');
+}
+$('btnClock').onclick = () => {
+  const open = $('whenPop').hidden;
+  $('whenPop').hidden = !open;
+  $('btnClock').setAttribute('aria-expanded', String(open));
+  if (open) $('btnWhen').focus();
+};
+
 $('btnMode').onclick = () => {
   tripMode = tripMode === 'depart' ? 'arrive' : 'depart';
   if (tripMode === 'arrive' && simMinutes === null) simMinutes = Math.round(nowMin()) + 30;
@@ -1475,7 +1504,7 @@ $('btnWhen').onclick = () => {
 $('whenTime').onchange = e => {
   simMinutes = e.target.value ? toMin(e.target.value) : null;
   e.target.hidden = true; $('btnWhen').hidden = false;
-  whenLabel(); runTrip(); render();
+  whenLabel(); closeWhen(); runTrip(); render();
 };
 $('whenTime').onblur = e => { e.target.hidden = true; $('btnWhen').hidden = false; };
 
@@ -1827,6 +1856,7 @@ function applyLang() {
   set('askNo', T.askNo);
   set('skipLink', T.skip);
   $('btnMode').ariaLabel = T.modeSwitch;
+  $('btnClock').title = T.whenTitle;   // 라벨은 whenLabel 이 시각까지 넣어 다시 쓴다
   sheet.relabel();
   set('pickHintText', T.pickHint);
   set('installText', T.installNudge);
