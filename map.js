@@ -657,7 +657,37 @@ function drawBusPath(b) {
 if (new URLSearchParams(location.search).has('debug')) {
   const dbg = L.layerGroup().addTo(map);
   for (const s of STOP_LIST) L.circle(s.ll, { radius: 6, color: '#00E5FF', fillOpacity: .9 }).addTo(dbg);
-  console.log('[debug] 정류장', STOP_LIST.length, '곳에 GL 원을 그렸다');
+
+  /* 마커가 있어야 할 자리(project)와 실제로 놓인 자리(transform)를 견준다.
+     둘이 다르고 그 차이가 중심에서 멀수록 커지면 배치가 축척을 잘못 쓰는 것이다. */
+  const readXY = el => {
+    const t = getComputedStyle(el).transform;           // matrix(a,b,c,d,e,f)
+    const n = t && t.startsWith('matrix') ? t.slice(t.indexOf('(') + 1, -1).split(',').map(Number) : null;
+    return n ? { x: n[4], y: n[5], sx: n[0], sy: n[3] } : null;
+  };
+  const check = () => {
+    const c = map.getSize();
+    const rows = [];
+    for (const [name, mk] of stopMarkers) {
+      const el = mk.getElement()?.parentElement || mk.getElement();
+      const got = el && readXY(el);
+      if (!got) continue;
+      const want = map.latLngToContainerPoint(mk.getLatLng ? mk.getLatLng() : STOPS[name]);
+      const half = { x: el.offsetWidth / 2, y: el.offsetHeight / 2 };
+      rows.push({
+        정류장: name,
+        중심에서: Math.round(Math.hypot(want.x - c.x / 2, want.y - c.y / 2)),
+        어긋남: Math.round(Math.hypot(got.x + half.x - want.x, got.y + half.y - want.y)),
+        배율: got.sx.toFixed(3),
+      });
+    }
+    rows.sort((a, b) => a.중심에서 - b.중심에서);
+    console.log('[debug] 배율', map.getZoom().toFixed(2), '| 컨테이너', c.x + '×' + c.y);
+    console.table(rows);
+  };
+  map.on('moveend', check);
+  setTimeout(check, 1200);
+  console.log('[debug] 정류장', STOP_LIST.length, '곳에 GL 원. 지도를 한 번 움직이면 표가 나온다');
 }
 
 /* --- 내 위치 --- */
