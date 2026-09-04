@@ -688,6 +688,21 @@ if (new URLSearchParams(location.search).has('debug')) {
                 '| 캔버스 버퍼', cv.width + '×' + cv.height,
                 '| 지도가 아는 크기', Math.round(tr.width) + '×' + Math.round(tr.height),
                 '| DPR', devicePixelRatio);
+    /* DOM 이 실제로 놓인 자리(getBoundingClientRect)를 project() 와 견준다.
+       앞서 transform 값과 견준 것은 같은 계산을 되물은 셈이라 늘 0 이었다.
+       상자 크기도 함께 찍는다 — MapLibre 는 -50% 로 가운데를 잡으므로
+       상자가 iconSize 와 다르면 그만큼 밀린다. */
+    const box0 = document.getElementById('map').getBoundingClientRect();
+    for (const [name, mk] of stopMarkers) {
+      const el = mk.getElement();
+      const r = el.getBoundingClientRect();
+      const want = map.latLngToContainerPoint(mk.getLatLng());
+      const gotX = r.left + r.width / 2 - box0.left;
+      const gotY = r.top + r.height / 2 - box0.top;
+      console.log(`[debug] ${name}: 상자 ${r.width.toFixed(1)}×${r.height.toFixed(1)}`
+        + ` (지정 ${el.style.width || '?'}×${el.style.height || '?'})`
+        + ` · 어긋남 (${(gotX - want.x).toFixed(1)}, ${(gotY - want.y).toFixed(1)})px`);
+    }
     console.log('[debug] 방위', map.getBearing().toFixed(1), '· 기울기',
                 (map._gl.getPitch?.() ?? 0).toFixed(1));
     /* 캔버스에 실제로 찍힌 하늘색 원을 찾아, 마커가 있어야 할 자리와 견준다.
@@ -747,7 +762,7 @@ if (new URLSearchParams(location.search).has('debug')) {
   map.on('moveend', check);
   setTimeout(check, 1200);
   // 어느 코드가 돌고 있는지 헷갈리지 않게 표시를 남긴다
-  console.log('[debug] BUILD-5 · 정류장', STOP_LIST.length,
+  console.log('[debug] BUILD-6 · 정류장', STOP_LIST.length,
               '곳에 GL 원. 지도를 한 번 움직이면 줄이 나온다');
 }
 
