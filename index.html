@@ -750,8 +750,6 @@ body.trip-top-on{--tabs-h:0px}
 .trip-main{display:flex;align-items:center;gap:8px}
 .trip-rows{flex:1 1 auto;min-width:0}
 .trip-swap{align-self:center}
-/* 출발 줄에만 ◎ 가 있어서 두 입력칸 길이가 달라진다 — 도착 줄에 그만큼 비운다 */
-.trip-rows .trip-row:last-child{padding-right:41px}
 .trip-close{
   flex:0 0 auto;width:32px;height:32px;padding:0;align-self:center;
   border:0;background:none;color:#69717d;display:none;place-items:center;cursor:pointer;
@@ -900,7 +898,6 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
           <div class="trip-row">
             <span class="pin from" id="pinFrom" role="img" aria-label="출발"></span>
             <input id="inFrom" placeholder="출발지" autocomplete="off" aria-label="출발지">
-            <button class="mini" id="btnHere" title="내 위치로" aria-label="내 위치로"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M12 1.6v3.2M12 19.2v3.2M1.6 12h3.2M19.2 12h3.2"/></svg></button>
           </div>
           <div class="trip-row">
             <span class="pin to" id="pinTo" role="img" aria-label="도착"></span>

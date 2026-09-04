@@ -1892,12 +1892,6 @@ for (const [id, field] of [['inFrom', 'from'], ['inTo', 'to']]) {
     }
   }, 150));
 }
-$('btnHere').onclick = () => {
-  if (!myLL) { requestLocation(); return; }   // 위치를 잡으면 watchPosition 에서 채운다
-  tripFrom = { ll: myLL, label: T.here };
-  $('inFrom').value = T.here;
-  runTrip();
-};
 /* 출발 시각 — 기본은 지금. 눌러야 시각 입력이 나온다.
    도착 기준으로 바꾸면 "그 시각 전에 도착"하는 경로를 찾는다. */
 let tripMode = 'depart';                       // 'depart' | 'arrive'
@@ -2412,7 +2406,6 @@ function applyLang() {
   if (has('clock')) $('clock').setAttribute('aria-label', T.clockLabel('--', '--'));
   $('inFrom').placeholder = $('inFrom').ariaLabel = T.fromPh;
   $('inTo').placeholder = $('inTo').ariaLabel = T.toPh;
-  $('btnHere').title = $('btnHere').ariaLabel = T.here;
   $('btnSwap').title = $('btnSwap').ariaLabel = T.swap;
   $('btnLoc').title = T.myLocation;
   $('btnNorth').title = $('btnNorth').ariaLabel = T.northUp;
