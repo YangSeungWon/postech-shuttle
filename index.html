@@ -1106,6 +1106,21 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
 <script>
 /* 오프라인 지원. 시간표·노선·보행 그래프가 전부 정적 파일이라
    지도 타일만 받아 두면 통째로 오프라인으로 동작한다. */
+/* 주소에 ?fresh 를 붙이면 받아 둔 것을 통째로 버리고 새로 받는다.
+   앱 파일은 네트워크를 먼저 보므로 보통은 새로고침이면 되지만, 홈 화면에
+   추가해 둔 채로 옛 화면이 눌어붙으면 지울 방법이 없었다. */
+if (new URLSearchParams(location.search).has('fresh')) {
+  (async () => {
+    try {
+      if ('serviceWorker' in navigator) {
+        for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+      }
+      if (window.caches) for (const k of await caches.keys()) await caches.delete(k);
+    } catch (e) { /* 지우지 못해도 새로 받기는 해 본다 */ }
+    // 한 번만 돌아야 하므로 ?fresh 를 뗀 자리로 간다
+    location.replace(location.pathname);
+  })();
+} else
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   addEventListener('load', async () => {
     try {
