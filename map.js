@@ -677,6 +677,33 @@ if (new URLSearchParams(location.search).has('debug')) {
                 '| 캔버스 버퍼', cv.width + '×' + cv.height,
                 '| 지도가 아는 크기', Math.round(tr.width) + '×' + Math.round(tr.height),
                 '| DPR', devicePixelRatio);
+    console.log('[debug] 방위', map.getBearing().toFixed(1), '· 기울기',
+                (map._gl.getPitch?.() ?? 0).toFixed(1));
+    /* 캔버스에 실제로 찍힌 하늘색 원을 찾아, 마커가 있어야 할 자리와 견준다.
+       이것만이 자기 계산을 되묻지 않는 측정이다. */
+    const ctx = cv.getContext('webgl2') || cv.getContext('webgl');
+    if (ctx) {
+      const dpr = cv.width / cv.clientWidth, R = 70;
+      for (const [name, mk] of stopMarkers) {
+        const p = map.latLngToContainerPoint(mk.getLatLng());
+        if (p.x < R || p.y < R || p.x > cv.clientWidth - R || p.y > cv.clientHeight - R) continue;
+        const w = Math.round(2 * R * dpr), x0 = Math.round((p.x - R) * dpr);
+        // WebGL 은 아래에서 위로 읽는다
+        const y0 = Math.round((cv.clientHeight - p.y - R) * dpr);
+        const buf = new Uint8Array(w * w * 4);
+        ctx.readPixels(x0, y0, w, w, ctx.RGBA, ctx.UNSIGNED_BYTE, buf);
+        let sx2 = 0, sy2 = 0, n = 0;
+        for (let i = 0; i < w * w; i++) {
+          const r = buf[i * 4], gg = buf[i * 4 + 1], b = buf[i * 4 + 2];
+          if (r < 110 && gg > 170 && b > 200) { sx2 += i % w; sy2 += (i / w) | 0; n++; }
+        }
+        if (n < 12) { console.log('[debug] 원 못 찾음', name); continue; }
+        const cx = sx2 / n / dpr - R, cy = R - sy2 / n / dpr;   // 화면 좌표로
+        const c2 = map.getSize();
+        console.log(`[debug] ${name}: 원이 마커에서 (${cx.toFixed(1)}, ${cy.toFixed(1)})px 만큼 벗어남`
+          + ` · 중심에서 ${Math.round(Math.hypot(p.x - c2.x / 2, p.y - c2.y / 2))}px`);
+      }
+    }
     const sx = cv.clientWidth / tr.width, sy = cv.clientHeight / tr.height;
     console.log('[debug] 늘어난 배율  가로', sx.toFixed(4), ' 세로', sy.toFixed(4),
                 (Math.abs(sx - 1) > 0.002 || Math.abs(sy - 1) > 0.002)
@@ -709,7 +736,7 @@ if (new URLSearchParams(location.search).has('debug')) {
   map.on('moveend', check);
   setTimeout(check, 1200);
   // 어느 코드가 돌고 있는지 헷갈리지 않게 표시를 남긴다
-  console.log('[debug] BUILD-3 · 정류장', STOP_LIST.length,
+  console.log('[debug] BUILD-4 · 정류장', STOP_LIST.length,
               '곳에 GL 원. 지도를 한 번 움직이면 줄이 나온다');
 }
 

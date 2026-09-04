@@ -259,6 +259,8 @@
       center: toGL(o.center || [0, 0]),
       zoom: (o.zoom || 13) - ZOFF,
       attributionControl: false,
+      // ?debug 일 때만 캔버스 픽셀을 되읽을 수 있게 남겨 둔다(평소엔 느려진다)
+      preserveDrawingBuffer: new URLSearchParams(location.search).has('debug'),
       dragRotate: true, pitchWithRotate: false, touchPitch: false,
       // 두 손가락 회전은 켜 두고 기울이기는 막는다 — 노선도에 기울기는 쓸 데가 없다
       maxPitch: 0,
