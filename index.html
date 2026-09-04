@@ -755,6 +755,10 @@ body.trip-top-on .install-bar{display:none}
    대신 상단바 왼쪽에 나가는 화살표를 둔다 — 없으면 빠져나올 길이 없다. */
 body.trip-top-on .tabs{display:none}
 body.trip-top-on{--tabs-h:0px}
+/* 출발·도착을 찍는 동안 시트에는 아무것도 없다. 빈 흰 띠가 지도를 가릴
+   이유가 없으므로 아예 내린다. 결과가 나오면 가로 카드 띠가 그 자리를 쓴다. */
+body.trip-top-on .panel{display:none}
+body.trip-top-on:not(.strip-on) .mapbtns{bottom:calc(var(--kb) + 22px)}
 .trip-main{display:flex;align-items:center;gap:8px}
 .trip-rows{flex:1 1 auto;min-width:0}
 .trip-swap{align-self:center}
