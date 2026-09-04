@@ -190,9 +190,9 @@ function arrivalsAt(stopName, t) {
     if (!hits.length) continue;
     // 어느 방향으로 가는 차인지 — 라이더의 실제 질문은 "어느 쪽에서 타나"다
     const times = [];
-    // 지난 차는 곧바로 내린다. 일찍 올 수는 있어도, 떠난 차를 붙들고 있으면
-    // 오지 않을 버스를 기다리게 된다. 10초는 시계 오차만 봐주는 몫이다.
-    const grace = 10 / 60;
+    // 시각이 지나도 1분은 그 정류장에 남겨 둔다 — 학교 안내가 앞뒤 1~2분
+    // 오차를 말하므로, 조금 늦는 차를 곧바로 지워 버릴 이유가 없다.
+    const grace = 1;
     for (const trip of r.tripsMin) for (const i of hits) if (trip[i] >= t - grace) times.push([trip[i], i]);
     if (!times.length) continue;
     times.sort((a, b) => a[0] - b[0]);
@@ -1263,6 +1263,23 @@ function topInset() {
 /* ================================================================== *
  * 패널
  * ================================================================== */
+/* 패널 내용은 1초마다 다시 그린다(남은 시간이 바뀌므로). 그때마다 통째로
+   갈아 끼우면 스크롤이 맨 앞으로 돌아간다 — 시간표를 옆으로 밀다가 자꾸
+   처음으로 튕기던 것이 이것이다. 내용이 같으면 손대지 않고, 갈아 끼울
+   때는 세로·가로 스크롤 자리를 되돌려 놓는다. */
+let panelHTML = null;
+function setPanel(html) {
+  const el = $('panelScroll');
+  if (html === panelHTML) return false;
+  panelHTML = html;
+  const top = el.scrollTop;
+  const lefts = [...el.querySelectorAll('.tt-wrap')].map(w => w.scrollLeft);
+  el.innerHTML = html;
+  el.scrollTop = top;
+  el.querySelectorAll('.tt-wrap').forEach((w, i) => { if (lefts[i]) w.scrollLeft = lefts[i]; });
+  return true;
+}
+
 /* 길찾기 결과를 안내하는 중인가 — 이때는 관계없는 정보를 감춘다 */
 const guiding = () => typeof tripPlans !== 'undefined' && tripPlans.length > 0;
 
@@ -1303,8 +1320,8 @@ const FAR_MIN = 90;                  // 이보다 멀면 남은 시간 대신 �
    그래서 시간표의 09:15 는 09:13 일 수도, 09:16 일 수도 있다. 그 구간에
    "2분"이라고 말하면 이미 와 있는 차를 두고 걸어가게 된다. 앞뒤 어느
    쪽인지 우리는 알 수 없으니, 알 수 없다고 말한다.
-   앞으로 1분 30초 — 일찍 올 수 있는 만큼. 뒤로는 10초까지만 — 시각이
-   지나면 떠난 것으로 보고 다음 차를 말한다. */
+   앞으로 1분 30초 — 일찍 올 수 있는 만큼. 뒤로 1분 — 늦게 올 수 있는 만큼.
+   그 뒤로는 떠난 것으로 보고 다음 차를 말한다. */
 const isDue = eta => eta < 1.5;
 function etaText(eta) {
   if (isDue(eta)) return T.due;
@@ -1457,7 +1474,7 @@ function drawHero(t, walks, walkTo) {
         ${T.allTimetable}
       </div>`) + timetableView(t);
     h += `<div class="source">${sourceNote()}</div>`;
-    $('panelScroll').innerHTML = h;
+    setPanel(h);
     drawFilters();
     const back = $('ttBack');
     if (back) back.onclick = () => { view = 'stops'; sheet.raise(1); render(); };
@@ -1577,7 +1594,7 @@ function render() {
       if (!wideScreen()) { drawStrip(); return; }
       html += `<div class="sec-title">${T.suggested}</div>`;
       html += tripPlans.map(planCard).join('');
-      $('panelScroll').innerHTML = html;
+      setPanel(html);
       $('panelScroll').querySelectorAll('.itin').forEach(el => el.onclick = () => {
         $('panelScroll').querySelectorAll('.itin').forEach(x => x.classList.remove('best'));
         el.classList.add('best');
@@ -1586,7 +1603,7 @@ function render() {
       return;
     }
     if (tripFrom && tripTo) {
-      $('panelScroll').innerHTML = `<div class="notice warn">${T.noRoute}</div>`;
+      setPanel(`<div class="notice warn">${T.noRoute}</div>`);
       return;
     }
     /* 아직 출발·도착을 안 찍었을 때. 모바일에서는 길찾기가 화면을 통째로
@@ -1594,7 +1611,7 @@ function render() {
        있을 자리가 아니다. 데스크톱은 다르다. 사이드바에서는 길찾기 폼이
        늘 펴져 있고 그 아래가 본래 목록 자리다. 여기서 비우면 정류장을
        골라도 아무것도 안 나온다. */
-    if (sheet.isMobile()) { $('panelScroll').innerHTML = ''; return; }
+    if (sheet.isMobile()) { setPanel(''); return; }
   }
 
   const served = focusGroup
@@ -1658,7 +1675,7 @@ function render() {
         ${T.allTimetable}
       </div>` + timetableView(t);
     h += `<div class="source">${sourceNote()}</div>`;
-    $('panelScroll').innerHTML = h;
+    setPanel(h);
     drawFilters();
     const back = $('ttBack');
     if (back) back.onclick = () => { view = 'stops'; sheet.raise(1); render(); };
@@ -1691,7 +1708,7 @@ function render() {
   </div>`;
 
   drawHero(t, walks, walkTo);
-  $('panelScroll').innerHTML = html;
+  setPanel(html);
   $('panelScroll').querySelectorAll('.stop').forEach(el =>
     el.onclick = () => selectStop(el.dataset.stop, true));
   // 고른 정류장 카드의 출발·도착
