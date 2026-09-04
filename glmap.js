@@ -46,14 +46,49 @@
   };
 
   /* ---------- 레이어 묶음 ----------
-     Leaflet 의 layerGroup 자리. 안에 든 것을 한꺼번에 지운다. */
-  function LayerGroup() { this._items = []; this._map = null; }
+     Leaflet 에서는 지웠다 다시 그려도 쌌다(SVG 노드 갈아 끼우기). MapLibre 는
+     소스·레이어를 만들고 없애는 값이 비싸고, 매 초 그러면 눈에 띄게 깜빡인다.
+     버스를 고르면 자취를 1초마다 다시 그리므로 그대로 두면 못 쓴다.
+
+     그래서 자리를 정해 두고 그 자리의 데이터만 갈아 끼운다. clearLayers 는
+     자리 번호를 0 으로 되돌릴 뿐이고, 그리기가 끝난 뒤(마이크로태스크)
+     남는 자리만 실제로 지운다. 마커는 DOM 이라 값이 싸므로 그냥 지운다. */
+  function LayerGroup() {
+    this._slots = []; this._n = 0; this._dom = [];
+    this._map = null; this._key = 'g' + (++uid); this._trimQueued = false;
+  }
   LayerGroup.prototype = {
     addTo(map) { this._map = map; map._groups.push(this); return this; },
-    addLayer(l) { this._items.push(l); return this; },
-    removeLayer(l) { const i = this._items.indexOf(l); if (i >= 0) this._items.splice(i, 1); if (l) l.remove(); return this; },
-    hasLayer(l) { return this._items.includes(l); },
-    clearLayers() { for (const l of this._items) l.remove(); this._items = []; return this; },
+    addLayer(l) { if (l._isMarker) this._dom.push(l); return this; },
+    removeLayer(l) {
+      const i = this._dom.indexOf(l); if (i >= 0) this._dom.splice(i, 1);
+      if (l) l.remove(); return this;
+    },
+    hasLayer(l) { return this._dom.includes(l); },
+    clearLayers() {
+      for (const l of this._dom) l.remove();
+      this._dom = [];
+      this._n = 0;
+      this._queueTrim();
+      return this;
+    },
+    /* 다음 자리를 내준다 */
+    _take() {
+      const i = this._n++;
+      if (!this._slots[i]) this._slots[i] = { id: this._key + '_' + i, kind: null };
+      this._queueTrim();
+      return this._slots[i];
+    },
+    _queueTrim() {
+      if (this._trimQueued) return;
+      this._trimQueued = true;
+      Promise.resolve().then(() => { this._trimQueued = false; this._trim(); });
+    },
+    _trim() {
+      if (!this._map) return;
+      for (let i = this._n; i < this._slots.length; i++) this._map._dropSlot(this._slots[i]);
+      this._slots.length = this._n;
+    },
   };
 
   /* ---------- 선 ----------
@@ -70,13 +105,12 @@
   Polyline.prototype = {
     addTo(target) {
       const map = target._map || target;
-      (target.addLayer ? target : { addLayer() {} }).addLayer(this);
       this._map = map;
-      this._dead = false;
-      map._addLine(this);
+      this._slot = target._take ? target._take() : null;
+      map._putLine(this);
       return this;
     },
-    remove() { this._dead = true; if (this._map) this._map._removeLine(this); this._map = null; return this; },
+    remove() { if (this._map && this._slot) this._map._dropSlot(this._slot); this._map = null; return this; },
     _spec() {
       const o = this.options;
       const paint = {
@@ -109,12 +143,14 @@
   Circle.prototype = {
     addTo(target) {
       const map = target._map || target;
-      if (target.addLayer) target.addLayer(this);
-      this._map = map; this._dead = false; map._addCircle(this); return this;
+      this._map = map;
+      this._slot = target._take ? target._take() : { id: this._id, kind: null };
+      map._putCircle(this);
+      return this;
     },
-    remove() { this._dead = true; if (this._map) this._map._removeCircle(this); this._map = null; return this; },
-    setLatLng(ll) { this._ll = asLL(ll); if (this._map) this._map._updateCircle(this); return this; },
-    setRadius(r)  { this._r = r; if (this._map) this._map._updateCircle(this); return this; },
+    remove() { if (this._map && this._slot) this._map._dropSlot(this._slot); this._map = null; return this; },
+    setLatLng(ll) { this._ll = asLL(ll); if (this._map) this._map._putCircle(this); return this; },
+    setRadius(r)  { this._r = r; if (this._map) this._map._putCircle(this); return this; },
     _ring() {
       const n = 48, out = [];
       const dLat = this._r / 111320;
@@ -134,6 +170,7 @@
   const divIcon = o => new DivIcon(o);
 
   function Marker(latlng, opts) {
+    this._isMarker = true;
     this._ll = asLL(latlng);
     this.options = opts || {};
     this._handlers = {};
@@ -204,8 +241,7 @@
   function Map(id, opts) {
     const o = opts || {};
     this._groups = [];
-    this._lines = new Set();
-    this._circles = new Set();
+    this._slots = new Set();
     this._popup = null;
     this._minZoom = 0; this._maxZoom = 20;
     this._gl = new global.maplibregl.Map({
@@ -225,56 +261,47 @@
     this._gl.on('style.load', () => this._restore());
   }
   Map.prototype = {
-    /* --- 얹기 --- */
-    _addLine(l) {
-      this._lines.add(l);
+    /* --- 자리에 얹기 --- *
+     * 같은 자리는 만들지 않고 갈아 끼운다. 스타일이 아직 안 왔으면 미뤄 두고,
+     * 스타일이 갈리면(_restore) 자리마다 마지막 모습으로 다시 얹는다. */
+    _put(slot, kind, data, spec) {
+      slot.kind = kind; slot.data = data; slot.spec = spec;
+      this._slots.add(slot);
       const put = () => {
-        /* 스타일이 아직 안 왔을 때 예약해 둔 것이, 그 사이에 지워진 선을
-           되살리는 일이 있다. 노선은 걸러 낼 때마다 지웠다 다시 그리므로
-           그렇게 남은 것들이 화면에 겹쳐 쌓인다. */
-        if (l._dead) return;
-        if (!this._gl.getSource(l._id)) {
-          this._gl.addSource(l._id, { type: 'geojson', data:
-            { type: 'Feature', geometry: { type: 'LineString', coordinates: l._coords } } });
+        if (slot.kind !== kind) return;            // 그 사이 다른 것이 들어왔다
+        const src = this._gl.getSource(slot.id);
+        if (src) src.setData(data);
+        else this._gl.addSource(slot.id, { type: 'geojson', data });
+        const lyr = this._gl.getLayer(slot.id);
+        if (!lyr) this._gl.addLayer({ ...spec, id: slot.id, source: slot.id });
+        else for (const [k, v] of Object.entries(spec.paint)) {
+          this._gl.setPaintProperty(slot.id, k, v);
         }
-        // 소스만 있고 레이어가 없는 어중간한 상태가 될 수 있다
-        if (!this._gl.getLayer(l._id)) this._gl.addLayer(l._spec());
       };
       this._gl.isStyleLoaded() ? put() : this._gl.once('style.load', put);
     },
-    _removeLine(l) {
-      this._lines.delete(l);
-      if (this._gl.getLayer(l._id)) this._gl.removeLayer(l._id);
-      if (this._gl.getSource(l._id)) this._gl.removeSource(l._id);
+    _putLine(l) {
+      this._put(l._slot, 'line',
+        { type: 'Feature', geometry: { type: 'LineString', coordinates: l._coords } },
+        l._spec());
     },
-    _addCircle(c) {
-      this._circles.add(c);
-      const put = () => {
-        if (c._dead) return;
-        if (!this._gl.getSource(c._id)) {
-          this._gl.addSource(c._id, { type: 'geojson', data:
-            { type: 'Feature', geometry: { type: 'Polygon', coordinates: [c._ring()] } } });
-        }
-        if (this._gl.getLayer(c._id)) return;
-        this._gl.addLayer({ id: c._id, type: 'fill', source: c._id,
-          paint: { 'fill-color': c.options.color || '#1a73e8',
-                   'fill-opacity': c.options.fillOpacity == null ? .1 : c.options.fillOpacity } });
-      };
-      this._gl.isStyleLoaded() ? put() : this._gl.once('style.load', put);
+    _putCircle(c) {
+      this._put(c._slot, 'fill',
+        { type: 'Feature', geometry: { type: 'Polygon', coordinates: [c._ring()] } },
+        { type: 'fill', paint: {
+            'fill-color': c.options.color || '#1a73e8',
+            'fill-opacity': c.options.fillOpacity == null ? .1 : c.options.fillOpacity } });
     },
-    _updateCircle(c) {
-      const s = this._gl.getSource(c._id);
-      if (s) s.setData({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [c._ring()] } });
-    },
-    _removeCircle(c) {
-      this._circles.delete(c);
-      if (this._gl.getLayer(c._id)) this._gl.removeLayer(c._id);
-      if (this._gl.getSource(c._id)) this._gl.removeSource(c._id);
+    _dropSlot(slot) {
+      if (!slot) return;
+      this._slots.delete(slot);
+      slot.kind = null;
+      if (this._gl.getLayer(slot.id)) this._gl.removeLayer(slot.id);
+      if (this._gl.getSource(slot.id)) this._gl.removeSource(slot.id);
     },
     _restore() {
       // Set 은 넣은 차례를 지키므로 겹치는 위아래도 그대로 살아난다
-      for (const l of this._lines) this._addLine(l);
-      for (const c of this._circles) this._addCircle(c);
+      for (const s of this._slots) if (s.kind) this._put(s, s.kind, s.data, s.spec);
     },
     removeLayer(l) { if (l && l.remove) l.remove(); return this; },
 
