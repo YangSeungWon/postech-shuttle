@@ -506,6 +506,10 @@ map.on('zoomend', () => { drawStops(); paintLabels(); });
 
 /* --- 버스 마커 --- */
 const busMarkers = new Map();
+/* 고른 버스를 따라간다. 그 차를 보겠다고 누른 것이니 화면 밖으로 나가면
+   안 된다. 지도를 끌면 놓아 준다 — 그때는 다른 데를 보겠다는 뜻이다. */
+let followBus = false;
+
 function drawBuses(t) {
   const routeIds = guiding()
     ? new Set(tripPlans[0].legs.filter(l => l.kind === 'ride').map(l => l.route.id))
@@ -561,6 +565,13 @@ function drawBuses(t) {
     );
   }
   for (const [k, m] of busMarkers) if (!keep.has(k)) { layerBuses.removeLayer(m); busMarkers.delete(k); }
+  /* 따라가기. panTo 는 애니메이션이라 매 프레임 부르면 서로 잡아먹는다 —
+     버스가 이미 부드럽게 움직이므로 그냥 그 자리에 맞추면 된다. */
+  if (followBus) {
+    const b = live.find(x => x.key === selectedBus);
+    if (b) map.setView(offsetForSheet(b.ll), map.getZoom());
+    else followBus = false;                 // 운행이 끝났다
+  }
   return live;
 }
 
@@ -572,9 +583,12 @@ const layerBusPath = L.layerGroup().addTo(map);
 
 function selectBus(key) {
   selectedBus = selectedBus === key ? null : key;
-  /* 정류장을 누를 때와 같이, 카드를 볼 만큼 시트를 올린다. 버스는 움직이니
-     지도를 따라 옮기지는 않는다 — 화면이 계속 흔들린다. */
-  if (selectedBus && sheet.isMobile() && tab === 'near') sheet.raise(1);
+  followBus = !!selectedBus;
+  if (followBus) {
+    followMe = false;                       // 둘이 동시에 끌면 화면이 싸운다
+    $('btnLoc').classList.remove('on');
+    if (sheet.isMobile() && tab === 'near') sheet.raise(1);
+  }
   render();
 }
 
@@ -1005,6 +1019,7 @@ function explainGeoError(err) {
 
 map.on('dragstart', () => {
   followMe = false;
+  followBus = false;
   $('btnLoc').classList.remove('on');
   if (headingOn) { headingOn = false; $('btnLoc').classList.remove('heading'); applyHeading(); }
 });
