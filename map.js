@@ -178,7 +178,7 @@ function arrivalsAt(stopName, t) {
     if (!hits.length) continue;
     // 어느 방향으로 가는 차인지 — 라이더의 실제 질문은 "어느 쪽에서 타나"다
     const times = [];
-    for (const trip of r.tripsMin) for (const i of hits) if (trip[i] >= t - 0.5) times.push([trip[i], i]);
+    for (const trip of r.tripsMin) for (const i of hits) if (trip[i] >= t - 1) times.push([trip[i], i]);
     if (!times.length) continue;
     times.sort((a, b) => a[0] - b[0]);
     const [at, idx] = times[0];
@@ -888,8 +888,13 @@ function drawFilters() {
 }
 
 const FAR_MIN = 90;                  // 이보다 멀면 남은 시간 대신 시각만
+/* 시간표의 시각은 그 정류장을 '떠나는' 시각이다. 09:15 차를 09:15 에 보면
+   아직 오는 중일 수도, 이미 떠나는 중일 수도 있다 — 분 단위 시간표로는
+   구분할 수 없으니 그렇게 말한다. "곧 도착"이라고 하면 아직 여유가 있는
+   것처럼 읽혀서, 걸어가다 놓친다. */
+const isDue = eta => eta < 0.5;
 function etaText(eta) {
-  if (eta < 0.5) return T.due;
+  if (isDue(eta)) return T.due;
   return T.min(Math.max(1, Math.round(eta)));
 }
 
@@ -963,9 +968,9 @@ function stopCard(name, t, walk) {
       <span class="badge" style="background:${a.route.color}">${badge(a.route)}</span>
       ${a.eta >= FAR_MIN
         ? `<span class="arr-eta far">${fmt(a.at)}</span>`
-        : `<span class="arr-eta ${a.eta <= 3 ? 'soon' : ''}">${etaText(a.eta)}</span>`}
+        : `<span class="arr-eta ${a.eta <= 3 ? 'soon' : ''} ${isDue(a.eta) ? 'due' : ''}">${etaText(a.eta)}</span>`}
       ${a.side ? `<span class="side">${T.across}</span>` : ''}
-      ${a.eta >= FAR_MIN ? '' : `<span class="arr-at">${fmt(a.at)}</span>`}
+      ${a.eta >= FAR_MIN || isDue(a.eta) ? '' : `<span class="arr-at">${fmt(a.at)}</span>`}
       ${a.toward ? `<span class="arr-toward">${T.toward(shortLabel(a.toward))}</span>` : ''}
     </div>`).join('')
     : `<div class="empty">${T.noService}</div>`;
@@ -1036,8 +1041,8 @@ function drawHero(t, walks, walkTo) {
        <span class="hero-stop">${stopLabel(best.g.name)}</span>
        <span class="hero-walk">${T.walkShort(best.w.min)}</span>
        <span class="hero-eta">
-         <b class="${a.eta <= 3 ? 'soon' : ''}">${a.eta >= FAR_MIN ? fmt(a.at) : etaText(a.eta)}</b>
-         ${a.eta >= FAR_MIN ? '' : `<span class="at">${fmt(a.at)}</span>`}
+         <b class="${a.eta <= 3 ? 'soon' : ''} ${isDue(a.eta) ? 'due' : ''}">${a.eta >= FAR_MIN ? fmt(a.at) : etaText(a.eta)}</b>
+         ${a.eta >= FAR_MIN || isDue(a.eta) ? '' : `<span class="at">${fmt(a.at)}</span>`}
        </span>`
     : `<span class="hero-quiet">${T.notRunning}</span><span class="hero-chev" aria-hidden="true">▲</span>`;
   const label = a
