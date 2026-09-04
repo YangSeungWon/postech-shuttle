@@ -89,7 +89,10 @@ button{cursor:pointer}
 :root{ --sheet:46dvh; --sheet-max:88dvh; --kb:0px; --tabs-h:0px; }  /* JS 가 로드되면 px 값으로 덮어쓴다 */
 
 #map{
-  position:fixed;left:0;right:0;top:var(--header-h);bottom:0;background:#e8eaed;
+  position:fixed;left:0;right:0;top:var(--header-h);bottom:0;
+  /* 바탕 지도의 땅 색과 같게. 지도를 돌리면 GL 캔버스 귀퉁이가 잠깐
+     드러나는데, 회색이면 눈에 띄고 같은 색이면 거의 안 보인다. */
+  background:#E9EBEF;
 }
 /* bottom 이 --kb 인 이유: iOS 는 키보드가 올라와도 레이아웃 뷰포트가 줄지
    않아서, bottom:0 인 고정 요소가 키보드 뒤로 들어간다. 보이는 영역의
@@ -712,6 +715,9 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
 .mapbtn.on{background:var(--postech-red);border-color:var(--postech-red);color:#fff}
 /* 방향까지 따라가는 중 — 한 번 더 누른 상태 */
 .mapbtn.heading{background:#1a73e8;border-color:#1a73e8;color:#fff}
+/* 나침반. 바늘이 늘 북쪽을 가리키므로 지도가 돌아간 만큼 같이 돈다. */
+#btnNorth svg{transition:transform .1s linear}
+@media (prefers-reduced-motion:reduce){ #btnNorth svg{transition:none} }
 /* 길찾기는 이 화면의 주된 동작이라 채워서 눈에 띄게 둔다 */
 .mapbtn.primary{
   background:var(--postech-red);border-color:var(--postech-red);color:#fff;
@@ -891,6 +897,7 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
       <button class="mapbtn" id="btnZoomIn" aria-label="확대"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
       <button class="mapbtn" id="btnZoomOut" aria-label="축소"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
     </div>
+    <button class="mapbtn" id="btnNorth" hidden aria-label="북쪽으로 맞추기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2 15.4 12 12 10.2 8.6 12 12 3.2Z" fill="currentColor" stroke="none"/><path d="M12 10.2 15.4 12 12 20.8 8.6 12 12 10.2Z" opacity=".38"/></svg></button>
     <button class="mapbtn" id="btnLoc" aria-label="내 위치"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M12 1.6v3.2M12 19.2v3.2M1.6 12h3.2M19.2 12h3.2"/></svg></button>
     <button class="mapbtn primary" id="btnRoute" aria-expanded="false"
             aria-controls="trip" aria-label="길찾기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.4 21.6 12 12 21.6 2.4 12 12 2.4Z"/><path d="M9.3 14.6v-2.5a1.7 1.7 0 0 1 1.7-1.7h3.7"/><path d="M12.9 8.4 15 10.4 12.9 12.4"/></svg></button>
@@ -900,6 +907,9 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<!-- Leaflet 자체는 회전을 못 한다. 이 플러그인이 DomUtil·Map·Marker·Popup 을
+     덮어써서 회전 팬을 만든다. 실려 있지 않으면 회전만 빠지고 나머지는 그대로 돈다. -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js"></script>
 <script src="./map-data.js"></script>
