@@ -1837,10 +1837,12 @@ function emptyState(near, field = activeField) {
   /* 지도 앱들이 이 자리에 두는 두 가지. 내 위치는 출발 칸 옆 ◎ 로만 닿을 수
      있었고(도착 칸에는 길이 없었다), 지도에서 찍기는 길게 누르기뿐이라
      알려 주는 데가 없었다. */
-  const out = [
-    { kind: 'here', label: T.here, ll: myLL },
-    { kind: 'pick', label: T.pickOnMap },
-  ];
+  /* 반대쪽이 이미 내 위치면 이쪽에 또 내밀지 않는다 — 있는 자리에서
+     있는 자리로 가는 길을 찾을 일은 없다. */
+  const other = field === 'from' ? tripTo : tripFrom;
+  const out = [];
+  if (other?.label !== T.here) out.push({ kind: 'here', label: T.here, ll: myLL });
+  out.push({ kind: 'pick', label: T.pickOnMap });
   const stops = STOP_LIST
     .map(s => ({ name: s.name, label: stopLabel(s.name), ll: s.ll, kind: 'stop',
                  d: near ? dist(near, s.ll) : null }));
