@@ -772,8 +772,17 @@ body.strip-on .mapbtns{bottom:calc(var(--strip) + var(--kb) + var(--tabs-h) + 22
   font-size:11px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em;
 }
 .clock-tag[hidden]{display:none}
-/* 지도 위 출발·도착. 여태 CSS 가 없어 빈 div 만 놓여 안 보였다.
-   물방울 뒤집은 모양 — 뾰족한 끝이 실제 지점이다. */
+/* 지도 위 출발·도착. 물방울 뒤집은 모양 — 뾰족한 끝이 실제 지점이다.
+   글자를 나란히 붙인다: 지도 위에서는 자리로 구별할 수가 없어 색만 남는데,
+   색 하나에 뜻을 다 싣지 않는다. */
+.end-icon{overflow:visible}
+.end-tag{
+  position:absolute;left:26px;top:0;white-space:nowrap;
+  font-size:12px;font-weight:900;letter-spacing:-.03em;color:#fff;
+  padding:2px 7px;border-radius:7px;box-shadow:0 1px 4px rgba(0,0,0,.3);
+}
+.end-tag.from{background:#1a8a4a}
+.end-tag.to{background:var(--postech-red)}
 .trip-pin{
   width:20px;height:20px;margin:1px;border-radius:50% 50% 50% 0;
   transform:rotate(-45deg);border:2.5px solid #fff;

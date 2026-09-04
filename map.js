@@ -338,6 +338,23 @@ const layerXing   = L.layerGroup().addTo(map);
    출발·도착 버튼은 시트 카드로 내렸다 — 표지는 자리를 어디에 잡아도
    마커나 시트와 부딪혔고, 시트에는 이미 그 정류장 카드가 있다. */
 const layerPick = L.layerGroup().addTo(map);
+/* 출발·도착 핀. 경로가 나온 뒤가 아니라 찍는 즉시 세운다 — 지도의 한
+   지점을 골랐을 때는 그 핀 말고는 어디를 골랐는지 알 길이 없다.
+   글자를 붙이는 이유도 같다. 지도 위에서는 자리로 구별할 수가 없어 색만
+   남는데, 색 하나에 뜻을 다 실을 수는 없다. */
+const layerEnds = L.layerGroup().addTo(map);
+function drawEnds() {
+  layerEnds.clearLayers();
+  for (const [pt, cls, label] of [[tripFrom?.ll, 'from', T.from], [tripTo?.ll, 'to', T.to]]) {
+    if (!pt) continue;
+    L.marker(pt, {
+      // 물방울 끝이 지점이다 — 가운데가 아니라 아래 끝에 맞춘다
+      icon: L.divIcon({ className: 'end-icon', iconSize: [22, 26], iconAnchor: [11, 25],
+        html: `<span class="end-tag ${cls}">${label}</span><div class="trip-pin ${cls}"></div>` }),
+      zIndexOffset: 600, interactive: false, keyboard: false,
+    }).addTo(layerEnds);
+  }
+}
 function drawPick(ll) {
   layerPick.clearLayers();
   if (!ll) return;
@@ -1960,7 +1977,7 @@ function openTrip(on, suggest = true) {
      내려 두어 지도를 보여 준다 — 결과가 나오면 runTrip 이 올린다. */
   sheet.goto(show ? (wideScreen() ? 2 : 0) : (selected ? 1 : 0));
   if (!show || on === false) {
-    tripFrom = tripTo = null; tripPlans = []; layerTrip.clearLayers();
+    tripFrom = tripTo = null; tripPlans = []; layerTrip.clearLayers(); layerEnds.clearLayers();
     $('suggest').innerHTML = ''; $('inFrom').value = $('inTo').value = '';
     collapseForm(false); simMinutes = null; whenLabel();
     tripXings = []; drawCrossings(tripXings); drawRoutes(); drawStops();
@@ -2186,6 +2203,7 @@ function setEndpoint(which, place) {
   if (which === 'from') { tripFrom = place; $('inFrom').value = place.label; }
   else                  { tripTo = place;   $('inTo').value = place.label; remember(place); }
   map.closePopup();
+  drawEnds();                          // 한쪽만 찍혀도 그 자리는 바로 세운다
   if (tripFrom && tripTo) { runTrip(); return; }
   collapseForm(false);
   focusEmptyField();
@@ -2234,11 +2252,13 @@ function pointActions(ll, label, autoPan = true) {
 map.on('contextmenu', e => { if (!guiding()) pointActions(e.latlng, T.mapPoint); });
 
 function runTrip() {
+  drawEnds();                          // 한쪽만 찍혀 있어도 그 자리는 보여 준다
   if (!tripFrom || !tripTo) { tripPlans = []; collapseForm(false); layerTrip.clearLayers(); render(); return; }
   const t = nowMin();
   const ctx = { ROUTES, STOP_LIST, isOn, walk: walkNet };
   // 기한이 이미 지났으면 다음 운행일로 본다 (시간표가 하루치뿐이다)
   tripPlans = planTripSeries(tripFrom, tripTo, t, ctx);
+  drawEnds();
   // 시트를 먼저 낮춰야 지도에 맞출 때 가려지는 높이를 제대로 계산한다
   stripIdx = 0;                       // 새 결과는 첫 장부터 본다
   collapseForm(tripPlans.length > 0);
@@ -2282,14 +2302,6 @@ function drawPlan(plan) {
         zIndexOffset: 550, interactive: false, keyboard: false,
       }).addTo(layerTrip);
     }
-  }
-  for (const [pt, cls] of [[tripFrom.ll, 'from'], [tripTo.ll, 'to']]) {
-    L.marker(pt, {
-      // 물방울 끝이 지점이다 — 가운데가 아니라 아래 끝에 맞춘다
-      icon: L.divIcon({ className: '', iconSize: [22, 26], iconAnchor: [11, 25],
-        html: `<div class="trip-pin ${cls}"></div>` }),
-      zIndexOffset: 600, interactive: false, keyboard: false,
-    }).addTo(layerTrip);
   }
   drawCrossings(tripXings);
   if (pts.length) fitWithSheet(L.latLngBounds(pts), 50);
