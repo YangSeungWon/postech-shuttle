@@ -513,6 +513,16 @@ const busMarkers = new Map();
 /* 고른 버스를 따라간다. 그 차를 보겠다고 누른 것이니 화면 밖으로 나가면
    안 된다. 지도를 끌면 놓아 준다 — 그때는 다른 데를 보겠다는 뜻이다. */
 let followBus = false;
+/* 시트·탭에 가리는 만큼을 지도에게 알려 둔다. 그러면 '가운데'가 보이는
+   영역의 가운데가 된다. 시트가 움직일 때만 다시 잡으면 된다. */
+function setFollowPad() {
+  if (followBus) map.setPad(topInset(), sheetHeight());
+}
+function stopFollow() {
+  if (!followBus) return;
+  followBus = false;
+  map.setPad(0, 0);                     // 여백을 되돌려야 다음 화면 맞추기가 맞는다
+}
 
 function drawBuses(t) {
   const routeIds = guiding()
@@ -555,7 +565,9 @@ function drawBuses(t) {
         const shown = Number.isNaN(prev) ? b.dir
           : prev + (((b.dir - prev + 540) % 360) - 180) * 0.18;
         dir.dataset.deg = shown.toFixed(2);
-        dir.style.transform = `rotate(${(shown - map.getBearing()).toFixed(1)}deg)`;
+        // 눈에 안 보일 만큼의 차이로 style 을 건드리면 그때마다 다시 그린다
+        const deg = (shown - map.getBearing()).toFixed(1);
+        if (dir._deg !== deg) { dir._deg = deg; dir.style.transform = `rotate(${deg}deg)`; }
       }
     }
     m.getElement()?.setAttribute('aria-label', b.waiting
@@ -575,8 +587,8 @@ function drawBuses(t) {
      걸려서였다. 이제 묵혀 쓴다.) */
   if (followBus) {
     const b = live.find(x => x.key === selectedBus);
-    if (!b) followBus = false;              // 운행이 끝났다
-    else map.setView(offsetForSheet(b.ll), map.getZoom());
+    if (!b) stopFollow();                   // 운행이 끝났다
+    else map.center(b.ll);              // 여백은 켤 때 한 번 정해 둔다
   }
   return live;
 }
@@ -594,7 +606,8 @@ function selectBus(key) {
     followMe = false;                       // 둘이 동시에 끌면 화면이 싸운다
     $('btnLoc').classList.remove('on');
     if (sheet.isMobile() && tab === 'near') sheet.raise(1);
-  }
+    setFollowPad();
+  } else map.setPad(0, 0);
   render();
 }
 
@@ -740,7 +753,7 @@ map.on('click', e => {
   /* 빈 곳을 누르면 고른 것을 놓는다. 손잡이를 없앤 뒤로 시트를 접을 길이
      없었다 — 지도 앱들이 쓰는 몸짓이고 화면을 차지하지도 않는다. */
   if (selected || selectedBus) {
-    selected = null; selectedBus = null; followBus = false;
+    selected = null; selectedBus = null; stopFollow();
     map.closePopup();
     paintSelection();
     render();
@@ -1036,7 +1049,7 @@ function explainGeoError(err) {
 
 map.on('dragstart', () => {
   followMe = false;
-  followBus = false;
+  stopFollow();
   $('btnLoc').classList.remove('on');
   if (headingOn) { headingOn = false; $('btnLoc').classList.remove('heading'); applyHeading(); }
 });
@@ -2183,6 +2196,7 @@ const sheet = (() => {
     apply(snaps()[cur], animate);
     // 시트를 끝까지 올리면 지도가 거의 가려진다. 버튼 열이 겹치므로 감춘다.
     document.body.classList.toggle('sheet-full', isMobile() && cur === 2);
+    if (typeof setFollowPad === 'function') setFollowPad();
     grab.setAttribute('aria-expanded', String(cur > 0));
     grab.setAttribute('aria-label', cur === 0 ? T.sheetOpen : T.sheetClose);
     return cur;

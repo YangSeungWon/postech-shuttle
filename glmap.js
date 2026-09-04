@@ -373,6 +373,11 @@
     setView(ll, z) { this._gl.jumpTo({ center: toGL(ll), zoom: (z == null ? this.getZoom() : z) - ZOFF }); return this; },
     panTo(ll)    { this._gl.panTo(toGL(ll)); return this; },
     setMaxBounds(b) { this._gl.setMaxBounds(b.toGL()); return this; },
+    /* 화면에서 가운데로 칠 곳을 정해 둔다. 이게 있으면 따라갈 때 좌표를
+       투영했다 되돌리는 왕복 없이 중심만 넘기면 된다 — 그 왕복의 오차가
+       프레임마다 달라져 마커가 덜덜거렸다. */
+    setPad(top, bottom) { this._gl.setPadding({ top, bottom, left: 0, right: 0 }); return this; },
+    center(ll) { this._gl.jumpTo({ center: toGL(ll) }); return this; },
     getSize()    { const c = this._gl.getContainer(); return new Point(c.clientWidth, c.clientHeight); },
     getBearing() { return this._gl.getBearing(); },
     /* animate 없이 부르면 즉시 돌린다. 나침반 값은 초당 수십 번 들어오는데
