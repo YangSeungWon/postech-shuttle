@@ -669,9 +669,10 @@ if (new URLSearchParams(location.search).has('debug')) {
     const c = map.getSize();
     const rows = [];
     for (const [name, mk] of stopMarkers) {
-      const el = mk.getElement()?.parentElement || mk.getElement();
+      // MapLibre 는 우리가 준 요소 자체에 transform 을 건다 (부모가 아니다)
+      const el = mk.getElement();
       const got = el && readXY(el);
-      if (!got) continue;
+      if (!got) { console.log('[debug]', name, '변환값 없음', el && getComputedStyle(el).transform); continue; }
       const want = map.latLngToContainerPoint(mk.getLatLng ? mk.getLatLng() : STOPS[name]);
       const half = { x: el.offsetWidth / 2, y: el.offsetHeight / 2 };
       rows.push({
@@ -682,8 +683,13 @@ if (new URLSearchParams(location.search).has('debug')) {
       });
     }
     rows.sort((a, b) => a.중심에서 - b.중심에서);
-    console.log('[debug] 배율', map.getZoom().toFixed(2), '| 컨테이너', c.x + '×' + c.y);
-    console.table(rows);
+    console.log('[debug] 배율', map.getZoom().toFixed(2), '| 컨테이너', c.x + '×' + c.y,
+                '| 잰 마커', rows.length + '개');
+    // console.table 이 없는 콘솔도 있어 한 줄씩도 찍는다
+    for (const r of rows) {
+      console.log(`[debug] 중심에서 ${String(r.중심에서).padStart(4)}px  어긋남 ${String(r.어긋남).padStart(3)}px  배율 ${r.배율}  ${r.정류장}`);
+    }
+    if (console.table) console.table(rows);
   };
   map.on('moveend', check);
   setTimeout(check, 1200);
