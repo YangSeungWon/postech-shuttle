@@ -372,6 +372,12 @@ button{cursor:pointer}
   background:#2F3540;border:1.5px solid #fff;
 }
 .bus .wheel.r{left:auto;right:5px}
+/* 출발을 기다리는 차 — 속을 비워 아직 움직이지 않는다는 것을 보이고,
+   정류장 마커를 가리지 않게 살짝 띄운다 */
+.bus-icon .bus.waiting{transform:translate(-50%,-118%)}
+.bus.waiting .bus-body{background:#fff;color:var(--c);border-color:var(--c)}
+.bus.waiting .bus-win{background:var(--c);opacity:.22}
+.bus.waiting .wheel{background:var(--c);border-color:#fff}
 
 .me{
   width:16px;height:16px;border-radius:50%;background:#1a73e8;border:3px solid #fff;

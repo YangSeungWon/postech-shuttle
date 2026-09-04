@@ -166,8 +166,12 @@ function arrivalsAt(stopName, t) {
   const out = [];
   for (const r of ROUTES) {
     if (!isOn(r)) continue;
+    // 마지막 정류장은 그 운행의 종점이라 탈 수 없다. 들어오는 차를 "곧 도착"
+    // 으로 보여 주면 못 타는 차를 기다리게 된다. 순환노선도 종점에 들어온 뒤
+    // 다시 나가는 시각이 따로 있으므로 그것만 보여 주면 된다.
+    const last = r.canonStops.length - 1;
     const hits = [];
-    r.canonStops.forEach((s, i) => { if (s === stopName) hits.push(i); });
+    r.canonStops.forEach((s, i) => { if (s === stopName && i !== last) hits.push(i); });
     if (!hits.length) continue;
     // 어느 방향으로 가는 차인지 — 라이더의 실제 질문은 "어느 쪽에서 타나"다
     const times = [];
@@ -175,8 +179,7 @@ function arrivalsAt(stopName, t) {
     if (!times.length) continue;
     times.sort((a, b) => a[0] - b[0]);
     const [at, idx] = times[0];
-    const next = idx + 1 < r.stops.length ? r.stops[idx + 1]
-               : (r.kind === 'circulation' ? r.stops[1] : null);
+    const next = r.stops[idx + 1];
     out.push({
       route: r, at, eta: at - t, after: times[1]?.[0] ?? null,
       toward: next ? baseName(canon(next)) : null,
@@ -186,23 +189,43 @@ function arrivalsAt(stopName, t) {
 }
 
 /* ---------- 운행 중인 버스 ---------- */
+/* 출발을 기다리는 차도 이미 정류장에 서 있다. 언제부터 서 있는지는
+   직전 운행이 끝난 시각으로 본다 — 순환 1 은 09:10 에 들어와 09:15 에 나간다.
+   첫차처럼 앞선 운행이 없으면 최대 이만큼 앞부터 보여 준다. */
+const MAX_WAIT = 10;
+
 function activeBuses(t) {
   if (!today().runs) return [];
   const buses = [];
   for (const r of ROUTES) {
     if (!isOn(r)) continue;
     r.tripsMin.forEach((trip, ti) => {
-      if (t < trip[0] || t > trip[trip.length - 1]) return;
-      let leg = 0;
-      while (leg < trip.length - 2 && t >= trip[leg + 1]) leg++;
-      const span = trip[leg + 1] - trip[leg];
-      const f = span > 0 ? Math.min(1, Math.max(0, (t - trip[leg]) / span)) : 0;
-      buses.push({
-        key: r.id + '#' + ti,
-        route: r,
-        ll: posOnLeg(r.path, leg, f),
-        from: r.stops[leg], to: r.stops[leg + 1], arriveAt: trip[leg + 1],
-      });
+      const start = trip[0], end = trip[trip.length - 1];
+
+      if (t >= start && t <= end) {
+        let leg = 0;
+        while (leg < trip.length - 2 && t >= trip[leg + 1]) leg++;
+        const span = trip[leg + 1] - trip[leg];
+        const f = span > 0 ? Math.min(1, Math.max(0, (t - trip[leg]) / span)) : 0;
+        buses.push({
+          key: r.id + '#' + ti,
+          route: r,
+          ll: posOnLeg(r.path, leg, f),
+          from: r.stops[leg], to: r.stops[leg + 1], arriveAt: trip[leg + 1],
+        });
+        return;
+      }
+
+      const prevEnd = ti > 0 ? r.tripsMin[ti - 1][r.tripsMin[ti - 1].length - 1] : -Infinity;
+      const waitFrom = Math.max(prevEnd, start - MAX_WAIT);
+      if (t >= waitFrom && t < start) {
+        buses.push({
+          key: r.id + '#' + ti + 'w',
+          route: r,
+          ll: r.path.coords[r.path.idx[0]],
+          waiting: true, at: r.stops[0], departAt: start,
+        });
+      }
     });
   }
   return buses;
@@ -446,7 +469,7 @@ function drawBuses(t) {
       m = L.marker(b.ll, {
         icon: L.divIcon({
           className: 'bus-icon', iconSize: null, iconAnchor: [0, 0],
-          html: `<div class="bus" style="--c:${b.route.color}">
+          html: `<div class="bus ${b.waiting ? 'waiting' : ''}" style="--c:${b.route.color}">
                    <span class="bus-body"><span class="bus-win"></span>${label}</span>
                    <i class="wheel"></i><i class="wheel r"></i>
                  </div>`
@@ -457,9 +480,12 @@ function drawBuses(t) {
       busMarkers.set(b.key, m);
     } else {
       m.setLatLng(b.ll);
+      m.getElement()?.firstElementChild?.classList.toggle('waiting', !!b.waiting);
     }
     m.bindTooltip(
-      `<b>${routeLabel(b.route)}</b><br>${stopLabel(b.to)} · ${fmt(b.arriveAt)}`,
+      b.waiting
+        ? `<b>${routeLabel(b.route)}</b><br>${T.waitingAt(stopLabel(b.at), Math.max(1, Math.round(b.departAt - t)), fmt(b.departAt))}`
+        : `<b>${routeLabel(b.route)}</b><br>${stopLabel(b.to)} · ${fmt(b.arriveAt)}`,
       { direction: 'top', offset: [0, -12] }
     );
   }
