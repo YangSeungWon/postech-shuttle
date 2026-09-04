@@ -1670,7 +1670,8 @@ function render() {
     if (sheet.isMobile()) $('filters').hidden = true;
     document.body.classList.remove('trip-empty');
     if (tripPlans.length) {
-      html += `<div class="sec-title">${T.suggested}</div>`;
+      /* "추천 경로" 라는 제목은 두지 않는다 — 출발·도착을 찍고 나온 목록이
+         그것 말고 무엇일 수가 없다. 제목 한 줄이 항목 하나를 밀어낸다. */
       html += tripPlans.map(planCard).join('');
       setPanel(html);
       $('panelScroll').querySelectorAll('.itin').forEach(el => el.onclick = () => {
