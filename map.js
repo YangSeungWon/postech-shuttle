@@ -735,13 +735,6 @@ function askLocation() {
   $('askYes').onclick = () => { closeAsk(); startLocate(); };
   $('askNo').textContent = T.askNo;
   $('askNo').onclick = closeAsk;
-$('installYes').onclick = install;
-$('installNo').onclick = dismissNudge;
-for (const id of ['ask', 'pickHint', 'updateHint', 'editbar', 'installBar', 'tripTop']) {
-  const el = $(id);
-  if (el) { L.DomEvent.disableClickPropagation(el); L.DomEvent.disableScrollPropagation(el); }
-}
-if ($('lnkTimetable')) $('lnkTimetable').onclick = showTimetable;
   openAsk(el);
 }
 
@@ -758,6 +751,23 @@ function showRecovery() {
   openAsk(el);
 }
 
+/* 열자마자 한 번. 이 앱의 첫 질문이 "가장 가까운 정류장이 어디고 버스는
+   언제냐" 인데, 위치 없이는 답할 수가 없다.
+   이미 허락돼 있으면 아무것도 띄우지 않고 조용히 잡는다. 아직 안 물어본
+   상태면 우리 안내 카드부터 — 브라우저 프롬프트를 맨몸으로 띄웠다가
+   반사적으로 차단되면 설정에 들어가지 않고는 되돌릴 수 없다. */
+const ASKED_KEY = 'geo-asked';
+(async () => {
+  const st = await geoPermission();
+  if (st === 'granted') { startLocate(true); return; }
+  if (st === 'denied') return;                 // 다시 물어도 프롬프트가 안 뜬다
+  // Permissions API 가 없는 브라우저(state === null)는 상태를 알 수 없다.
+  // 그래서 한 번 물어본 뒤로는 다시 띄우지 않는다 — ◎ 버튼이 남아 있다.
+  try { if (localStorage.getItem(ASKED_KEY)) return; } catch (e) { /* 무시 */ }
+  try { localStorage.setItem(ASKED_KEY, '1'); } catch (e) { /* 무시 */ }
+  askLocation();
+})();
+
 /* ◎ 버튼의 진입점 */
 async function requestLocation() {
   if (myLL) { followMe = true; $('btnLoc').classList.add('on'); map.setView(myLL, 16); return; }
@@ -767,7 +777,9 @@ async function requestLocation() {
   else askLocation();
 }
 
-function startLocate() {
+/* quiet: 열자마자 자동으로 잡는 경우. 위치만 얻고 지도는 건드리지 않는다 —
+   보고 있던 화면이 저 혼자 움직이면 그게 더 당황스럽다. */
+function startLocate(quiet = false) {
   if (!navigator.geolocation) {
     geoError = { title: '이 브라우저에서는 위치 기능을 쓸 수 없습니다.', how: null };
     render(); return;
@@ -779,10 +791,10 @@ function startLocate() {
     };
     render(); return;
   }
-  followMe = true;
+  followMe = !quiet;
   geoError = null;
-  $('btnLoc').classList.add('on');
-  if (watchId !== null) { if (myLL) map.setView(myLL, 16); return; }
+  $('btnLoc').classList.toggle('on', !quiet);
+  if (watchId !== null) { if (myLL && !quiet) map.setView(myLL, 16); return; }
 
   watchId = navigator.geolocation.watchPosition(pos => {
     const { latitude, longitude, accuracy } = pos.coords;
@@ -940,8 +952,16 @@ function busCard(b, t) {
 /* 전체 시간표. 정류장을 가로로, 운행을 세로로 놓은 표.
    좁은 화면에서는 가로로 스크롤한다. '전체' 를 고르면 노선을 모두 이어 붙인다. */
 function routeTable(g, t) {
-  const runs = ROUTES.filter(r => r.group === g
-    && (!isExt(g) || !focusPeriod || r.period === focusPeriod));
+  // 전체를 볼 때(focusGroup 없음)는 확장노선의 오전·오후를 따로 그린다
+  const all = ROUTES.filter(r => r.group === g);
+  const periods = isExt(g)
+    ? (focusGroup ? [focusPeriod || '오전'] : ['오전', '오후'])
+    : [null];
+  return periods.map(p => routeTableFor(g, t, all.filter(r => !p || r.period === p)))
+                .filter(Boolean).join('');
+}
+
+function routeTableFor(g, t, runs) {
   if (!runs.length) return '';
 
   const stops = runs[0].stops;
@@ -967,8 +987,10 @@ function routeTable(g, t) {
 
 function timetableView(t) {
   const groups = focusGroup ? [focusGroup] : GROUPS.map(g => g.id);
-  // 확장노선은 시간대별로 경로가 다르므로 전환을 함께 보여 준다
-  const period = groups.some(isExt) ? periodSwitch(groups.find(isExt)) : '';
+  /* 확장노선은 출근·퇴근이 서로 다른 경로라 전환이 필요하다. 순환노선에는
+     그런 게 없다 — 전체를 볼 때 그 전환을 띄우면 순환 시간표까지 오전·오후로
+     갈리는 것처럼 읽힌다. 고른 노선이 확장노선일 때만 보여 준다. */
+  const period = focusGroup && isExt(focusGroup) ? periodSwitch(focusGroup) : '';
   const tables = groups.map(g => routeTable(g, t)).filter(Boolean).join('');
   if (!tables) return `<div class="notice warn">${T.notRunning}</div>`;
   return period + tables + `<div class="notice">${T.timetableHint}</div>`;
@@ -1026,14 +1048,18 @@ function drawHero(t, walks, walkTo) {
     .sort((a, b) => a.w.min - b.w.min);
   const best = near.find(x => arrivalsForGroup(x.g.name, t).length) || near[0];
   if (view === 'timetable') {
-    let h = `<div class="sec-title view-head">
+    /* 탭으로 들어온 화면에는 돌아갈 곳이 없다 — 화살표도 "전체 시간표"라는
+       제목도 붙이지 않는다. 어느 노선인지는 표마다 머리에 적혀 있다.
+       사이드바(데스크톱)에서는 여전히 목록에서 들어오므로 남긴다. */
+    let h = (sheet.isMobile() ? '' : `<div class="sec-title view-head">
         <button type="button" class="back" id="ttBack" aria-label="${T.back}">←</button>
         ${T.allTimetable}
-      </div>` + timetableView(t);
+      </div>`) + timetableView(t);
     h += `<div class="source">${sourceNote()}</div>`;
     $('panelScroll').innerHTML = h;
     drawFilters();
-    $('ttBack').onclick = () => { view = 'stops'; sheet.raise(1); render(); };
+    const back = $('ttBack');
+    if (back) back.onclick = () => { view = 'stops'; sheet.raise(1); render(); };
     $('panelScroll').querySelectorAll('.period button').forEach(el => el.onclick = () => {
       focusPeriod = el.dataset.p; drawRoutes(); drawStops(); render();
     });
@@ -1119,7 +1145,10 @@ function showTimetable() {
 function render() {
   const t = nowMin();
   // 노선 칩은 '노선' 탭의 것이다 (안내 중에는 어느 탭이든 필요 없다)
-  $('filters').hidden = guiding() || (sheet.isMobile() && tab !== 'routes');
+  // 노선 칩은 '노선'과 '시간표' 탭의 것이다. 시간표는 길어서 노선을 고를
+  // 수 있어야 하고, 주변 탭에서는 지도를 가릴 이유가 없다.
+  $('filters').hidden = guiding()
+    || (sheet.isMobile() && tab !== 'routes' && tab !== 'timetable');
   const live = drawBuses(t);
   const running = live.length;
 
@@ -1226,7 +1255,8 @@ function render() {
     h += `<div class="source">${sourceNote()}</div>`;
     $('panelScroll').innerHTML = h;
     drawFilters();
-    $('ttBack').onclick = () => { view = 'stops'; sheet.raise(1); render(); };
+    const back = $('ttBack');
+    if (back) back.onclick = () => { view = 'stops'; sheet.raise(1); render(); };
     $('panelScroll').querySelectorAll('.period button').forEach(el => el.onclick = () => {
       focusPeriod = el.dataset.p; drawRoutes(); drawStops(); render();
     });
@@ -1459,6 +1489,7 @@ function openTrip(on, suggest = true) {
   render();
 }
 $('btnRoute').onclick = () => openTrip();
+$('tripBack').onclick = () => setTab('near');
 
 
 function search(q, near) {
@@ -1478,22 +1509,29 @@ function search(q, near) {
     .slice(0, 8);
 }
 
-/* 아직 아무것도 입력하지 않았을 때 — 최근에 간 곳, 그다음 가까운 정류장 */
-function emptyState(near) {
+/* 아직 아무것도 입력하지 않았을 때 — 최근에 간 곳, 그다음 가까운 정류장.
+   단 출발지를 고르는 중이라면 가장 가까운 정류장이 맨 위다. 거기서 타는
+   것이 거의 언제나 답이기 때문이다. 도착지에서는 반대다 — 지금 서 있는
+   자리로 가려는 사람은 없다. */
+function emptyState(near, field = activeField) {
   const seen = new Set();
   const out = [];
+  const stops = STOP_LIST
+    .map(s => ({ name: s.name, label: stopLabel(s.name), ll: s.ll, kind: 'stop',
+                 d: near ? dist(near, s.ll) : null }));
+  if (near) stops.sort((a, b) => a.d - b.d);
+
+  if (field === 'from' && near && stops.length) {
+    out.push(stops[0]);
+    seen.add(stops[0].name);
+  }
   for (const r of recents) {
     if (seen.has(r.name)) continue;
     seen.add(r.name);
     out.push({ name: r.name, label: r.name, ll: r.ll, kind: 'recent',
                d: near ? dist(near, r.ll) : null });
   }
-  const stops = STOP_LIST
-    .filter(s => !seen.has(s.name))
-    .map(s => ({ name: s.name, label: stopLabel(s.name), ll: s.ll, kind: 'stop',
-                 d: near ? dist(near, s.ll) : null }));
-  if (near) stops.sort((a, b) => a.d - b.d);
-  return out.concat(stops).slice(0, 7);
+  return out.concat(stops.filter(s => !seen.has(s.name))).slice(0, 7);
 }
 
 function drawSuggest(list) {
@@ -1881,9 +1919,12 @@ const sheet = (() => {
     // dvh 와 innerHeight 가 어긋나는 브라우저가 있어 높이를 전부 px 로 통일한다
     const root = document.documentElement.style;
     root.setProperty('--kb', kb() + 'px');
-    // 탭바 높이는 안전영역만큼 기기마다 다르다 — 재서 쓴다
-    root.setProperty('--tabs-h',
-      (isMobile() ? ($('tabs').offsetHeight || 58) : 0) + 'px');
+    /* 탭바 높이는 안전영역만큼 기기마다 다르다 — 재서 쓴다.
+       숨겨져 있으면 offsetHeight 가 0 이므로 `|| 58` 같은 대비책을 두면
+       안 된다. 길찾기 중에는 실제로 0 이 맞다. */
+    const tb = $('tabs');
+    const shown = isMobile() && tb && tb.offsetParent !== null;
+    root.setProperty('--tabs-h', (shown ? tb.offsetHeight : 0) + 'px');
     root.setProperty('--sheet-max', Math.round(vh() * 0.88) + 'px');
     root.setProperty('--sheet', Math.round(px) + 'px');
   }
@@ -1957,6 +1998,7 @@ function applyLang() {
   set('skipLink', T.skip);
   $('btnMode').ariaLabel = T.modeSwitch;
   $('btnClock').title = T.whenTitle;   // 라벨은 whenLabel 이 시각까지 넣어 다시 쓴다
+  $('tripBack').title = $('tripBack').ariaLabel = T.back;
   sheet.relabel();
   set('tabNear', T.tabNear); set('tabRoutes', T.tabRoutes);
   set('tabTimetable', T.tabTimetable); set('tabTrip', T.tabTrip);
