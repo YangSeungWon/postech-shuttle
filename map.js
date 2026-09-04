@@ -349,8 +349,8 @@ function drawEnds() {
     if (!pt) continue;
     L.marker(pt, {
       // 물방울 끝이 지점이다 — 가운데가 아니라 아래 끝에 맞춘다
-      // 꼬리 끝(아래 한가운데)이 실제 지점이다: 동그라미 38 + 테두리 6 + 꼬리 11
-      icon: L.divIcon({ className: 'end-icon', iconSize: [44, 55], iconAnchor: [22, 55],
+      // 꼬리 끝(아래 한가운데)이 실제 지점이다: 동그라미 38 + 테두리 6 + 꼬리 17
+      icon: L.divIcon({ className: 'end-icon', iconSize: [44, 61], iconAnchor: [22, 61],
         html: `<div class="trip-pin ${cls}">${label}</div>` }),
       zIndexOffset: 600, interactive: false, keyboard: false,
     }).addTo(layerEnds);
@@ -1791,6 +1791,7 @@ function render() {
     const n = el.dataset.stop;
     setEndpoint(el.dataset.w, { ll: groupOfStop(n)?.ll || STOPS[n], label: stopLabel(n) });
   });
+  sheet.refit();
   bindLangButtons();
   const tt = $('lnkTimetable2');
   if (tt) tt.onclick = showTimetable;
@@ -2447,7 +2448,14 @@ const sheet = (() => {
     : 0;
   /* 세 높이는 이제 탭이 정한다 — 끌어서 맞추는 것이 아니다.
      맨 아래는 hero 한 줄만큼. 그게 이 앱의 기본 답이다. */
-  const peek = () => Math.max(76, ($('hero').offsetHeight || 76) + 8);
+  /* 접힌 높이는 "가장 가까운 정류장 한 줄이 보이는" 만큼이다. 손잡이와
+     시트 위 여백까지 세야 그 줄이 실제로 드러난다 — 예전에는 hero 높이만
+     보고 76px 을 잡아, 손잡이에 밀려 줄이 통째로 잠겼다. */
+  const peek = () => {
+    const g = grab.offsetHeight || 22;
+    const h = $('hero').hidden ? 0 : ($('hero').offsetHeight || 66);
+    return Math.max(52 + g, g + h + 10);
+  };
   const snaps = () => [peek(), Math.round(vh() * 0.46), Math.round(vh() * 0.88)];
   let cur = 0;
 
@@ -2531,7 +2539,10 @@ const sheet = (() => {
   vv?.addEventListener('scroll', reflow);
   if (isMobile()) goto(0, false);
   const raise = i => { if (isMobile() && cur < i) goto(i); };
-  return { goto, raise, height, isMobile, relabel: () => goto(cur, false) };
+  /* hero 는 render 뒤에야 제 높이를 갖는다. 접혀 있을 때만 다시 맞춘다 —
+     올라가 있을 때 건드리면 스크롤 중에 시트가 흔들린다. */
+  const refit = () => { if (isMobile() && cur === 0) apply(peek(), false); };
+  return { goto, raise, height, isMobile, refit, relabel: () => goto(cur, false) };
 })();
 
 /* 경로를 지도에 맞출 때 시트에 가리는 만큼 아래쪽 여백을 준다 */
