@@ -943,7 +943,11 @@ async function toggleHeading() {
 /* ◎ 버튼의 진입점. 세 단계로 돈다 — 끔 → 따라가기 → 방향까지. */
 async function requestLocation() {
   if (myLL && followMe) { toggleHeading(); return; }
-  if (myLL) { followMe = true; $('btnLoc').classList.add('on'); map.setView(myLL, 16); return; }
+  if (myLL) {
+    followMe = true; $('btnLoc').classList.add('on');
+    pingMe();                            // 눌렀다는 것이 보여야 한다
+    map.setView(myLL, 16); return;
+  }
   const state = await geoPermission();
   if (state === 'granted') startLocate();
   else if (state === 'denied') showRecovery();
@@ -995,7 +999,7 @@ function setMyLocation(ll, accuracy) {
           /* 부채꼴은 위(-y)를 향하게 그려 두고 방위만큼 돌린다.
              꼭짓점 (0,0), 반지름 50, 좌우 20° — 끝점은 (∓17.1, -47.0) */
           html: `<div class="me-wrap" id="meWrap">
-                   <div class="me-glow"></div>
+                   <div class="me-glow"></div><div class="me-ping" id="mePing"></div>
                    <svg class="me-beam" id="meBeam" viewBox="-50 -50 100 100" aria-hidden="true">
                      <defs><radialGradient id="meBeamFill">
                        <stop offset=".18" stop-color="#1a73e8" stop-opacity=".55"/>
@@ -1008,13 +1012,19 @@ function setMyLocation(ll, accuracy) {
         zIndexOffset: 500, interactive: false, keyboard: false,
       }).addTo(map);
       applyHeading();
+      pingMe();                          // 처음 잡았다
       myCircle = L.circle(myLL, { radius: accuracy, color: '#1a73e8', weight: 1, fillOpacity: .08, interactive: false }).addTo(map);
       /* 위치가 잡혔다고 지도를 옮기지는 않는다. 노선이 캠퍼스 한 뙈기라
          첫 화면에 이미 정류장이 다 들어와 있고, 그중 내가 어디인지는
          파란 점이 말해 준다. 굳이 확대해 들어갈 이유가 없다.
          가운데로 오고 싶으면 ◎ 를 누르면 된다. */
     } else {
+      /* watchPosition 은 몇 초마다 들어오고 대개 몇 미터씩 흔들린다. 그때마다
+         퍼뜨리면 신호가 아니라 소음이다. 실제로 옮겨 갔을 때만. */
+      const was = myMarker.getLatLng();          // 아직 옮기기 전 자리
+      const moved = dist([was.lat, was.lng], ll);
       myMarker.setLatLng(myLL); myCircle.setLatLng(myLL).setRadius(accuracy);
+      if (moved > 15) pingMe();
       if (followMe) map.setView(myLL, map.getZoom());
     }
     /* 출발지는 거의 언제나 지금 있는 자리다. 비어 있으면 채운다 —
@@ -1078,6 +1088,16 @@ const sheetHeight = () => {
   if (document.body.classList.contains('strip-on')) return $('planStrip').offsetHeight + tabs;
   return (typeof sheet === 'undefined' ? 0 : sheet.height()) + tabs;
 };
+/* 방금 잡았다는 신호. 애니메이션을 다시 걸려면 지웠다가 리플로우를 한 번
+   거쳐야 한다 — 클래스만 다시 붙이면 브라우저가 같은 상태로 보고 넘긴다. */
+function pingMe() {
+  const el = $('mePing');
+  if (!el) return;
+  el.classList.remove('go');
+  void el.offsetWidth;
+  el.classList.add('go');
+}
+
 /* 화면 위(길찾기 입력칸)와 아래(시트·카드 띠·탭)에 가려지는 높이 */
 function topInset() {
   const t = $('tripTop');

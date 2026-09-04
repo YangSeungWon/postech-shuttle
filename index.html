@@ -513,16 +513,24 @@ button{cursor:pointer}
   background:#1a73e8;border:3px solid #fff;
   box-shadow:0 0 0 2px rgba(26,115,232,.35),0 2px 6px rgba(0,0,0,.3);
 }
+/* GPS 로 잡고 있는 동안의 표시 — 사방으로 옅게 번진다. 계속 뛰게 두면
+   가만히 있는 지도에서 자꾸 눈이 끌린다. 조용히 켜 두기만 한다. */
 .me-glow{
-  position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;
-  border-radius:50%;background:radial-gradient(circle,rgba(26,115,232,.34) 0%,rgba(26,115,232,.14) 45%,rgba(26,115,232,0) 70%);
-  animation:mePulse 2.4s ease-out infinite;
+  position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(26,115,232,.28) 0%,rgba(26,115,232,.11) 48%,rgba(26,115,232,0) 72%);
 }
-@keyframes mePulse{
-  0%{transform:scale(.62);opacity:.95}
-  70%{transform:scale(1.12);opacity:.25}
-  100%{transform:scale(1.2);opacity:0}
+/* 새로 잡았을 때·버튼을 눌렀을 때 한 번만 퍼진다 — 방금 잡았다는 신호다 */
+.me-ping{
+  position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;
+  border-radius:50%;border:2px solid rgba(26,115,232,.8);opacity:0;pointer-events:none;
 }
+.me-ping.go{animation:mePing .8s cubic-bezier(.2,.7,.3,1)}
+@keyframes mePing{
+  from{transform:scale(1);opacity:.85}
+  to{transform:scale(5.5);opacity:0}
+}
+@media (prefers-reduced-motion:reduce){ .me-ping.go{animation:none} }
 /* 폰이 향한 쪽. conic-gradient + mask 로 그렸더니 브라우저에 따라
    테두리만 남았다 — 모양이 계산으로 정해지도록 SVG 로 직접 그린다. */
 .me-beam{
@@ -530,7 +538,6 @@ button{cursor:pointer}
   display:none;pointer-events:none;
 }
 .me-wrap.heading .me-beam{display:block}
-@media (prefers-reduced-motion:reduce){ .me-glow{animation:none;opacity:.5;transform:scale(1)} }
 .leaflet-container{font-family:inherit}
 
 
