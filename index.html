@@ -330,6 +330,9 @@ button{cursor:pointer}
 /* 오늘 탈 수 없는 것 — 흐리게 두고 언제인지 붙인다 */
 .itin.later{background:var(--soft);border-style:dashed}
 .itin.later .itin-dur{color:var(--muted)}
+/* 점선 카드를 고른 것 — 지금 탈 수 있는 것(best)과는 다르게 보여야 한다 */
+.itin.later.on{border-color:var(--postech-red);box-shadow:0 0 0 3px rgba(166,25,85,.08)}
+.itin.later.on .itin-dur{color:var(--ink)}
 .itin-day{
   margin-left:auto;flex:0 0 auto;font-size:12.5px;font-weight:900;
   color:#fff;background:#8A9099;border-radius:7px;padding:2px 8px;

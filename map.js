@@ -511,12 +511,22 @@ function clampToNetwork() {
   map.setMinZoom(Math.max(11, Math.floor(map.getBoundsZoom(NETWORK))));
 }
 clampToNetwork();
+/* 여기서 바로 panTo 하면 안 된다. 진행 중이던 움직임을 끊으면서 moveend 가
+   그 자리에서 다시 나는데, 그때도 중심은 아직 바깥이라 또 panTo 한다 —
+   끝없이 돈다. 실제로 경로 카드를 골라 지도를 옮길 때 이걸로 터졌다.
+   한 박자 미루고, 되돌리는 동안에는 다시 걸리지 않게 한다. */
+let clamping = false;
 map.on('moveend', () => {
+  if (clamping) return;
   const c = map.getCenter();
   const lat = Math.min(Math.max(c.lat, NETWORK.getSouth()), NETWORK.getNorth());
   const lng = Math.min(Math.max(c.lng, NETWORK.getWest()), NETWORK.getEast());
-  // 되돌린 뒤에는 안쪽이라 다시 걸리지 않는다
-  if (lat !== c.lat || lng !== c.lng) map.panTo([lat, lng]);
+  if (lat === c.lat && lng === c.lng) return;
+  clamping = true;
+  requestAnimationFrame(() => {
+    map.panTo([lat, lng]);
+    setTimeout(() => { clamping = false; }, 500);
+  });
 });
 paintZoom();
 addEventListener('resize', () => { clampToNetwork(); paintZoom(); });
@@ -2485,8 +2495,11 @@ function planCard(plan, i) {
     : `<div class="leg"><span class="lc" style="background:${l.route.color}">${badge(l.route)}</span>
          <span class="txt"><b>${stopLabel(l.from)}</b> ${fmt(l.depart)}
            → <b>${stopLabel(l.to)}</b> ${fmt(l.arrive)}</span></div>`).join('') + `</div>`;
+  /* 점선 카드도 고르면 골랐다고 보여야 한다. 다만 '추천' 테두리(best)를
+     그대로 쓰면 다음날·이따 것이 지금 탈 것처럼 읽히므로 따로 둔다. */
+  const later = !!day || !!plan.later;
   return `
-    <button type="button" class="itin ${open && !day && !plan.later ? 'best' : ''} ${day || plan.later ? 'later' : ''}"
+    <button type="button" class="itin ${open ? (later ? 'on' : 'best') : ''} ${later ? 'later' : ''}"
             data-plan="${i}" aria-pressed="${open}">
       <div class="itin-main">
         <span class="itin-dur">${T.min(dur)}</span>
