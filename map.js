@@ -666,6 +666,21 @@ if (new URLSearchParams(location.search).has('debug')) {
     return n ? { x: n[4], y: n[5], sx: n[0], sy: n[3] } : null;
   };
   const check = () => {
+    /* 마커를 project() 와 견주는 것은 뜻이 없다 — 둘이 같은 계산을 쓰므로
+       그 계산이 틀려도 일치한다. 캔버스가 '실제로' 어떤 크기로 화면에
+       그려지는지를 컨테이너와 견줘야 어긋남이 드러난다. */
+    const cv = map._gl.getCanvas();
+    const box = document.getElementById('map');
+    const tr = map._gl.transform;
+    console.log('[debug] 컨테이너', box.clientWidth + '×' + box.clientHeight,
+                '| 캔버스 CSS', cv.clientWidth + '×' + cv.clientHeight,
+                '| 캔버스 버퍼', cv.width + '×' + cv.height,
+                '| 지도가 아는 크기', Math.round(tr.width) + '×' + Math.round(tr.height),
+                '| DPR', devicePixelRatio);
+    const sx = cv.clientWidth / tr.width, sy = cv.clientHeight / tr.height;
+    console.log('[debug] 늘어난 배율  가로', sx.toFixed(4), ' 세로', sy.toFixed(4),
+                (Math.abs(sx - 1) > 0.002 || Math.abs(sy - 1) > 0.002)
+                  ? '← 여기가 원인이다' : '(1 이면 정상)');
     const c = map.getSize();
     const rows = [];
     for (const [name, mk] of stopMarkers) {
@@ -694,7 +709,7 @@ if (new URLSearchParams(location.search).has('debug')) {
   map.on('moveend', check);
   setTimeout(check, 1200);
   // 어느 코드가 돌고 있는지 헷갈리지 않게 표시를 남긴다
-  console.log('[debug] BUILD-2 · 정류장', STOP_LIST.length,
+  console.log('[debug] BUILD-3 · 정류장', STOP_LIST.length,
               '곳에 GL 원. 지도를 한 번 움직이면 줄이 나온다');
 }
 
