@@ -2265,6 +2265,12 @@ function runTrip() {
   const ctx = { ROUTES, STOP_LIST, isOn, walk: walkNet };
   // 기한이 이미 지났으면 다음 운행일로 본다 (시간표가 하루치뿐이다)
   tripPlans = planTripSeries(tripFrom, tripTo, t, ctx);
+  /* 플래너는 요일을 보지 않는다 — 시간표만 본다. 그래서 주말·공휴일에도
+     오늘 버스가 있는 것처럼 내놓는다. 시간표는 어느 운행일이든 같으므로
+     답 자체는 맞지만, 그것이 '오늘' 이 아니라는 말은 해야 한다. */
+  if (!today().runs) for (const p of tripPlans) {
+    if (p.legs.some(l => l.kind === 'ride')) p.nextDay = true;
+  }
   drawEnds();
   // 시트를 먼저 낮춰야 지도에 맞출 때 가려지는 높이를 제대로 계산한다
   collapseForm(tripPlans.length > 0);
