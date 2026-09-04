@@ -2165,10 +2165,14 @@ for (const [id, field] of [['inFrom', 'from'], ['inTo', 'to']]) {
 function whenLabel() {
   /* 시계는 아이콘 하나뿐이라, 시각을 바꿔 두면 그 사실이 보이지 않는다.
      설정한 시각을 배지로 붙이고 버튼을 채운다. */
+  /* 배지를 늘 띄운다. 시계만 있으면 무엇을 하는 버튼인지 알기 어렵고,
+     "지금" 이라고 적혀 있으면 시각을 다루는 자리라는 것과 지금은 현재
+     시각 기준이라는 것을 한 번에 말한다. 정해 두면 그 시각으로 바뀐다. */
   const set = simMinutes !== null;
   const tag = $('clockTag');
-  tag.hidden = !set;
-  if (set) tag.textContent = fmt(simMinutes);
+  tag.hidden = false;
+  tag.textContent = set ? fmt(simMinutes) : T.now;
+  tag.classList.toggle('set', set);
   $('btnClock').classList.toggle('on', set);
   $('btnNow').hidden = !set;
   // 아이콘만으로는 출발 기준인지 도착 기준인지 알 수 없다

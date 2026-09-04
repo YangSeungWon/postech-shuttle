@@ -770,11 +770,15 @@ html[lang="en"] .arr .badge{--badge-w:58px}
 #whenBtns{position:fixed}
 .mapbtns.left[hidden]{display:none}
 /* 시각을 바꿔 두면 아이콘만으로는 알 수 없다. 설정한 시각을 배지로 붙인다. */
+/* 늘 붙어 있는 배지. 평소에는 "지금" 이라 무엇을 다루는 버튼인지 말해 주고,
+   시각을 정해 두면 그 시각이 붉게 뜬다 — 기본이 아니라는 표시다. */
 .clock-tag{
   position:absolute;left:50%;transform:translateX(-50%);bottom:-7px;
-  background:var(--postech-red);color:#fff;border-radius:7px;padding:1px 5px;
+  background:#8A9099;color:#fff;border-radius:7px;padding:1px 5px;
   font-size:11px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em;
+  white-space:nowrap;
 }
+.clock-tag.set{background:var(--postech-red)}
 .clock-tag[hidden]{display:none}
 /* 지도 위 출발·도착.
 
