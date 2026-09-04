@@ -822,10 +822,10 @@ function setMyLocation(ll, accuracy) {
         zIndexOffset: 500, interactive: false, keyboard: false,
       }).addTo(map);
       myCircle = L.circle(myLL, { radius: accuracy, color: '#1a73e8', weight: 1, fillOpacity: .08, interactive: false }).addTo(map);
-      /* 처음 잡혔을 때만 지도를 옮긴다. 단 노선 밖에 있으면 옮기지 않는다 —
-         집에서 열었는데 버스도 정류장도 없는 화면을 보여 줘 봐야 소용없다.
-         그때는 캠퍼스 전체를 보여 주는 첫 화면이 그대로 더 낫다. */
-      if (NETWORK.contains(myLL)) map.setView(offsetForSheet(myLL), 16);
+      /* 위치가 잡혔다고 지도를 옮기지는 않는다. 노선이 캠퍼스 한 뙈기라
+         첫 화면에 이미 정류장이 다 들어와 있고, 그중 내가 어디인지는
+         파란 점이 말해 준다. 굳이 확대해 들어갈 이유가 없다.
+         가운데로 오고 싶으면 ◎ 를 누르면 된다. */
     } else {
       myMarker.setLatLng(myLL); myCircle.setLatLng(myLL).setRadius(accuracy);
       if (followMe) map.setView(myLL, map.getZoom());
