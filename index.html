@@ -576,10 +576,14 @@ button{cursor:pointer}
 /* 길찾기 폼이 상단을 차지하면 설치 안내는 물러난다 */
 body.trip-top-on .install-bar{display:none}
 #btnClock{position:relative;overflow:visible}
+/* 버튼 오른쪽으로 편다. 위로 펴면 지도 버튼 열과 같은 높이를 두고
+   두 덩어리가 세로로 겹쳐 보인다. */
 .when-pop{
-  max-width:min(320px, calc(100vw - 28px));
+  position:absolute;left:calc(100% + 9px);bottom:0;
+  /* 오른쪽 버튼 열(46px + 여백)까지 비켜 준다 */
+  max-width:min(320px, calc(100vw - 79px - 58px));
   background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);
-  padding:8px 10px;margin-bottom:9px;display:flex;align-items:center;gap:9px;
+  padding:8px 10px;display:flex;align-items:center;gap:9px;white-space:nowrap;
 }
 .when-pop[hidden]{display:none}
 /* 확대·축소는 지도 앱 관행대로 한 덩어리로 붙인다 */
