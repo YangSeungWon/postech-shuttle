@@ -85,16 +85,18 @@ const ROUTES = DATA.routes.map(r => ({
   tripsMin: r.trips.map(t => t.map(toMin)),
   canonStops: r.stops.map(canon),
 }));
-/* 노선 색. 배지·칩에 흰 글씨나 색 글씨를 얹으므로 흰색 대비 4.5:1 이상으로 잡았다.
+/* 노선 색은 학교 안내와 맞춘다 — 순환 1 빨강, 2 파랑, 3 초록, 유강 주황, 지곡 보라.
+   배지·칩에 흰 글씨나 색 글씨를 얹으므로 흰색 대비 4.5:1 이상인 색조로 골랐다.
    색만으로 구분하지는 않는다 — 배지에 번호·이름이 있고 지도는 한 번에 한 노선만 칠한다. */
 const GROUPS = [
-  { id: 'route1', ko: '순환 1', en: 'Loop 1',  color: '#1F68C4', match: r => r.id === 'route1' },
-  { id: 'route2', ko: '순환 2', en: 'Loop 2',  color: '#C2521C', match: r => r.id === 'route2' },
-  { id: 'route3', ko: '순환 3', en: 'Loop 3',  color: '#1B7A52', match: r => r.id === 'route3' },
-  { id: 'jigok',  ko: '지곡',   en: 'Jigok',   color: '#8A6A16', match: r => r.id.startsWith('jigok:') },
-  { id: 'yugang', ko: '유강',   en: 'Yugang',  color: '#A61955', match: r => r.id.startsWith('yugang:') },
+  { id: 'route1', ko: '순환 1', en: 'Loop 1',  color: '#C62828', match: r => r.id === 'route1' },
+  { id: 'route2', ko: '순환 2', en: 'Loop 2',  color: '#1565C0', match: r => r.id === 'route2' },
+  { id: 'route3', ko: '순환 3', en: 'Loop 3',  color: '#2E7D32', match: r => r.id === 'route3' },
+  { id: 'jigok',  ko: '지곡',   en: 'Jigok',   color: '#6A1B9A', match: r => r.id.startsWith('jigok:') },
+  { id: 'yugang', ko: '유강',   en: 'Yugang',  color: '#BF360C', match: r => r.id.startsWith('yugang:') },
 ];
 const groupLabel = id => { const g = GROUPS.find(x => x.id === id); return g ? g[LANG] || g.ko : id; };
+
 const groupOf = r => GROUPS.find(g => g.match(r));
 ROUTES.forEach(r => { const g = groupOf(r); r.color = g.color; r.group = g.id; });
 /* 배지 글자. 순환은 번호로 충분하지만 확장노선은 한 글자로는 알 수 없다. */
@@ -212,6 +214,7 @@ function activeBuses(t) {
           route: r,
           ll: posOnLeg(r.path, leg, f),
           from: r.stops[leg], to: r.stops[leg + 1], arriveAt: trip[leg + 1],
+          trip, legIdx: leg,
         });
         return;
       }
@@ -224,6 +227,7 @@ function activeBuses(t) {
           route: r,
           ll: r.path.coords[r.path.idx[0]],
           waiting: true, at: r.stops[0], departAt: start,
+          trip, legIdx: -1,
         });
       }
     });
@@ -474,14 +478,18 @@ function drawBuses(t) {
                    <i class="wheel"></i><i class="wheel r"></i>
                  </div>`
         }),
-        zIndexOffset: 400, keyboard: false, interactive: false,
+        zIndexOffset: 400,
       }).addTo(layerBuses);
-      m.getElement()?.setAttribute('aria-hidden', 'true');
+      m.on('click', () => selectBus(b.key));
+      m.getElement()?.setAttribute('role', 'button');
       busMarkers.set(b.key, m);
     } else {
       m.setLatLng(b.ll);
       m.getElement()?.firstElementChild?.classList.toggle('waiting', !!b.waiting);
     }
+    m.getElement()?.setAttribute('aria-label', b.waiting
+      ? T.waitingAt(stopLabel(b.at), Math.max(1, Math.round(b.departAt - t)), fmt(b.departAt))
+      : `${routeLabel(b.route)} · ${T.toward(shortLabel(baseName(canon(b.to))))}`);
     m.bindTooltip(
       b.waiting
         ? `<b>${routeLabel(b.route)}</b><br>${T.waitingAt(stopLabel(b.at), Math.max(1, Math.round(b.departAt - t)), fmt(b.departAt))}`
@@ -490,7 +498,42 @@ function drawBuses(t) {
     );
   }
   for (const [k, m] of busMarkers) if (!keep.has(k)) { layerBuses.removeLayer(m); busMarkers.delete(k); }
-  return live.length;
+  return live;
+}
+
+/* --- 누른 버스의 경로 --- *
+ * "이 차 어디로 가지?" 에 답한다. 지나온 길은 흐리게, 남은 길은 진하게 그린다.
+ */
+let selectedBus = null;
+const layerBusPath = L.layerGroup().addTo(map);
+
+function selectBus(key) {
+  selectedBus = selectedBus === key ? null : key;
+  render();
+}
+
+function drawBusPath(b) {
+  layerBusPath.clearLayers();
+  if (!b) return;
+  const p = b.route.path;
+  const here = b.legIdx < 0 ? p.idx[0] : p.idx[b.legIdx];
+  const done = p.coords.slice(0, here + 1);
+  const rest = p.coords.slice(here);
+  if (done.length > 1) {
+    L.polyline(done, { color: b.route.color, weight: 4, opacity: .3,
+                       lineCap: 'round', interactive: false }).addTo(layerBusPath);
+  }
+  L.polyline(rest, { color: '#fff', weight: 11, opacity: .9, lineCap: 'round', interactive: false }).addTo(layerBusPath);
+  L.polyline(rest, { color: b.route.color, weight: 6, opacity: 1, lineCap: 'round', interactive: false }).addTo(layerBusPath);
+  for (let i = b.legIdx < 0 ? 0 : b.legIdx + 1; i < b.route.stops.length; i++) {
+    const ll = STOPS[canon(b.route.stops[i])];
+    if (!ll) continue;
+    L.marker(ll, {
+      icon: L.divIcon({ className: '', iconSize: [14, 14], iconAnchor: [7, 7],
+        html: `<div class="trip-stop" style="border-color:${b.route.color};width:13px;height:13px;border-width:3px"></div>` }),
+      zIndexOffset: 350, interactive: false, keyboard: false,
+    }).addTo(layerBusPath);
+  }
 }
 
 /* --- 내 위치 --- */
@@ -687,6 +730,7 @@ function explainGeoError(err) {
 map.on('dragstart', () => { followMe = false; document.getElementById('btnLoc').classList.remove('on'); });
 
 function selectStop(name) {
+  selectedBus = null;
   selected = selected === name ? null : name;
   paintSelection();
   if (selected) {
@@ -732,6 +776,32 @@ const FAR_MIN = 90;                  // 이보다 멀면 남은 시간 대신 �
 function etaText(eta) {
   if (eta < 0.5) return T.due;
   return T.min(Math.max(1, Math.round(eta)));
+}
+
+/* 누른 버스의 정류장 순서. 지나온 곳·지금·남은 곳을 한눈에. */
+function busCard(b, t) {
+  const rows = b.route.stops.map((name, i) => {
+    const at = b.trip[i];
+    const passed = b.legIdx >= 0 && i <= b.legIdx;
+    const next = i === (b.legIdx < 0 ? 0 : b.legIdx + 1);
+    return `<div class="bs ${passed ? 'passed' : ''} ${next ? 'next' : ''}">
+      <span class="bs-dot"${next ? ` style="background:${b.route.color};border-color:${b.route.color}"` : ''}></span>
+      <span class="bs-name">${stopLabel(name)}</span>
+      <span class="bs-at">${fmt(at)}</span>
+    </div>`;
+  }).join('');
+  const head = b.waiting
+    ? T.waitingAt(stopLabel(b.at), Math.max(1, Math.round(b.departAt - t)), fmt(b.departAt))
+    : T.toward(shortLabel(baseName(canon(b.to))));
+  return `<div class="buscard" style="--c:${b.route.color}">
+    <div class="buscard-head">
+      <span class="badge" style="background:${b.route.color}">${badge(b.route)}</span>
+      <span class="buscard-title">${routeLabel(b.route)}</span>
+      <button type="button" class="buscard-x" id="busClose" aria-label="${T.close}">✕</button>
+    </div>
+    <div class="buscard-sub">${head}</div>
+    <div class="bs-list">${rows}</div>
+  </div>`;
 }
 
 function stopCard(name, t, walk) {
@@ -813,7 +883,8 @@ function drawHero(t, walks, walkTo) {
 function render() {
   const t = nowMin();
   $('filters').hidden = guiding();     // 안내 중에는 노선 필터가 필요 없다
-  const running = drawBuses(t);
+  const live = drawBuses(t);
+  const running = live.length;
 
   // 콜론을 깜빡여 지금 시각임을 드러낸다. 시각을 옮겨 둔 상태에서는 멈춘다.
   // 매초 다시 만들면 애니메이션이 리셋되므로 숫자만 갈아 끼운다.
@@ -861,6 +932,11 @@ function render() {
       .filter(Boolean)
       .sort((a, b) => a.min - b.min)[0] || null;
   };
+
+  const bus = selectedBus ? live.find(b => b.key === selectedBus) : null;
+  if (selectedBus && !bus) selectedBus = null;      // 운행이 끝나면 놓아 준다
+  drawBusPath(bus);
+  if (bus) html += busCard(bus, t);
 
   if (selected) {
     const g = groupOfStop(selected);
@@ -924,6 +1000,8 @@ function render() {
   $('panelScroll').querySelectorAll('.stop').forEach(el =>
     el.onclick = () => selectStop(el.dataset.stop));
   bindLangButtons();
+  const bx = $('busClose');
+  if (bx) bx.onclick = e => { e.stopPropagation(); selectedBus = null; render(); };
   $('panelScroll').querySelectorAll('.period button').forEach(el => el.onclick = () => {
     focusPeriod = el.dataset.p;
     drawRoutes(); drawStops(); render();

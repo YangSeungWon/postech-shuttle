@@ -281,6 +281,32 @@ button{cursor:pointer}
   text-transform:uppercase;margin:18px 0 8px;display:flex;align-items:center;gap:8px;
 }
 
+/* 누른 버스의 경로 */
+.buscard{
+  border:1px solid var(--c);border-radius:16px;background:#fff;margin:0 0 10px;
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--c) 12%, transparent);overflow:hidden;
+}
+.buscard-head{display:flex;align-items:center;gap:9px;padding:12px 13px 0}
+.buscard-title{font-size:15.5px;font-weight:900;letter-spacing:-.03em}
+.buscard-x{
+  margin-left:auto;border:0;background:none;color:var(--muted);
+  font-size:15px;font-weight:900;padding:4px 6px;line-height:1;
+}
+.buscard-sub{padding:4px 13px 10px;font-size:13px;font-weight:800;color:var(--muted)}
+.bs-list{border-top:1px solid var(--line);padding:8px 13px 12px}
+.bs{display:flex;align-items:center;gap:10px;padding:5px 0;font-size:14.5px;font-weight:800}
+.bs-dot{
+  flex:0 0 auto;width:11px;height:11px;border-radius:50%;
+  background:#fff;border:2.5px solid #C6CBD3;
+}
+.bs.passed{color:#9AA1AC}
+.bs.passed .bs-dot{background:#D9DDE3;border-color:#D9DDE3}
+.bs.next{color:var(--ink)}
+.bs.next .bs-name{font-weight:900}
+.bs-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bs-at{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:800;color:var(--muted)}
+.bs.passed .bs-at{color:#B9BFC8}
+
 /* ---------- stop cards ---------- */
 .stop{
   display:block;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;

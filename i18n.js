@@ -52,7 +52,7 @@ const STRINGS = {
     heroLabel: (stop, walk, route, eta) =>
       `가장 가까운 정류장 ${stop}, 도보 ${walk}분. ${route} ${eta}. 눌러서 자세히 보기`,
     pickOnMap: '지도에서 지정', pickHint: '지도에서 지금 계신 곳을 눌러 주세요',
-    cancel: '취소',
+    cancel: '취소', close: '닫기',
     updateReady: '새 버전이 있습니다', reload: '새로고침',
     skip: '본문으로 건너뛰기',
     clockLabel: (h, m) => `현재 시각 ${h}시 ${m}분`,
@@ -120,7 +120,7 @@ const STRINGS = {
     heroLabel: (stop, walk, route, eta) =>
       `Nearest stop ${stop}, ${walk} minute walk. ${route} in ${eta}. Tap for details`,
     pickOnMap: 'Set on map', pickHint: 'Tap where you are on the map',
-    cancel: 'Cancel',
+    cancel: 'Cancel', close: 'Close',
     updateReady: 'A new version is available', reload: 'Reload',
     skip: 'Skip to content',
     clockLabel: (h, m) => `Current time ${h}:${m}`,
