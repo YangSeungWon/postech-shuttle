@@ -157,8 +157,15 @@ function planTrip(from, to, depart, ctx) {
 /* 셔틀에서 실제 질문은 "이거 놓치면 다음은 언제"다. 위의 걸러내기로 비슷비슷한
    안이 빠지고 나면 한 줄만 남는 일이 많아, 그 뒤차를 이어 붙여 목록을 채운다. */
 function planTripSeries(from, to, depart, ctx, want = 3) {
+  const hasRide = r => r.legs.some(l => l.kind === 'ride');
   const first = planTrip(from, to, depart, ctx);
-  if (!first.length) return first;
+  if (!first.length) {
+    /* 걸어가기엔 멀고(MAX_WALK_MIN 초과) 버스는 끝난 밤이면 여기가 빈다.
+       "갈 방법이 없다" 와 "오늘은 끝났다" 는 다른 말이므로 첫차를 찾아 준다. */
+    const firstOfDay = planTrip(from, to, 0, ctx).find(hasRide);
+    if (firstOfDay) { firstOfDay.nextDay = true; return [firstOfDay]; }
+    return first;
+  }
   /* 뒤차를 붙일 때 아무거나 붙이면 안 된다. 3분이면 가는 길에 "나중에 떠나는"
      24분짜리를 끼워 넣는 일이 있었다 — 늦게 나간다는 것 하나로 살아남는다.
      걸리는 시간이 최선과 크게 다르면 그건 다음 차가 아니라 다른 여정이다. */
@@ -182,9 +189,11 @@ function planTripSeries(from, to, depart, ctx, want = 3) {
      다니므로, 유강사거리에서 북쪽으로 가는 차는 아침 세 대가 전부다. 그때
      "걸어가세요" 만 내놓으면 버스가 아예 없는 노선처럼 읽힌다. 그날 첫차를
      찾아 다음 운행일 것으로 붙여 준다. */
-  if (out.length && !out.some(r => r.legs.some(l => l.kind === 'ride'))) {
-    const firstOfDay = planTrip(from, to, 0, ctx)
-      .find(r => r.legs.some(l => l.kind === 'ride'));
+  /* 결과가 아예 없을 때도 붙여야 한다 — 걸어가기엔 멀고(20분 초과) 버스는
+     끝난 밤이면 "이 시각에 갈 수 있는 경로가 없습니다" 만 남았다. 갈 방법이
+     없다는 말과 오늘은 끝났다는 말은 다르다. */
+  if (!out.some(hasRide)) {
+    const firstOfDay = planTrip(from, to, 0, ctx).find(hasRide);
     // 세로 목록이라 따로 두어도 눈에 들어온다 — 지금 탈 수 있는 것과 섞지 않는다
     if (firstOfDay) { firstOfDay.nextDay = true; out.push(firstOfDay); }
   }

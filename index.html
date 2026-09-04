@@ -310,9 +310,15 @@ button{cursor:pointer}
   display:grid;place-items:center;white-space:nowrap;
   font-size:12px;font-weight:900;color:#fff;background:#AAB1BB;letter-spacing:-.03em;
 }
-/* 도보는 테두리만 두른 알약, 버스는 노선 색을 채운 배지 — 모양으로 갈린다.
-   아이콘을 마스크로 넣었더니 깨졌다. 글자에 단위를 붙이면 그림 없이도 읽힌다. */
-.lc.walk{background:none;color:var(--muted);border:1px solid var(--line);font-weight:800}
+/* 도보는 테두리만 두른 알약, 버스는 노선 색을 채운 배지. 모양만으로는
+   흰 딱지가 무슨 뜻인지 읽히지 않아 걷는 사람을 함께 그린다.
+   (마스크로 넣었더니 깨져서 인라인 SVG 로 둔다) */
+.lc.walk{background:none;color:#5C6470;border:1px solid var(--line);font-weight:800;gap:3px}
+.lc{gap:3px}
+.lc-ic{
+  flex:0 0 auto;width:12px;height:12px;fill:none;stroke:currentColor;
+  stroke-width:2;stroke-linecap:round;stroke-linejoin:round;
+}
 /* 고른 항목에서만 펼쳐지는 구간 목록 */
 .itin-legs-detail{margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
 .itin-legs-detail .leg{padding:3px 0;font-size:13.5px;align-items:center}
