@@ -182,10 +182,12 @@ function planTripSeries(from, to, depart, ctx, want = 3) {
      다니므로, 유강사거리에서 북쪽으로 가는 차는 아침 세 대가 전부다. 그때
      "걸어가세요" 만 내놓으면 버스가 아예 없는 노선처럼 읽힌다. 그날 첫차를
      찾아 다음 운행일 것으로 붙여 준다. */
-  if (!out.some(r => r.legs.some(l => l.kind === 'ride'))) {
+  if (out.length && !out.some(r => r.legs.some(l => l.kind === 'ride'))) {
     const firstOfDay = planTrip(from, to, 0, ctx)
       .find(r => r.legs.some(l => l.kind === 'ride'));
-    if (firstOfDay) { firstOfDay.nextDay = true; out.push(firstOfDay); }
+    /* 따로 카드로 붙이면 가로로 넘겨야 보여서 놓친다. 지금 할 수 있는
+       것(걷기) 안에 한 줄로 얹어, 넘기지 않아도 눈에 들어오게 한다. */
+    if (firstOfDay) out[0].nextBus = firstOfDay;
   }
   return out;
 }

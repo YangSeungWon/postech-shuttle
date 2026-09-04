@@ -2361,7 +2361,6 @@ function planCard(plan, i) {
      것처럼 읽힌다. 실제로 나가야 하는 시각을 기준으로 잡는다. */
   const leave = plan.leave ?? plan.depart;
   const dur = Math.round(plan.arrive - leave);
-  const when = plan.nextDay ? dayLabel(nextServiceDay()?.days || 1) : '';
   const rides = plan.legs.filter(l => l.kind === 'ride');
   const legs = plan.legs.map(l => l.kind === 'walk'
     ? `<div class="leg">
@@ -2375,15 +2374,27 @@ function planCard(plan, i) {
            <span class="sub">${T.rideSub(routeLabel(l.route), l.stops, l.wait >= 1 ? Math.round(l.wait) : 0)}</span></span>
        </div>`).join('');
   const tag = plan.walkOnly ? T.walkOnly : (rides.length > 1 ? T.transfers(rides.length - 1) : '');
+  /* 오늘 그 방향 버스가 없을 때, 다음 운행일 첫차를 이 카드 끝에 한 줄로
+     얹는다. 별도 카드로 두면 가로로 넘겨야 보여서 지나친다. */
+  const nb = plan.nextBus;
+  const nbRow = !nb ? '' : (() => {
+    const ride = nb.legs.find(l => l.kind === 'ride');
+    const day = dayLabel(nextServiceDay()?.days || 1);
+    return `<div class="leg later">
+       <span class="ic" style="background:${ride.route.color}">${badge(ride.route)}</span>
+       <span class="txt">${day} ${fmt(nb.leave)} <span class="sub">${
+         T.rideSub(routeLabel(ride.route), ride.stops, 0)}</span></span>
+     </div>`;
+  })();
   return `
     <button type="button" class="itin ${i === 0 ? 'best' : ''}" data-plan="${i}"
             aria-pressed="${i === 0}">
       <div class="itin-head">
         <span class="itin-dur">${T.min(dur)}</span>
-        <span class="itin-time">${plan.nextDay ? dayLabel(nextServiceDay()?.days || 1) + ' ' : ''}${fmt(leave)} → ${fmt(plan.arrive)}</span>
+        <span class="itin-time">${fmt(leave)} → ${fmt(plan.arrive)}</span>
         ${tag ? `<span class="itin-tag">${tag}</span>` : ''}
       </div>
-      ${legs}
+      ${legs}${nbRow}
     </button>`;
 }
 
