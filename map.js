@@ -596,7 +596,11 @@ const showNudge = () => canInstall() && !nudgeOff;
 function dismissNudge() {
   nudgeOff = true;
   try { localStorage.setItem(LS_NUDGE, 'off'); } catch (e) {}
-  render();
+  paintInstallBar();
+}
+function paintInstallBar() {
+  const bar = $('installBar');
+  if (bar) bar.hidden = !showNudge();
 }
 
 let installPrompt = null;
@@ -614,7 +618,7 @@ const isChromium = () => /Chrome|Chromium|Edg\//.test(ua()) && !/Firefox/.test(u
 const canInstall = () =>
   !isStandalone() && (!!installPrompt || isIOS() || isAndroid() || isChromium());
 
-addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; render(); });
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; paintInstallBar(); });
 addEventListener('appinstalled', () => { installPrompt = null; dismissNudge(); });
 
 /* 브라우저마다 경로가 다르다 */
@@ -629,7 +633,7 @@ async function install() {
     installPrompt.prompt();
     await installPrompt.userChoice;
     installPrompt = null;
-    render();
+    paintInstallBar();
     return;
   }
   // 프롬프트를 주지 않는 브라우저 — 경로를 알려 준다
@@ -728,6 +732,12 @@ function askLocation() {
   $('askYes').onclick = () => { closeAsk(); startLocate(); };
   $('askNo').textContent = T.askNo;
   $('askNo').onclick = closeAsk;
+$('installYes').onclick = install;
+$('installNo').onclick = dismissNudge;
+for (const id of ['ask', 'pickHint', 'updateHint', 'editbar', 'installBar']) {
+  const el = $(id);
+  if (el) { L.DomEvent.disableClickPropagation(el); L.DomEvent.disableScrollPropagation(el); }
+}
 if ($('lnkTimetable')) $('lnkTimetable').onclick = showTimetable;
   openAsk(el);
 }
@@ -1098,15 +1108,6 @@ function render() {
       .sort((a, b) => a.min - b.min)[0] || null;
   };
 
-  if (showNudge()) {
-    html += `<div class="nudge">
-      <span class="nudge-icon" aria-hidden="true">＋</span>
-      <span class="nudge-text">${T.installNudge}</span>
-      <button type="button" class="nudge-yes" id="nudgeYes">${T.installNow}</button>
-      <button type="button" class="nudge-x" id="nudgeNo" aria-label="${T.close}">✕</button>
-    </div>`;
-  }
-
   const bus = selectedBus ? live.find(b => b.key === selectedBus) : null;
   if (selectedBus && !bus) selectedBus = null;      // 운행이 끝나면 놓아 준다
   drawBusPath(bus);
@@ -1194,8 +1195,7 @@ function render() {
   if (tt) tt.onclick = showTimetable;
   const ins = $('lnkInstall');
   if (ins) ins.onclick = install;
-  if ($('nudgeYes')) $('nudgeYes').onclick = install;
-  if ($('nudgeNo')) $('nudgeNo').onclick = dismissNudge;
+
   const bx = $('busClose');
   if (bx) bx.onclick = e => { e.stopPropagation(); selectedBus = null; render(); };
   $('panelScroll').querySelectorAll('.period button').forEach(el => el.onclick = () => {
@@ -1232,6 +1232,12 @@ if (new URLSearchParams(location.search).has('edit')) $('btnEdit').hidden = fals
 $('btnEdit').onclick = toggleEdit;
 $('btnBase').onclick = () => setBasemap(baseIdx + 1);
 $('askNo').onclick = closeAsk;
+$('installYes').onclick = install;
+$('installNo').onclick = dismissNudge;
+for (const id of ['ask', 'pickHint', 'updateHint', 'editbar', 'installBar']) {
+  const el = $(id);
+  if (el) { L.DomEvent.disableClickPropagation(el); L.DomEvent.disableScrollPropagation(el); }
+}
 if ($('lnkTimetable')) $('lnkTimetable').onclick = showTimetable;
 
 /* Esc 로 지금 열려 있는 것을 닫는다 */
@@ -1796,6 +1802,9 @@ function applyLang() {
   $('btnMode').ariaLabel = T.modeSwitch;
   sheet.relabel();
   set('pickHintText', T.pickHint);
+  set('installText', T.installNudge);
+  set('installYes', T.installNow);
+  paintInstallBar();
   set('updateText', T.updateReady);
   set('updateNow', T.reload);
   set('pickCancel', T.cancel);

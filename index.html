@@ -366,22 +366,31 @@ button{cursor:pointer}
 .tt tr.next td{background:var(--postech-red-050);color:var(--postech-red-700);font-weight:900}
 .panel-links button{cursor:pointer}
 
-/* 설치 유도 한 줄. 한 번 물러나면 다시 나오지 않는다. */
-.nudge{
-  display:flex;align-items:center;gap:9px;margin:14px 0 2px;
-  padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:#fff;
+/* 설치 권유. 목록 안에 두었더니 시트가 접힌 기본 상태에서 화면 밖이라
+   보이지 않았다. 지도 위쪽에 띄우고, 한 번 물러나면 다시 나오지 않는다. */
+.install-bar{
+  position:fixed;z-index:860;display:flex;align-items:center;gap:8px;
+  left:max(12px, env(safe-area-inset-left));
+  right:calc(max(12px, env(safe-area-inset-right)) + 58px);
+  top:calc(var(--header-h) + 12px + env(safe-area-inset-top));
+  padding:9px 10px 9px 12px;border-radius:14px;
+  background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);
   font-size:13.5px;font-weight:800;color:var(--ink);
 }
-.nudge-icon{
-  flex:0 0 auto;width:24px;height:24px;border-radius:8px;display:grid;place-items:center;
-  background:var(--postech-red-050);color:var(--postech-red);font-size:15px;font-weight:900;
+.install-bar[hidden]{display:none}
+.install-icon{
+  flex:0 0 auto;width:22px;height:22px;border-radius:7px;display:grid;place-items:center;
+  background:var(--postech-red-050);color:var(--postech-red);font-size:14px;font-weight:900;
 }
-.nudge-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.nudge-yes{
-  margin-left:auto;flex:0 0 auto;border:0;border-radius:9px;padding:7px 12px;
-  background:var(--postech-red);color:#fff;font-size:13px;font-weight:900;
+.install-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.install-yes{
+  margin-left:auto;flex:0 0 auto;border:0;border-radius:9px;padding:6px 11px;
+  background:var(--postech-red);color:#fff;font-size:12.5px;font-weight:900;
 }
-.nudge-x{flex:0 0 auto;border:0;background:none;color:var(--muted);font-size:14px;padding:5px 3px}
+.install-x{flex:0 0 auto;border:0;background:none;color:var(--muted);font-size:13px;padding:5px 2px}
+@media (min-width:821px){
+  .install-bar{left:calc(var(--panel-w) + 12px);top:calc(var(--header-h) + 12px)}
+}
 
 /* ---------- notice ---------- */
 .notice{
@@ -681,6 +690,12 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
         <button class="ask-yes" id="askYes">위치 허용</button>
       </div>
     </div>
+  </div>
+  <div class="install-bar" id="installBar" hidden>
+    <span class="install-icon" aria-hidden="true">＋</span>
+    <span class="install-text" id="installText">홈 화면에 추가</span>
+    <button type="button" class="install-yes" id="installYes">추가</button>
+    <button type="button" class="install-x" id="installNo" aria-label="닫기">✕</button>
   </div>
   <div class="map-top">    <button class="mapbtn" id="btnBase" aria-label="지도 종류"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.5 8 12 13l9.5-5L12 3Z"/><path d="M2.5 13.5 12 18.5l9.5-5"/></svg></button>
   </div>
