@@ -1,0 +1,86 @@
+name: 원본 갱신
+
+# 정적 파일에 다 구워 넣는 구조라 원본이 바뀌어도 알 수 없다.
+# 주기적으로 다시 받아, 달라진 것이 있을 때만 커밋한다.
+on:
+  schedule:
+    - cron: '0 18 * * 0'          # 매주 월요일 03:00 KST
+  workflow_dispatch:
+    inputs:
+      osm:
+        description: 'OSM 도로·건물까지 다시 받기 (느림)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 원본 갱신과 재빌드
+        id: run
+        run: python3 refresh.py ${{ inputs.osm && '--osm' || '' }}
+
+      - name: 달라진 것이 있으면 커밋
+        id: commit
+        run: |
+          # 요약 파일 자체는 저장소에 남기지 않는다
+          SUMMARY="$(cat refresh-summary.md)"
+          rm -f refresh-summary.md
+          if git diff --quiet; then
+            echo "변경 없음"
+            echo "pushed=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          printf '원본 갱신\n\n%s\n' "$SUMMARY" > /tmp/msg
+          git commit -F /tmp/msg
+          git push
+          {
+            echo "pushed=yes"
+            echo "summary<<SUMMARY_EOF"
+            echo "$SUMMARY"
+            echo "SUMMARY_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # 시간표가 바뀌면 사람이 봐야 한다. 정류장이 늘거나 이름이 바뀌면
+      # 좌표·경유지·영문 표기를 손봐야 할 수 있다.
+      - name: 시간표가 바뀌었으면 이슈로 알림
+        if: steps.commit.outputs.pushed == 'yes' && contains(steps.run.outputs.kinds, '시간표')
+        uses: actions/github-script@v7
+        env:
+          SUMMARY: ${{ steps.commit.outputs.summary }}
+        with:
+          script: |
+            const body = [
+              '원본 시간표가 바뀌어 자동으로 반영했습니다.',
+              '',
+              process.env.SUMMARY,
+              '',
+              '### 확인할 것',
+              '- 정류장이 늘었다면 `stops.py` 의 `STOPS` 에 좌표를 넣어야 합니다.',
+              '- 이름이 바뀌었다면 `stops.py` 의 `CANON` 과 `timetable.html` 의 영문 표기를 봐야 합니다.',
+              '- 경로가 달라졌다면 `stops.py` 의 `VIA` 를 다시 잡아야 할 수 있습니다.',
+              '- 지도에서 노선이 이상하게 그려지지 않는지 봐 주세요.',
+            ].join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '시간표가 바뀌었습니다',
+              body,
+            });

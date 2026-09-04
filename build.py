@@ -74,7 +74,8 @@ for _r in out_routes:
         print(f'  !! 큰길 통행 {len(_hit)}구간: {_r["name"]} — {_hit[0]}')
 
 json.dump({"stops": {k: list(v) for k, v in STOPS.items()},
-           "canon": CANON, "paths": paths, "routes": out_routes, "pois": POIS, "walk": WALK, "en": EN, "service": holidays.build()},
+           "canon": CANON, "paths": paths, "routes": out_routes, "pois": POIS, "walk": WALK, "en": EN, "service": holidays.build(),
+           "source": json.load(open('source.json'))},
           open('map-data.json', 'w'), ensure_ascii=False)
 # 오프라인 캐시 버전 — 배포마다 바뀌어야 옛 코드가 남지 않는다
 _files = ['index.html', 'map.js', 'i18n.js', 'planner.js', 'walk.js',

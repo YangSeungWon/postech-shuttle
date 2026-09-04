@@ -905,6 +905,7 @@ function render() {
     html += `<div class="notice warn">${T.notRunning}</div>`;
   }
 
+  html += `<div class="source">${sourceNote()}</div>`;
   html += `<div class="panel-links">
     <a href="./timetable.html">${T.allTimetable}</a>
     <span class="lang" role="group" aria-label="Language">
@@ -1316,6 +1317,17 @@ function periodSwitch() {
     ${btn('오전', T.commuteAm)}${btn('오후', T.commutePm)}
     <span class="period-time">${T.departsAt(runs(focusPeriod).join(' · '))}</span>
   </div>`;
+}
+
+/* 어느 시점의 시간표인지 밝힌다. 시간표가 바뀌었는데 모르고 쓰는 것이
+   이 앱에서 가장 조용히 위험한 상황이다. */
+function sourceNote() {
+  const s = DATA.source || {};
+  const parts = [];
+  if (s.effectiveFrom) parts.push(T.effectiveFrom(s.effectiveFrom));
+  else parts.push(T.effectiveUnknown);
+  if (s.checkedAt) parts.push(T.checkedAt(s.checkedAt));
+  return parts.join(' · ');
 }
 
 function planCard(plan, i) {
