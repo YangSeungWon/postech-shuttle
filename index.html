@@ -177,6 +177,20 @@ button{cursor:pointer}
 
 /* ---------- trip planner ---------- */
 .trip{display:none;padding:12px 14px;border-bottom:1px solid var(--line);background:#FBFBFC}
+.trip-top{
+  position:fixed;z-index:920;
+  top:calc(env(safe-area-inset-top) + 10px);
+  left:max(10px, env(safe-area-inset-left));
+  right:max(10px, env(safe-area-inset-right));
+}
+.trip-top[hidden]{display:none}
+.trip-top .trip{
+  border:1px solid var(--line);border-bottom:1px solid var(--line);
+  border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.14);background:#fff;
+  padding:10px 11px;
+}
+.trip-top .trip-row{margin-bottom:6px}
+.trip-top .trip-row:last-of-type{margin-bottom:0}
 .trip.show{display:block}
 .trip-row{display:flex;align-items:center;gap:7px;margin-bottom:7px}
 .pin{
@@ -559,6 +573,8 @@ button{cursor:pointer}
   font-size:11px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em;
 }
 .clock-tag[hidden]{display:none}
+/* 길찾기 폼이 상단을 차지하면 설치 안내는 물러난다 */
+body.trip-top-on .install-bar{display:none}
 #btnClock{position:relative;overflow:visible}
 .when-pop{
   max-width:min(320px, calc(100vw - 28px));
@@ -681,6 +697,10 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
   <div class="filters" id="filters" role="group" aria-label="노선 선택"></div>
   <div class="panel-scroll" id="panelScroll" tabindex="-1"></div>
 </aside>
+
+<!-- 모바일에서는 길찾기 폼을 화면 위에 고정한다. 지도 앱들의 방식이고,
+     그래야 시트를 끝까지 올리지 않고도 입력할 수 있다. -->
+<div class="trip-top" id="tripTop" hidden></div>
 
 <div id="map" role="region" aria-label="노선 지도">
   <div class="editbar" id="editbar" role="status">

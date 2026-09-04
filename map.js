@@ -737,7 +737,7 @@ function askLocation() {
   $('askNo').onclick = closeAsk;
 $('installYes').onclick = install;
 $('installNo').onclick = dismissNudge;
-for (const id of ['ask', 'pickHint', 'updateHint', 'editbar', 'installBar']) {
+for (const id of ['ask', 'pickHint', 'updateHint', 'editbar', 'installBar', 'tripTop']) {
   const el = $(id);
   if (el) { L.DomEvent.disableClickPropagation(el); L.DomEvent.disableScrollPropagation(el); }
 }
@@ -1085,6 +1085,8 @@ function render() {
 
   if ($('trip').classList.contains('show')) {
     $('hero').hidden = true;
+    // 길찾기 중에는 노선 칩이 할 일이 없다 — 지도는 고른 경로를 그린다
+    $('filters').hidden = true;
     if (tripPlans.length) {
       html += `<div class="sec-title">${T.suggested}</div>`;
       if (tripPlans[0]?.late) html += `<div class="notice warn">${T.tooLate(fmt(simMinutes))}</div>`;
@@ -1244,7 +1246,7 @@ $('btnBase').onclick = () => setBasemap(baseIdx + 1);
 $('askNo').onclick = closeAsk;
 $('installYes').onclick = install;
 $('installNo').onclick = dismissNudge;
-for (const id of ['ask', 'pickHint', 'updateHint', 'editbar', 'installBar']) {
+for (const id of ['ask', 'pickHint', 'updateHint', 'editbar', 'installBar', 'tripTop']) {
   const el = $(id);
   if (el) { L.DomEvent.disableClickPropagation(el); L.DomEvent.disableScrollPropagation(el); }
 }
@@ -1357,15 +1359,34 @@ const layerTrip = L.layerGroup().addTo(map);
 
 const wideScreen = () => window.matchMedia('(min-width:821px)').matches;
 
+/* 길찾기 폼의 자리. 데스크톱은 사이드바 안, 모바일은 화면 위다.
+   한 벌만 두고 옮겨 단다 — 두 벌이면 값과 포커스가 따로 논다. */
+function placeTrip() {
+  const el = $('trip'), top = $('tripTop');
+  const mob = !wideScreen();
+  const target = mob ? top : $('panel');
+  if (el.parentElement !== target) {
+    if (mob) target.appendChild(el);
+    else target.insertBefore(el, $('filters'));
+  }
+  const showing = el.classList.contains('show');
+  top.hidden = !(mob && showing);
+  // 상단이 겹친다. 길찾기 중에는 설치 안내를 물린다.
+  document.body.classList.toggle('trip-top-on', mob && showing);
+}
+
 function openTrip(on, suggest = true) {
   // 데스크톱 사이드바에서는 길찾기를 닫지 않는다
   const show = wideScreen() ? true : (on ?? !$('trip').classList.contains('show'));
   $('trip').classList.toggle('show', show);
   showWhen(show);
+  placeTrip();
   $('btnRoute').classList.toggle('on', show);
   $('btnRoute').setAttribute('aria-expanded', String(show));
   // 닫으면 첫 화면 상태(접힘)로 돌아간다. 고른 정류장이 있으면 그것만 보이게 절반.
-  sheet.goto(show ? 2 : (selected ? 1 : 0));
+  /* 폼이 위로 빠졌으니 시트에는 결과만 남는다. 아직 결과가 없을 때는
+     내려 두어 지도를 보여 준다 — 결과가 나오면 runTrip 이 올린다. */
+  sheet.goto(show ? (wideScreen() ? 2 : 0) : (selected ? 1 : 0));
   if (!show || on === false) {
     tripFrom = tripTo = null; tripPlans = []; layerTrip.clearLayers();
     $('suggest').innerHTML = ''; $('inFrom').value = $('inTo').value = '';
@@ -1820,6 +1841,8 @@ function fitWithSheet(bounds, extra = 40) {
 
 /* ---------- 시작 ---------- */
 whenLabel();
+placeTrip();
+addEventListener('resize', placeTrip);
 // 데스크톱은 폼만 펴 두고 제안 목록은 입력칸을 누를 때 띄운다
 if (wideScreen()) openTrip(true, false);
 drawFilters();
