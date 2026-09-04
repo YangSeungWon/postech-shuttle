@@ -41,7 +41,10 @@ const today = () => serviceDay();
 let simMinutes = null;                        // null이면 실제 시각
 function realNow() {
   const d = new Date();
-  return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+  /* 밀리초까지 센다. 초 단위로 끊으면 버스가 1초에 한 걸음씩 뛰어서,
+     아무리 자주 다시 그려도 뚝뚝 끊겨 보인다. */
+  return d.getHours() * 60 + d.getMinutes()
+       + (d.getSeconds() + d.getMilliseconds() / 1000) / 60;
 }
 function nowMin() {
   return simMinutes !== null ? simMinutes : realNow();
@@ -533,12 +536,18 @@ function drawBuses(t) {
       m.getElement()?.firstElementChild?.classList.toggle('waiting', !!b.waiting);
     }
     // 향한 쪽. 서 있는 차에는 붙이지 않는다 — 아직 갈 방향이 없다.
-    const dir = m.getElement()?.querySelector('.bus-dir');
+    // 매 프레임 도는 자리라 요소는 한 번 찾아 두고 쓴다.
+    const dir = m._dirEl || (m._dirEl = m.getElement()?.querySelector('.bus-dir'));
     if (dir) {
       dir.hidden = b.dir == null;
       if (b.dir != null) {
-        dir.dataset.deg = b.dir.toFixed(1);
-        dir.style.transform = `rotate(${(b.dir - map.getBearing()).toFixed(0)}deg)`;
+        /* 구간이 바뀌면 방위가 확 튄다. 목표까지 조금씩 따라가게 두면
+           휙 도는 대신 스르륵 돈다. 짧은 쪽으로 돌아야 한 바퀴 안 돈다. */
+        const prev = parseFloat(dir.dataset.deg);
+        const shown = Number.isNaN(prev) ? b.dir
+          : prev + (((b.dir - prev + 540) % 360) - 180) * 0.18;
+        dir.dataset.deg = shown.toFixed(2);
+        dir.style.transform = `rotate(${(shown - map.getBearing()).toFixed(1)}deg)`;
       }
     }
     m.getElement()?.setAttribute('aria-label', b.waiting
@@ -2165,11 +2174,15 @@ fitWithSheet(L.latLngBounds(
    sheet 가 만들어진 뒤여야 하므로 시작 블록에서 부른다. */
 if (new URLSearchParams(location.search).get('view') === 'timetable') showTimetable();
 
-/* 시각 표시와 남은 시간은 1초면 충분하지만, 버스가 1초마다 한 번씩만
-   움직이면 뚝뚝 끊겨 보인다. 자리 옮기는 것만 따로 자주 돌린다 —
-   마커를 옮기는 일이라 값이 싸고, 목록을 다시 만들지는 않는다. */
+/* 시각 표시와 남은 시간은 1초면 충분하다 */
 setInterval(() => { if (simMinutes === null) render(); }, 1000);
-setInterval(() => { if (simMinutes === null) drawBuses(nowMin()); }, 150);
+/* 버스 자리는 매 프레임 다시 잰다. 자리는 시각의 함수라 그때그때 구하면
+   되고(훑는 데 4µs, 60fps 로도 초당 0.25ms), 그래야 스르륵 움직인다.
+   CSS 전환으로 흉내내면 지도를 끌 때 마커가 따라오지 못해 밀린다. */
+(function moveBuses() {
+  requestAnimationFrame(moveBuses);
+  if (simMinutes === null) drawBuses(realNow());
+})();
 
 /* ================================================================== *
  * 언어 전환
