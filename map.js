@@ -572,6 +572,9 @@ const layerBusPath = L.layerGroup().addTo(map);
 
 function selectBus(key) {
   selectedBus = selectedBus === key ? null : key;
+  /* 정류장을 누를 때와 같이, 카드를 볼 만큼 시트를 올린다. 버스는 움직이니
+     지도를 따라 옮기지는 않는다 — 화면이 계속 흔들린다. */
+  if (selectedBus && sheet.isMobile() && tab === 'near') sheet.raise(1);
   render();
 }
 
