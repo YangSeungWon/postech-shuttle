@@ -602,6 +602,11 @@ html[lang="en"] .arr .badge{--badge-w:58px}
 .maplibregl-map{font-family:inherit}
 /* 마커는 아이콘 크기만 차지한다 */
 .gl-marker{line-height:0}
+/* ?debug 전용 십자 — 아무 꾸밈 없이 좌표 그 자리만 가리킨다 */
+.dbg-cross{position:relative}
+.dbg-cross i,.dbg-cross b{position:absolute;background:#FF1744}
+.dbg-cross i{left:0;top:10px;width:21px;height:1px}
+.dbg-cross b{left:10px;top:0;width:1px;height:21px}
 /* 버스는 쉬지 않고 조금씩 움직인다. 그냥 두면 브라우저가 정수 픽셀에 맞춰
    그려서, x 와 y 가 경계를 넘는 시점이 달라 대각선이 계단처럼 꺾인다.
    따로 합성 층으로 올리면 GPU 가 소수점째로 옮겨 준다. */

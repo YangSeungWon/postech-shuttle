@@ -656,7 +656,18 @@ function drawBusPath(b) {
    배치는 맞는 것이고 아니면 마커 쪽이 어긋난 것이다. */
 if (new URLSearchParams(location.search).has('debug')) {
   const dbg = L.layerGroup().addTo(map);
-  for (const s of STOP_LIST) L.circle(s.ll, { radius: 6, color: '#00E5FF', fillOpacity: .9 }).addTo(dbg);
+  for (const s of STOP_LIST) {
+    // 캔버스에 그리는 원 (노선·배경과 같은 자리)
+    L.circle(s.ll, { radius: 6, color: '#00E5FF', fillOpacity: .9 }).addTo(dbg);
+    /* DOM 으로 놓는 십자. 정류장 마커와 똑같은 방식으로 놓되 아무 CSS 도
+       걸지 않았다. 이 십자가 원 위에 있으면 DOM 배치는 맞는 것이고,
+       그런데도 정류장 점이 어긋나 있으면 그 점의 CSS 가 밀고 있는 것이다. */
+    L.marker(s.ll, {
+      icon: L.divIcon({ className: 'dbg-cross', iconSize: [21, 21], iconAnchor: [10.5, 10.5],
+        html: '<i></i><b></b>' }),
+      zIndexOffset: 900, interactive: false, keyboard: false,
+    }).addTo(dbg);
+  }
 
   /* 마커가 있어야 할 자리(project)와 실제로 놓인 자리(transform)를 견준다.
      둘이 다르고 그 차이가 중심에서 멀수록 커지면 배치가 축척을 잘못 쓰는 것이다. */
@@ -736,7 +747,7 @@ if (new URLSearchParams(location.search).has('debug')) {
   map.on('moveend', check);
   setTimeout(check, 1200);
   // 어느 코드가 돌고 있는지 헷갈리지 않게 표시를 남긴다
-  console.log('[debug] BUILD-4 · 정류장', STOP_LIST.length,
+  console.log('[debug] BUILD-5 · 정류장', STOP_LIST.length,
               '곳에 GL 원. 지도를 한 번 움직이면 줄이 나온다');
 }
 
