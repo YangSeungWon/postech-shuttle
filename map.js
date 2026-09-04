@@ -1531,7 +1531,7 @@ function drawHero(t, walks, walkTo) {
   el.hidden = false;
 
   if (!myLL) {
-    setHero(el, `<span class="hero-ask"><span aria-hidden="true">◎</span> ${T.heroAsk}</span>`,
+    setHero(el, `<span class="hero-ask"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M12 1.6v3.2M12 19.2v3.2M1.6 12h3.2M19.2 12h3.2"/></svg> ${T.heroAsk}</span>`,
             requestLocation, T.heroAsk);
     return;
   }
