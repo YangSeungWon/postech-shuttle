@@ -225,10 +225,14 @@ function activeBuses(t) {
         while (leg < trip.length - 2 && t >= trip[leg + 1]) leg++;
         const span = trip[leg + 1] - trip[leg];
         const f = span > 0 ? Math.min(1, Math.max(0, (t - trip[leg]) / span)) : 0;
-        const at = posOnLeg(r.path, leg, f);
-        // 조금 앞의 자리를 같이 구해 향한 쪽을 잰다 (구간 끝에서는 뒤를 본다)
-        const ahead = posOnLeg(r.path, leg, Math.min(1, f + 0.04));
-        const back  = posOnLeg(r.path, leg, Math.max(0, f - 0.04));
+        /* 정류장에 닿을 때와 떠날 때는 느려진다. 등속으로 미끄러지면
+           서지 않고 지나가는 것처럼 보인다. 가운데가 빠르고 양 끝이 느린
+           곡선(smoothstep) — 평균 속도는 그대로라 시간표는 안 흔들린다. */
+        const fe = f * f * (3 - 2 * f);
+        const at = posOnLeg(r.path, leg, fe);
+        // 향한 쪽은 지금 자리 앞뒤로 잰다
+        const ahead = posOnLeg(r.path, leg, Math.min(1, fe + 0.04));
+        const back  = posOnLeg(r.path, leg, Math.max(0, fe - 0.04));
         buses.push({
           key: r.id + '#' + ti,
           route: r,
