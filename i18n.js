@@ -39,7 +39,8 @@ const STRINGS = {
     waitingAt: (stop, min, at) => `${stop} 출발 대기 · ${min}분 후 (${at})`,
     across: '건너',
     walkTo: (name, m) => `<b>${name}</b>까지 도보 ${m}분`,
-    walkSub: (m, up) => `${m}m${up ? ` · 오르막 ${up}m` : ''}`,
+    walkSub: (m, up, sig) =>
+      `${m}m${up ? ` · 오르막 ${up}m` : ''}${sig ? ` · 신호 ${sig}곳` : ''}`,
     rideSub: (route, stops, wait) =>
       `${route} · ${stops}정거장${wait ? ` · ${wait}분 대기` : ''}`,
     walkBadge: '보행',
@@ -123,7 +124,8 @@ const STRINGS = {
     waitingAt: (stop, min, at) => `Waiting at ${stop} · departs in ${min} min (${at})`,
     across: 'opposite',
     walkTo: (name, m) => `${m} min to <b>${name}</b>`,
-    walkSub: (m, up) => `${m} m${up ? ` · ${up} m climb` : ''}`,
+    walkSub: (m, up, sig) =>
+      `${m} m${up ? ` · ${up} m climb` : ''}${sig ? ` · ${sig} signal${sig > 1 ? 's' : ''}` : ''}`,
     rideSub: (route, stops, wait) =>
       `${route} · ${stops} stop${stops > 1 ? 's' : ''}${wait ? ` · ${wait} min wait` : ''}`,
     walkBadge: 'Walk',

@@ -14,6 +14,9 @@ const FLAT_KMH = 4.5;
    내리막이라고 무한정 빨라지지 않고, -5% 부근이 가장 빠르다. */
 const toblerKmh = S => 6 * Math.exp(-3.5 * Math.abs(S + 0.05));
 const TOBLER_NORM = FLAT_KMH / toblerKmh(0);
+/* 신호 있는 건널목에서 기다리는 시간(분). 실시간 신호 주기는 받을 수 없으니
+   평균값으로 잡는다 — 주기의 절반쯤이다. 0으로 두면 도보가 실제보다 짧게 나온다. */
+const SIGNAL_WAIT = 0.5;
 
 const WalkGraph = (() => {
   const W = DATA.walk;
@@ -57,11 +60,12 @@ const WalkGraph = (() => {
           w = W.edges[e * 4 + 2] / 10, x = W.edges[e * 4 + 3];
     const m = metersBetween(a, b);
     const dh = ele[b] - ele[a];
-    if (x) { isXing.set(a + ',' + b, 1); isXing.set(b + ',' + a, 1); }
+    if (x) { isXing.set(a + ',' + b, x); isXing.set(b + ',' + a, x); }
+    const wait = x === 2 ? SIGNAL_WAIT : 0;
     to[fill[a]] = b; meters[fill[a]] = m; xing[fill[a]] = x;
-    cost[fill[a]] = minutesFor(m, dh, w); climb[fill[a]] = Math.max(0, dh); fill[a]++;
+    cost[fill[a]] = minutesFor(m, dh, w) + wait; climb[fill[a]] = Math.max(0, dh); fill[a]++;
     to[fill[b]] = a; meters[fill[b]] = m; xing[fill[b]] = x;
-    cost[fill[b]] = minutesFor(m, -dh, w); climb[fill[b]] = Math.max(0, -dh); fill[b]++;
+    cost[fill[b]] = minutesFor(m, -dh, w) + wait; climb[fill[b]] = Math.max(0, -dh); fill[b]++;
   }
 
   /* --- 좌표 → 가장 가까운 그래프 노드 (격자 색인) --- */
@@ -133,15 +137,19 @@ const WalkGraph = (() => {
     const nodes = [];
     for (let n = dst; n >= 0; n = prev[n]) nodes.push(n);
     nodes.reverse();
-    let m = 0, up = 0;
+    let m = 0, up = 0, signals = 0;
     const crossings = [];
     for (let i = 1; i < nodes.length; i++) {
       const a = nodes[i - 1], b = nodes[i];
       m += metersBetween(a, b);
       up += Math.max(0, ele[b] - ele[a]);                     // 오른 만큼만 더한다
-      if (isXing.has(a + ',' + b)) crossings.push([[lat[a], lng[a]], [lat[b], lng[b]]]);
+      const kind = isXing.get(a + ',' + b);
+      if (kind) {
+        crossings.push([[lat[a], lng[a]], [lat[b], lng[b]]]);
+        if (kind === 2) signals++;
+      }
     }
-    return { coords: nodes.map(n => [lat[n], lng[n]]), meters: m, ascent: up, crossings };
+    return { coords: nodes.map(n => [lat[n], lng[n]]), meters: m, ascent: up, crossings, signals };
   }
 
   const cache = new Map();

@@ -16,6 +16,11 @@ PLACES = '''[out:json][timeout:120];
 );
 out center tags;'''
 
+# 신호등 위치 (횡단보도에 신호가 있는지 판단용)
+SIGNALS = '''[out:json][timeout:120];
+node(36.0030,129.3110,36.0295,129.3320)["highway"="traffic_signals"];
+out center;'''
+
 # 걸을 수 있는 길 (보행 그래프·차량 경로·횡단보도)
 WAYS = '''[out:json][timeout:180];
 way(36.0030,129.3110,36.0295,129.3320)
@@ -46,7 +51,10 @@ def run():
     time.sleep(3)                       # Overpass 에 연달아 던지지 않는다
     n2 = _save(_post(WAYS), 'walk.json.gz')
     print(f'  길 {n2}건')
-    return n1, n2
+    time.sleep(3)
+    n3 = _save(_post(SIGNALS), 'signals.json.gz')
+    print(f'  신호등 {n3}건')
+    return n1, n2, n3
 
 
 if __name__ == '__main__':

@@ -31,8 +31,19 @@ def haversine(a, b):
     return R * math.hypot(dlat, dlng * math.cos(la))
 
 
+SIGNAL_NEAR_M = 25          # 이 거리 안에 신호등이 있으면 신호 있는 건널목으로 본다
+
+
+def _signals(path='signals.json'):
+    try:
+        return [(e['lat'], e['lon']) for e in _load_json(path)['elements']]
+    except Exception:
+        return []
+
+
 def build(path='walk.json'):
     ways = _load_json(path)['elements']
+    sig = _signals()
 
     pos = {}                                   # osm node id -> (lat, lng)
     adj = defaultdict(list)                    # osm id -> [(other, weight10, 횡단보도?)]
@@ -41,14 +52,24 @@ def build(path='walk.json'):
         t = w['tags']
         w10 = round(COST.get(t.get('highway'), 1.0) * 10)
         xing = 1 if (t.get('footway') == 'crossing' or t.get('crossing')) else 0
+        # 신호 있는 건널목은 기다리는 시간이 있다. 대기는 한 번만 물려야 하므로
+        # 그 way 의 첫 구간에만 표시한다 (2 = 신호 있는 건널목).
+        if xing and sig:
+            g0 = w['geometry']
+            if any(haversine((p['lat'], p['lon']), s) < SIGNAL_NEAR_M
+                   for p in g0 for s in sig):
+                xing = 2
         ids, geo = w['nodes'], w['geometry']
         for i in range(len(ids)):
             pos[ids[i]] = (geo[i]['lat'], geo[i]['lon'])
         if xing:
             crossings.append([[round(p['lat'], 6), round(p['lon'], 6)] for p in geo])
+        first = True
         for a, b in zip(ids, ids[1:]):
-            adj[a].append((b, w10, xing))
-            adj[b].append((a, w10, xing))
+            v = xing if (xing != 2 or first) else 1     # 대기는 첫 구간에만
+            first = False
+            adj[a].append((b, w10, v))
+            adj[b].append((a, w10, v))
 
     # 가장 큰 연결 요소만 남긴다 (섬처럼 떨어진 조각은 길찾기에 방해)
     seen, best = set(), []
@@ -105,6 +126,7 @@ def build(path='walk.json'):
 if __name__ == '__main__':
     g = build()
     n, e = len(g['nodes']) // 2, len(g['edges']) // 4
+    sg = sum(1 for i in range(0, len(g['edges']), 4) if g['edges'][i + 3] == 2)
     print(f'노드 {n}, 엣지 {e}, 고도 {min(g["ele"])}~{max(g["ele"])}m, '
-          f'횡단보도 {len(g["crossings"])}개')
+          f'횡단보도 {len(g["crossings"])}개 (신호 있는 구간 {sg}개)')
     print(f'JSON {len(json.dumps(g)) / 1024:.0f}KB')

@@ -1293,7 +1293,8 @@ const walkNet = (() => {
     const minutes = res.dist[node] + extra / WALK_MPM;
     return {
       min: m < 40 ? 0 : Math.max(1, Math.round(minutes)),
-      m, ascent: Math.round(tr.ascent), coords: tr.coords, crossings: tr.crossings,
+      m, ascent: Math.round(tr.ascent), coords: tr.coords,
+      crossings: tr.crossings, signals: tr.signals,
     };
   };
 
@@ -1654,7 +1655,7 @@ function planCard(plan, i) {
     ? `<div class="leg">
          <span class="ic walk"></span>
          <span class="txt">${T.walkTo(stopLabel(l.to), l.min)}
-           <span class="sub">${T.walkSub(Math.round(l.m), l.ascent >= 10 ? l.ascent : 0)}</span></span>
+           <span class="sub">${T.walkSub(Math.round(l.m), l.ascent >= 10 ? l.ascent : 0, l.signals || 0)}</span></span>
        </div>`
     : `<div class="leg">
          <span class="ic" style="background:${l.route.color}">${badge(l.route)}</span>
