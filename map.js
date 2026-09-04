@@ -1668,6 +1668,7 @@ function render() {
     $('hero').hidden = true;
     // 길찾기로 화면을 채우는 모바일에서만 노선 칩을 접는다
     if (sheet.isMobile()) $('filters').hidden = true;
+    document.body.classList.remove('trip-empty');
     if (tripPlans.length) {
       html += `<div class="sec-title">${T.suggested}</div>`;
       html += tripPlans.map(planCard).join('');
@@ -1688,7 +1689,7 @@ function render() {
        있을 자리가 아니다. 데스크톱은 다르다. 사이드바에서는 길찾기 폼이
        늘 펴져 있고 그 아래가 본래 목록 자리다. 여기서 비우면 정류장을
        골라도 아무것도 안 나온다. */
-    if (sheet.isMobile()) { setPanel(''); return; }
+    if (sheet.isMobile()) { document.body.classList.add('trip-empty'); setPanel(''); return; }
   }
 
   const served = focusGroup
@@ -1980,6 +1981,7 @@ function openTrip(on, suggest = true) {
   /* 폼이 위로 빠졌으니 시트에는 결과만 남는다. 아직 결과가 없을 때는
      내려 두어 지도를 보여 준다 — 결과가 나오면 runTrip 이 올린다. */
   sheet.goto(show ? (wideScreen() ? 2 : 0) : (selected ? 1 : 0));
+  if (!show) document.body.classList.remove('trip-empty');
   if (!show || on === false) {
     tripFrom = tripTo = null; tripPlans = []; layerTrip.clearLayers(); layerEnds.clearLayers();
     $('suggest').innerHTML = ''; $('inFrom').value = $('inTo').value = '';
