@@ -176,8 +176,20 @@ function arrivalsForGroup(name, t) {
     .sort((a, b) => a.eta - b.eta);
 }
 
-function arrivalsAt(stopName, t) {
-  if (!today().runs) return [];
+/* 다음 운행일. 밤에 오늘 차가 다 끊기면 내일 첫차를 보고 싶어진다.
+   주말·공휴일이 끼면 며칠 건너뛴다 — 금요일 밤에는 월요일 첫차다. */
+function nextServiceDay(from = new Date()) {
+  for (let i = 1; i <= 10; i++) {
+    const d = new Date(from);
+    d.setDate(d.getDate() + i);
+    if (serviceDay(d).runs) return { days: i, date: d };
+  }
+  return null;
+}
+
+function arrivalsAt(stopName, t, day = 0) {
+  // 오늘 차가 없으면(운행일이 아니거나 다 끊겼으면) 다음 운행일 첫차를 본다
+  if (day === 0 && !today().runs) return arrivalsAt(stopName, -1e9, 1);
   const out = [];
   for (const r of ROUTES) {
     if (!isOn(r)) continue;
@@ -199,9 +211,14 @@ function arrivalsAt(stopName, t) {
     const [at, idx] = times[0];
     const next = r.stops[idx + 1];
     out.push({
-      route: r, at, eta: at - t, after: times[1]?.[0] ?? null,
+      route: r, at, eta: at - t, after: times[1]?.[0] ?? null, day,
       toward: next ? baseName(canon(next)) : null,
     });
+  }
+  if (!out.length && day === 0) {
+    const nx = nextServiceDay();
+    // -1e9 를 넘겨 그날 첫차부터 담는다
+    if (nx) return arrivalsAt(stopName, -1e9, nx.days);
   }
   return out.sort((a, b) => a.eta - b.eta);
 }
@@ -1343,6 +1360,15 @@ function fitFocus() {
   fitWithSheet(L.latLngBounds(pts), focusGroup ? 28 : 24);
 }
 
+/* 오늘이 아닌 차에는 며칠 뒤인지 붙인다. 금요일 밤이면 "월요일 07:40" 이다. */
+function dayLabel(days) {
+  if (!days) return '';
+  if (days === 1) return T.tomorrow;
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return T.weekdays[d.getDay()];
+}
+
 const FAR_MIN = 90;                  // 이보다 멀면 남은 시간 대신 시각만
 /* 학교 안내는 "도착시간에 앞뒤 1~2분의 오차가 발생할 수 있다"고 한다.
    그래서 시간표의 09:15 는 09:13 일 수도, 09:16 일 수도 있다. 그 구간에
@@ -1438,11 +1464,11 @@ function stopCard(name, t, walk) {
   const rows = arr.length ? arr.slice(0, 3).map(a => `
     <div class="arr">
       <span class="badge" style="background:${a.route.color}">${badge(a.route)}</span>
-      ${a.eta >= FAR_MIN
-        ? `<span class="arr-eta far">${fmt(a.at)}</span>`
+      ${a.day || a.eta >= FAR_MIN
+        ? `<span class="arr-eta far">${a.day ? dayLabel(a.day) + ' ' : ''}${fmt(a.at)}</span>`
         : `<span class="arr-eta ${a.eta <= 3 ? 'soon' : ''} ${isDue(a.eta) ? 'due' : ''}">${etaText(a.eta)}</span>`}
       ${a.side ? `<span class="side">${T.across}</span>` : ''}
-      ${a.eta >= FAR_MIN || isDue(a.eta) ? '' : `<span class="arr-at">${fmt(a.at)}</span>`}
+      ${a.day || a.eta >= FAR_MIN || isDue(a.eta) ? '' : `<span class="arr-at">${fmt(a.at)}</span>`}
       ${a.toward ? `<span class="arr-toward">${T.toward(shortLabel(a.toward))}</span>` : ''}
     </div>`).join('')
     : `<div class="empty">${T.noService}</div>`;
@@ -1512,13 +1538,17 @@ function drawHero(t, walks, walkTo) {
     return;
   }
 
+  /* 오늘 안 다니는 날에도 그냥 "주말입니다" 로 끝내지 않는다 — 그때 알고
+     싶은 것은 "그럼 언제 다니나" 다. 아래 도착 목록이 다음 운행일 첫차를
+     들고 오므로 그대로 흘려보낸다. 다만 가까운 정류장을 모르면(위치 없음)
+     보여 줄 것이 없으니 그때만 사유를 적는다. */
   const day = today();
-  if (!day.runs) {
-    const quiet = day.why === 'weekend' ? T.noWeekend : T.noHoliday(day.name);
+  if (!best) {
+    const quiet = day.runs ? T.notRunning
+      : (day.why === 'weekend' ? T.noWeekend : T.noHoliday(day.name));
     setHero(el, `<span class="hero-quiet">${quiet}</span>`, () => sheet.goto(1), quiet);
     return;
   }
-  if (!best) { setHero(el, `<span class="hero-quiet">${T.notRunning}</span>`, null, T.notRunning); return; }
 
   const a = arrivalsForGroup(best.g.name, t)[0];
   const html = a
@@ -1526,13 +1556,15 @@ function drawHero(t, walks, walkTo) {
        <span class="hero-stop">${stopLabel(best.g.name)}</span>
        <span class="hero-walk">${T.walkShort(best.w.min)}</span>
        <span class="hero-eta">
-         <b class="${a.eta <= 3 ? 'soon' : ''} ${isDue(a.eta) ? 'due' : ''}">${a.eta >= FAR_MIN ? fmt(a.at) : etaText(a.eta)}</b>
-         ${a.eta >= FAR_MIN || isDue(a.eta) ? '' : `<span class="at">${fmt(a.at)}</span>`}
+         <b class="${a.eta <= 3 && !a.day ? 'soon' : ''} ${!a.day && isDue(a.eta) ? 'due' : ''}">${
+           a.day ? dayLabel(a.day) + ' ' + fmt(a.at) : (a.eta >= FAR_MIN ? fmt(a.at) : etaText(a.eta))}</b>
+         ${a.day || a.eta >= FAR_MIN || isDue(a.eta) ? '' : `<span class="at">${fmt(a.at)}</span>`}
        </span>`
     : `<span class="hero-quiet">${T.notRunning}</span><span class="hero-chev" aria-hidden="true">▲</span>`;
   const label = a
     ? T.heroLabel(stopLabel(best.g.name), best.w.min, routeLabel(a.route),
-                  a.eta >= FAR_MIN ? fmt(a.at) : etaText(a.eta))
+                  a.day ? dayLabel(a.day) + ' ' + fmt(a.at)
+                        : (a.eta >= FAR_MIN ? fmt(a.at) : etaText(a.eta)))
     : T.notRunning;
   setHero(el, html, () => { selectStop(best.g.name, true); sheet.goto(1); }, label);
 }
