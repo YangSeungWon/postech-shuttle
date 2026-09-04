@@ -72,10 +72,11 @@
       const map = target._map || target;
       (target.addLayer ? target : { addLayer() {} }).addLayer(this);
       this._map = map;
+      this._dead = false;
       map._addLine(this);
       return this;
     },
-    remove() { if (this._map) this._map._removeLine(this); this._map = null; return this; },
+    remove() { this._dead = true; if (this._map) this._map._removeLine(this); this._map = null; return this; },
     _spec() {
       const o = this.options;
       const paint = {
@@ -90,7 +91,7 @@
       }
       return {
         id: this._id, type: 'line', source: this._id,
-        layout: { 'line-cap': o.lineCap || 'butt', 'line-join': o.lineJoin || 'miter' },
+        layout: { 'line-cap': o.lineCap || 'round', 'line-join': o.lineJoin || 'miter' },
         paint,
       };
     },
@@ -109,9 +110,9 @@
     addTo(target) {
       const map = target._map || target;
       if (target.addLayer) target.addLayer(this);
-      this._map = map; map._addCircle(this); return this;
+      this._map = map; this._dead = false; map._addCircle(this); return this;
     },
-    remove() { if (this._map) this._map._removeCircle(this); this._map = null; return this; },
+    remove() { this._dead = true; if (this._map) this._map._removeCircle(this); this._map = null; return this; },
     setLatLng(ll) { this._ll = asLL(ll); if (this._map) this._map._updateCircle(this); return this; },
     setRadius(r)  { this._r = r; if (this._map) this._map._updateCircle(this); return this; },
     _ring() {
@@ -228,10 +229,16 @@
     _addLine(l) {
       this._lines.add(l);
       const put = () => {
-        if (this._gl.getSource(l._id)) return;
-        this._gl.addSource(l._id, { type: 'geojson', data:
-          { type: 'Feature', geometry: { type: 'LineString', coordinates: l._coords } } });
-        this._gl.addLayer(l._spec());
+        /* 스타일이 아직 안 왔을 때 예약해 둔 것이, 그 사이에 지워진 선을
+           되살리는 일이 있다. 노선은 걸러 낼 때마다 지웠다 다시 그리므로
+           그렇게 남은 것들이 화면에 겹쳐 쌓인다. */
+        if (l._dead) return;
+        if (!this._gl.getSource(l._id)) {
+          this._gl.addSource(l._id, { type: 'geojson', data:
+            { type: 'Feature', geometry: { type: 'LineString', coordinates: l._coords } } });
+        }
+        // 소스만 있고 레이어가 없는 어중간한 상태가 될 수 있다
+        if (!this._gl.getLayer(l._id)) this._gl.addLayer(l._spec());
       };
       this._gl.isStyleLoaded() ? put() : this._gl.once('style.load', put);
     },
@@ -243,9 +250,12 @@
     _addCircle(c) {
       this._circles.add(c);
       const put = () => {
-        if (this._gl.getSource(c._id)) return;
-        this._gl.addSource(c._id, { type: 'geojson', data:
-          { type: 'Feature', geometry: { type: 'Polygon', coordinates: [c._ring()] } } });
+        if (c._dead) return;
+        if (!this._gl.getSource(c._id)) {
+          this._gl.addSource(c._id, { type: 'geojson', data:
+            { type: 'Feature', geometry: { type: 'Polygon', coordinates: [c._ring()] } } });
+        }
+        if (this._gl.getLayer(c._id)) return;
         this._gl.addLayer({ id: c._id, type: 'fill', source: c._id,
           paint: { 'fill-color': c.options.color || '#1a73e8',
                    'fill-opacity': c.options.fillOpacity == null ? .1 : c.options.fillOpacity } });
@@ -262,8 +272,9 @@
       if (this._gl.getSource(c._id)) this._gl.removeSource(c._id);
     },
     _restore() {
-      for (const l of this._lines) if (!this._gl.getSource(l._id)) this._addLine(l);
-      for (const c of this._circles) if (!this._gl.getSource(c._id)) this._addCircle(c);
+      // Set 은 넣은 차례를 지키므로 겹치는 위아래도 그대로 살아난다
+      for (const l of this._lines) this._addLine(l);
+      for (const c of this._circles) this._addCircle(c);
     },
     removeLayer(l) { if (l && l.remove) l.remove(); return this; },
 

@@ -543,6 +543,7 @@ button{cursor:pointer}
 
 
 /* 지도에서 출발·도착 지정 */
+.maplibregl-popup{z-index:820}
 .pa-popup .maplibregl-popup-content{border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.22);margin:0;padding:11px 13px;font:inherit}
 
 .pa{display:flex;align-items:center;gap:7px}
@@ -552,8 +553,11 @@ button{cursor:pointer}
   /* 영문("From here")이 두 줄로 접히던 자리 */
   white-space:nowrap;
 }
-.pa button[data-w="from"]:hover{background:#1a73e8;border-color:#1a73e8;color:#fff}
-.pa button[data-w="to"]:hover{background:var(--postech-red);border-color:var(--postech-red);color:#fff}
+/* 길찾기 딱지·지도 핀과 같은 색을 쓴다 — 같은 뜻이니 같은 색이어야 한다 */
+.pa button[data-w="from"]{border-color:#1a8a4a;color:#14713d}
+.pa button[data-w="to"]{border-color:var(--postech-red);color:var(--postech-red)}
+.pa button[data-w="from"]:hover{background:#1a8a4a;color:#fff}
+.pa button[data-w="to"]:hover{background:var(--postech-red);color:#fff}
 
 /* 내 위치 직접 지정 */
 .pick-hint{
