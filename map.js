@@ -330,6 +330,26 @@ function patchGlForRotation(layer) {
     const half = layer.getSize().divideBy(2);
     L.DomUtil.setPosition(c, map.latLngToLayerPoint(map.getCenter()).subtract(half)._round());
   };
+
+  /* 줌 애니메이션. 라이브러리는 GL 을 중간 배율마다 다시 그리지 않고, 마지막
+     프레임을 CSS 로 늘렸다 줄였다 하며 흉내낸다(끝나면 한 번 다시 그린다).
+     싸게 먹히는 방식이라 그대로 두되, 그 계산이 화면 북서쪽 모서리를 기준
+     삼아서 돌아가 있으면 어긋난다. 돌아가 있을 때만 우리 식으로 바꾼다:
+     캔버스 가운데를 지도 가운데에 붙여 두고 그 자리에서 키운다. */
+  if (typeof layer._animateZoom !== 'function') return;
+  const origAnim = layer._animateZoom.bind(layer);
+  layer._animateZoom = function (e) {
+    if (!map.getBearing()) return origAnim(e);
+    const cvs = layer._glMap && layer._glMap._actualCanvas;
+    if (!cvs) return;
+    const scale = map.getZoomScale(e.zoom);
+    const half = layer.getSize().divideBy(2);
+    // 새 중심이 팬 좌표에서 어디로 가는지 (플러그인이 회전까지 셈해 준다)
+    const shift = map._latLngToNewLayerPoint(map.getCenter(), e.zoom, e.center)
+                     .subtract(map.latLngToLayerPoint(map.getCenter()));
+    // 캔버스는 좌상단을 축으로 커지므로, 가운데가 제자리에 남도록 되민다
+    L.DomUtil.setTransform(cvs, shift.add(half.multiplyBy(1 - scale)), scale);
+  };
 }
 
 function setBasemap(i) {
