@@ -1556,7 +1556,7 @@ function runTrip() {
   const earliest = tripMode === 'arrive' && simMinutes < realNow() ? 0 : Math.round(realNow());
   tripPlans = tripMode === 'arrive' && simMinutes !== null
     ? planArriveBy(tripFrom, tripTo, simMinutes, earliest, ctx)
-    : planTrip(tripFrom, tripTo, t, ctx);
+    : planTripSeries(tripFrom, tripTo, t, ctx);
   // 시트를 먼저 낮춰야 지도에 맞출 때 가려지는 높이를 제대로 계산한다
   collapseForm(tripPlans.length > 0);
   if (tripPlans.length) sheet.goto(1);
@@ -1649,7 +1649,11 @@ function sourceNote() {
 }
 
 function planCard(plan, i) {
-  const dur = Math.round(plan.arrive - plan.depart);
+  /* 정류장에서 기다리는 시간은 소요 시간이 아니다. 세 안의 depart 는 모두
+     '지금'이라 그대로 쓰면 셋이 똑같아 보이고, 대기가 긴 안이 오래 걸리는
+     것처럼 읽힌다. 실제로 나가야 하는 시각을 기준으로 잡는다. */
+  const leave = plan.leave ?? plan.depart;
+  const dur = Math.round(plan.arrive - leave);
   const rides = plan.legs.filter(l => l.kind === 'ride');
   const legs = plan.legs.map(l => l.kind === 'walk'
     ? `<div class="leg">
@@ -1668,7 +1672,7 @@ function planCard(plan, i) {
             aria-pressed="${i === 0}">
       <div class="itin-head">
         <span class="itin-dur">${T.min(dur)}</span>
-        <span class="itin-time">${fmt(plan.depart)} → ${fmt(plan.arrive)}</span>
+        <span class="itin-time">${fmt(leave)} → ${fmt(plan.arrive)}</span>
         ${tag ? `<span class="itin-tag">${tag}</span>` : ''}
       </div>
       ${legs}

@@ -135,6 +135,27 @@ function planTrip(from, to, depart, ctx) {
   return finish(results);
 }
 
+/* 셔틀에서 실제 질문은 "이거 놓치면 다음은 언제"다. 위의 걸러내기로 비슷비슷한
+   안이 빠지고 나면 한 줄만 남는 일이 많아, 그 뒤차를 이어 붙여 목록을 채운다. */
+function planTripSeries(from, to, depart, ctx, want = 3) {
+  const first = planTrip(from, to, depart, ctx);
+  if (!first.length) return first;
+  const pool = [...first];
+  const seen = new Set(pool.map(r => r.leave + '>' + r.arrive));
+  let cursor = first[0].leave;
+  for (let guard = 0; guard < 8 && rank(pool, want).length < want; guard++) {
+    const more = planTrip(from, to, cursor + 1, ctx);
+    if (!more.length) break;
+    if (!(more[0].leave > cursor)) break;      // 걸어가는 안은 늘 지금 출발이다
+    cursor = more[0].leave;
+    for (const r of more) {
+      const sig = r.leave + '>' + r.arrive;
+      if (!seen.has(sig)) { seen.add(sig); pool.push(r); }
+    }
+  }
+  return rank(pool, want);
+}
+
 function finish(results) {
   /* 같은 승차 조합은 가장 이른 것 하나만 남긴다 */
   const uniq = new Map();
@@ -144,12 +165,43 @@ function finish(results) {
     if (!uniq.has(sig)) uniq.set(sig, r);
   }
   for (const r of uniq.values()) r.legs = r.legs.filter(l => l.kind !== 'walk' || l.min > 0);
-  const sorted = [...uniq.values()].filter(r => r.legs.length)
-                                   .sort((a, b) => a.arrive - b.arrive);
+  const all = [...uniq.values()].filter(r => r.legs.length);
+  for (const r of all) {
+    const rides = r.legs.filter(l => l.kind === 'ride').length;
+    r.transfers = Math.max(0, rides - 1);
+    r.walkMin = r.legs.reduce((s, l) => s + (l.kind === 'walk' ? l.min : 0), 0);
+    /* 실제로 집을 나서야 하는 시각. 모든 안의 depart 는 질의 시각으로 같아서
+       그것만 보면 "다음 버스"들이 서로를 눌러 버린다. 버스를 놓치지 않는
+       마지막 출발 시각이라야 안끼리 비교가 된다. */
+    const ride = r.legs.find(l => l.kind === 'ride');
+    const head = r.legs[0];
+    r.leave = ride ? ride.depart - (head.kind === 'walk' ? head.min : 0) : r.depart;
+  }
+
+  return rank(all, 4);
+}
+
+/* 어느 면에서도 나은 구석이 없는 후보는 빼고, 남은 것을 줄 세운다. */
+const LEAVE_EPS = 3;   // 1분 늦게 나가려고 12분 늦게 닿는 안은 고를 이유가 없다
+
+function rank(all, limit) {
+  const worse = (a, b) =>                      // b 가 a 를 모든 면에서 누르는가
+    b.arrive <= a.arrive && b.leave >= a.leave - LEAVE_EPS &&
+    b.transfers <= a.transfers && b.walkMin <= a.walkMin &&
+    (b.arrive < a.arrive || b.leave > a.leave + LEAVE_EPS ||
+     b.transfers < a.transfers || b.walkMin < a.walkMin);
+  let kept = all.filter(a => !all.some(b => b !== a && worse(a, b)));
+  if (!kept.length) kept = all;                // 서로 물고 도는 일은 없어야 하지만
+
+  const sorted = kept.sort((a, b) =>
+    a.arrive - b.arrive ||                     // 언제 닿는지가 먼저다
+    b.leave - a.leave ||                       // 같이 닿으면 늦게 나가도 되는 쪽
+    a.transfers - b.transfers ||               // 환승은 놓칠 수 있다
+    a.walkMin - b.walkMin);
   if (!sorted.length) return [];
   // 최선보다 45분 넘게 늦는 후보는 사실상 쓸모가 없다
   const cut = sorted[0].arrive + 45;
-  return sorted.filter((r, i) => i === 0 || r.arrive <= cut).slice(0, 4);
+  return sorted.filter((r, i) => i === 0 || r.arrive <= cut).slice(0, limit);
 }
 
 /** via 체인을 출발→도착 순 배열로 편다 */
