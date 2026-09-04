@@ -1055,6 +1055,9 @@ map.on('dragstart', () => {
 });
 
 function selectStop(name) {
+  /* 버스를 따라가던 중이면 먼저 놓는다. 안 그러면 다음 프레임에 버스 쪽으로
+     도로 끌려가고, 따라가기용 여백까지 남아 있어 보정이 두 번 걸린다. */
+  stopFollow();
   selectedBus = null;
   selected = selected === name ? null : name;
   paintSelection();
@@ -1986,6 +1989,7 @@ function pointActions(ll, label, autoPan = true) {
 map.on('contextmenu', e => { if (!guiding()) pointActions(e.latlng, T.mapPoint); });
 
 function runTrip() {
+  stopFollow();                        // 화면을 경로에 맞출 참이다
   if (!tripFrom || !tripTo) { tripPlans = []; collapseForm(false); layerTrip.clearLayers(); render(); return; }
   const t = nowMin();
   const ctx = { ROUTES, STOP_LIST, isOn, walk: walkNet };
