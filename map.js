@@ -453,12 +453,25 @@ const NETWORK = (() => {
     [b.getSouth() - dLat - SOUTH_EXTRA_M / 111000, b.getWest() - dLng],
     [b.getNorth() + dLat, b.getEast() + dLng]);
 })();
+/* 경계와 최소 배율.
+
+   setMaxBounds 는 쓰지 않는다. MapLibre 는 경계가 화면을 다 못 채우면 채울
+   때까지 강제로 확대하는데, 노선 범위가 가로 1.4km 뿐이라 가로가 넓은
+   화면에서는 축소가 아예 막혔다. 경계를 화면만큼 넓혀 주면 축소는 되지만
+   "캠퍼스를 벗어나지 마라" 가 무의미해진다.
+
+   대신 배율 제한과 같은 방식으로 — 벗어나면 밀어냈다 돌려놓는다. */
 function clampToNetwork() {
-  map.setMaxBounds(NETWORK);
-  // 전체가 한 화면에 들어오는 배율까지만 (inside 를 켜면 반대로 잠긴다)
   map.setMinZoom(Math.max(11, Math.floor(map.getBoundsZoom(NETWORK))));
 }
 clampToNetwork();
+map.on('moveend', () => {
+  const c = map.getCenter();
+  const lat = Math.min(Math.max(c.lat, NETWORK.getSouth()), NETWORK.getNorth());
+  const lng = Math.min(Math.max(c.lng, NETWORK.getWest()), NETWORK.getEast());
+  // 되돌린 뒤에는 안쪽이라 다시 걸리지 않는다
+  if (lat !== c.lat || lng !== c.lng) map.panTo([lat, lng]);
+});
 paintZoom();
 addEventListener('resize', () => { clampToNetwork(); paintZoom(); });
 
