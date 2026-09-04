@@ -1454,7 +1454,7 @@ function render() {
 
   // 콜론을 깜빡여 지금 시각임을 드러낸다. 시각을 옮겨 둔 상태에서는 멈춘다.
   // 매초 다시 만들면 애니메이션이 리셋되므로 숫자만 갈아 끼운다.
-  const [hh, mm] = fmt(tripMode === 'arrive' ? realNow() : t).split(':');
+  const [hh, mm] = fmt(t).split(':');
   if (!$('clockH')) { /* 모바일에는 상단바가 없다 */ } else
   if ($('clockH').textContent !== hh) $('clockH').textContent = hh;
   if ($('clockM') && $('clockM').textContent !== mm) {
@@ -1475,7 +1475,6 @@ function render() {
       // 모바일은 시트에 쌓지 않고 아래에 가로로 넘겨 본다
       if (!wideScreen()) { drawStrip(); return; }
       html += `<div class="sec-title">${T.suggested}</div>`;
-      if (tripPlans[0]?.late) html += `<div class="notice warn">${T.tooLate(fmt(simMinutes))}</div>`;
       html += tripPlans.map(planCard).join('');
       $('panelScroll').innerHTML = html;
       $('panelScroll').querySelectorAll('.itin').forEach(el => el.onclick = () => {
@@ -1787,7 +1786,7 @@ function openTrip(on, suggest = true) {
   if (!show || on === false) {
     tripFrom = tripTo = null; tripPlans = []; layerTrip.clearLayers();
     $('suggest').innerHTML = ''; $('inFrom').value = $('inTo').value = '';
-    collapseForm(false); simMinutes = null; tripMode = 'depart'; whenLabel();
+    collapseForm(false); simMinutes = null; whenLabel();
     tripXings = []; drawCrossings(tripXings); drawRoutes(); drawStops();
   } else {
     /* 출발지는 대개 내 위치다. 알고 있으면 채워 두고 커서를 도착지로 보낸다.
@@ -1918,12 +1917,8 @@ for (const [id, field] of [['inFrom', 'from'], ['inTo', 'to']]) {
 }
 /* 출발 시각 — 기본은 지금. 눌러야 시각 입력이 나온다.
    도착 기준으로 바꾸면 "그 시각 전에 도착"하는 경로를 찾는다. */
-let tripMode = 'depart';                       // 'depart' | 'arrive'
 function whenLabel() {
-  $('btnMode').textContent = tripMode === 'depart' ? T.modeDepart : T.modeArrive;
-  $('btnWhen').textContent = simMinutes === null
-    ? (tripMode === 'depart' ? T.now : T.pickTime)
-    : (tripMode === 'depart' ? T.departAt(fmt(simMinutes)) : T.arriveBy(fmt(simMinutes)));
+  $('btnWhen').textContent = simMinutes === null ? T.now : T.departAt(fmt(simMinutes));
   /* 시계는 아이콘 하나뿐이라, 시각을 바꿔 두면 그 사실이 보이지 않는다.
      설정한 시각을 배지로 붙이고 버튼을 채운다. */
   const set = simMinutes !== null;
@@ -1934,8 +1929,7 @@ function whenLabel() {
   $('btnNow').hidden = !set;
   // 아이콘만으로는 출발 기준인지 도착 기준인지 알 수 없다
   $('btnClock').setAttribute('aria-label',
-    set ? (tripMode === 'depart' ? T.departAt(fmt(simMinutes)) : T.arriveBy(fmt(simMinutes)))
-        : T.whenTitle);
+    set ? T.departAt(fmt(simMinutes)) : T.whenTitle);
 }
 /* 시각 조정은 길찾기 중에만 뜻이 있다 */
 function showWhen(on) {
@@ -1953,12 +1947,6 @@ $('btnClock').onclick = () => {
   if (open) $('btnWhen').focus();
 };
 
-$('btnMode').onclick = () => {
-  tripMode = tripMode === 'depart' ? 'arrive' : 'depart';
-  if (tripMode === 'arrive' && simMinutes === null) simMinutes = Math.round(nowMin()) + 30;
-  whenLabel();
-  runTrip();
-};
 $('btnWhen').onclick = () => {
   const el = $('whenTime');
   el.value = fmt(Math.round(nowMin()));
@@ -1972,7 +1960,7 @@ $('whenTime').onchange = e => {
 };
 $('whenTime').onblur = e => { e.target.hidden = true; $('btnWhen').hidden = false; };
 $('btnNow').onclick = () => {
-  simMinutes = null; tripMode = 'depart';
+  simMinutes = null;
   whenLabel(); closeWhen(); runTrip(); render();
 };
 
@@ -2074,10 +2062,7 @@ function runTrip() {
   const t = nowMin();
   const ctx = { ROUTES, STOP_LIST, isOn, walk: walkNet };
   // 기한이 이미 지났으면 다음 운행일로 본다 (시간표가 하루치뿐이다)
-  const earliest = tripMode === 'arrive' && simMinutes < realNow() ? 0 : Math.round(realNow());
-  tripPlans = tripMode === 'arrive' && simMinutes !== null
-    ? planArriveBy(tripFrom, tripTo, simMinutes, earliest, ctx)
-    : planTripSeries(tripFrom, tripTo, t, ctx);
+  tripPlans = planTripSeries(tripFrom, tripTo, t, ctx);
   // 시트를 먼저 낮춰야 지도에 맞출 때 가려지는 높이를 제대로 계산한다
   stripIdx = 0;                       // 새 결과는 첫 장부터 본다
   collapseForm(tripPlans.length > 0);
@@ -2208,9 +2193,7 @@ function planCard(plan, i) {
 let stripIdx = 0;
 function drawStrip() {
   const el = $('planStrip');
-  const late = tripPlans[0]?.late
-    ? `<div class="notice warn">${T.tooLate(fmt(simMinutes))}</div>` : '';
-  el.innerHTML = late + tripPlans.map(planCard).join('');
+  el.innerHTML = tripPlans.map(planCard).join('');
   el.hidden = false;
   document.body.classList.add('strip-on');
   stripIdx = Math.min(stripIdx, tripPlans.length - 1);
@@ -2419,7 +2402,6 @@ function applyLang() {
   set('btnResetCoords', T.resetCoords);
   set('askNo', T.askNo);
   set('skipLink', T.skip);
-  $('btnMode').ariaLabel = T.modeSwitch;
   $('btnClock').title = T.whenTitle;
   $('btnNow').title = $('btnNow').ariaLabel = T.resetTime;   // 라벨은 whenLabel 이 시각까지 넣어 다시 쓴다
   $('tripClose').title = $('tripClose').ariaLabel = T.close;

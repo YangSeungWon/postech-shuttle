@@ -252,29 +252,3 @@ function unwind(via) {
 }
 
 
-/**
- * 도착 시각을 맞추는 탐색. "9시 수업 전에 도착" 같은 질문에 답한다.
- *
- * 시간표는 하루치뿐이니 뒤에서 앞으로 푸는 대신, 이른 시각부터 훑어
- * 기한 안에 도착하는 것 중 가장 늦게 떠나는 경로를 고른다. 기다리는 시간이
- * 가장 짧은 답이 된다.
- * @param {number} arriveBy 도착 기한(분)
- * @param {number} earliest 이 시각 이전에는 출발할 수 없다
- */
-function planArriveBy(from, to, arriveBy, earliest, ctx) {
-  const STEP = 5;
-  // 첫차보다 이른 시각부터 훑을 이유가 없다
-  const first = Math.min(...ctx.ROUTES.flatMap(r => r.tripsMin.map(t => t[0])));
-  let best = null;
-  for (let t = Math.max(first, Math.ceil(earliest / STEP) * STEP); t <= arriveBy; t += STEP) {
-    const plans = planTrip(from, to, t, ctx).filter(p => p.arrive <= arriveBy);
-    if (!plans.length) continue;
-    // 같은 도착이라면 늦게 떠나는 쪽이 낫다
-    best = { t, plans };
-  }
-  if (!best) {
-    // 기한 안에 못 가면 가장 이른 도착이라도 보여 준다
-    return planTrip(from, to, earliest, ctx).map(p => ({ ...p, late: true }));
-  }
-  return best.plans;
-}

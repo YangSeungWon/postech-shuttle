@@ -271,11 +271,6 @@ button{cursor:pointer}
 .trip-summary .arrow{flex:0 0 auto;color:var(--muted);font-weight:900;font-size:14px}
 
 /* 출발 시각 */
-.when-pop .mode{
-  border:1px solid var(--line);border-radius:9px;padding:6px 10px;
-  background:#fff;color:#69717d;font-size:12.5px;font-weight:900;text-decoration:none;
-}
-.when-pop .mode:hover{background:var(--soft);color:var(--ink)}
 .when-pop button{
   border:0;background:none;color:var(--muted);font-size:14.5px;font-weight:800;
   padding:6px 2px;text-decoration:underline;text-underline-offset:3px;
@@ -1002,7 +997,6 @@ body.sheet-full .mapbtns{opacity:0;pointer-events:none;transition:opacity .15s}
   </div>
   <div class="mapbtns left" id="whenBtns" hidden>
     <div class="when-pop" id="whenPop" hidden role="group" aria-label="출발·도착 시각">
-      <button id="btnMode" class="mode" aria-label="출발·도착 기준 바꾸기">출발</button>
       <button id="btnWhen">지금 출발</button>
       <input type="time" id="whenTime" hidden aria-label="시각">
       <button id="btnNow" class="when-clear" hidden aria-label="지금으로">✕</button>
