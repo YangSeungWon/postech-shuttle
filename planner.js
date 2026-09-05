@@ -211,6 +211,12 @@ function firstOfDay(from, to, ctx, want, since = 0) {
 const family = r => r.legs.filter(l => l.kind === 'ride')
                           .map(l => l.route.group || l.route.name).join('>');
 
+/* 어느 길로 가는 안인가 — 시각을 뺀 여정의 생김새. 같은 정류장에서 같은
+   노선을 타고 같은 데서 내리는 안은, 15분 뒤 차라도 다른 안이 아니다. */
+const shape = r => r.legs.map(l => l.kind === 'ride'
+  ? (l.route.group || l.route.name) + '@' + l.from + '>' + l.to
+  : 'w' + l.from + '>' + l.to).join('|');
+
 function planTripSeries(from, to, depart, ctx, want = 3) {
   const hasRide = r => r.legs.some(l => l.kind === 'ride');
   const first = planTrip(from, to, depart, ctx);
@@ -228,18 +234,30 @@ function planTripSeries(from, to, depart, ctx, want = 3) {
      걸리는 시간이 최선과 크게 다르면 그건 다음 차가 아니라 다른 여정이다. */
   const bestDur = first[0].arrive - first[0].leave;
   const sane = r => (r.arrive - r.leave) <= bestDur * 1.6 + 6;
-  const pool = [...first];
-  const seen = new Set(pool.map(r => r.leave + '>' + r.arrive));
+  /* 뒤차를 이어 붙이되, 같은 길의 다음 차로 한 줄을 더 쓰지는 않는다.
+     10:05 순환 2 와 10:20 순환 2 는 고를 것이 없는 같은 안이다. 놓쳤을 때의
+     다음 차는 그 줄에 붙여 주고(nextRide), 목록에는 다른 길만 담는다. */
+  const pool = [];
+  const seen = new Map();
+  /* 같은 길이면 이른 것만 목록에 담고, 뒤차는 그 줄에 시각만 적어 둔다.
+     한 번의 탐색이 08:23·08:53 유강을 함께 내놓기도 하고, 뒤차를 찾으러
+     다시 물었을 때 나오기도 한다 — 어느 쪽이든 여기를 지난다. */
+  const add = r => {
+    const had = seen.get(shape(r));
+    if (!had) { seen.set(shape(r), r); pool.push(r); return; }
+    if (had.nextRide == null && r.leave > had.leave) {
+      const ride = r.legs.find(l => l.kind === 'ride');
+      if (ride) had.nextRide = ride.depart;
+    }
+  };
+  for (const r of first) add(r);
   let cursor = first[0].leave;
   for (let guard = 0; guard < 8 && rank(pool, want).length < want; guard++) {
     const more = planTrip(from, to, cursor + 1, ctx);
     if (!more.length) break;
     if (!(more[0].leave > cursor)) break;      // 걸어가는 안은 늘 지금 출발이다
     cursor = more[0].leave;
-    for (const r of more) {
-      const sig = r.leave + '>' + r.arrive;
-      if (!seen.has(sig) && sane(r)) { seen.add(sig); pool.push(r); }
-    }
+    for (const r of more) if (sane(r)) add(r);
   }
   const out = rank(pool, want);
   /* 오늘은 그 방향 버스가 더 없을 수 있다 — 유강·지곡은 출퇴근 한 방향씩만
@@ -263,6 +281,9 @@ function planTripSeries(from, to, depart, ctx, want = 3) {
   if (!out.some(hasRide)) {
     for (const r of firstOfDay(from, to, ctx, want, 0)) { r.nextDay = true; out.push(r); }
   }
+  /* 점선으로 뗄지는 어디서 온 안인지가 아니라 언제 떠나는지가 정한다.
+     09:00 차는 실선인데 09:05 차만 점선인 목록을 내놓고 있었다. */
+  for (const r of out) if (!r.nextDay && r.leave > depart + LATER_MIN) r.later = true;
   return out;
 }
 
@@ -306,18 +327,28 @@ function finish(results, keepRide, directMin) {
 /* 어느 면에서도 나은 구석이 없는 후보는 빼고, 남은 것을 줄 세운다. */
 const SHORT_WALK = 6;    // 이만큼이면 버스를 기다릴 것도 없이 걸어간다
 const LEAVE_EPS = 3;   // 1분 늦게 나가려고 12분 늦게 닿는 안은 고를 이유가 없다
+const LATER_MIN = 45;  // 이보다 나중에 떠나는 차는 지금 나설 답이 아니다 — 점선으로 뗀다
+
+/* 걷기 1분은 버스 안 1분보다 힘들다. 그렇다고 무한히 값진 것도 아니다 —
+   도착 시각과 걷는 시간을 따로 견주면 "3분 늦게 닿는 대신 1분 덜 걷는" 안이
+   어느 쪽에도 지지 않아 살아남는다. 둘을 한 자로 합쳐 체감 시각으로 견준다. */
+const WALK_WORTH = 1.5;
+const felt = r => r.arrive + r.walkMin * (WALK_WORTH - 1);
 
 function rank(all, limit, keepRide) {
   const worse = (a, b) =>                      // b 가 a 를 모든 면에서 누르는가
-    b.arrive <= a.arrive && b.leave >= a.leave - LEAVE_EPS &&
-    b.transfers <= a.transfers && b.walkMin <= a.walkMin &&
-    (b.arrive < a.arrive || b.leave > a.leave + LEAVE_EPS ||
-     b.transfers < a.transfers || b.walkMin < a.walkMin);
+    felt(b) <= felt(a) && b.leave >= a.leave - LEAVE_EPS &&
+    b.transfers <= a.transfers &&
+    (felt(b) < felt(a) || b.leave > a.leave + LEAVE_EPS ||
+     b.transfers < a.transfers ||
+     /* 체감 시각이 같으면 덜 걷는 쪽이 낫다 — 같은 차를 타고 한 정거장 더
+        가서 4분 덜 걷는 안과 먼저 내려 4분 더 걷는 안이 나란히 서 있었다. */
+     (felt(b) === felt(a) && b.walkMin < a.walkMin));
   let kept = all.filter(a => !all.some(b => b !== a && worse(a, b)));
   if (!kept.length) kept = all;                // 서로 물고 도는 일은 없어야 하지만
 
   const sorted = kept.sort((a, b) =>
-    a.arrive - b.arrive ||                     // 언제 닿는지가 먼저다
+    felt(a) - felt(b) ||                       // 언제 닿는지가 먼저다 (걷기 포함)
     b.leave - a.leave ||                       // 같이 닿으면 늦게 나가도 되는 쪽
     a.transfers - b.transfers ||               // 환승은 놓칠 수 있다
     a.walkMin - b.walkMin);

@@ -2485,8 +2485,11 @@ function planCard(plan, i) {
     : `<span class="lc" style="background:${l.route.color}">${badge(l.route)}</span>`).join('');
   // 언제 타나 — 첫 승차의 정류장과 시각. 걷기만이면 그럴 것이 없다.
   const first = rides[0];
+  /* 같은 길의 뒤차는 목록에 줄을 따로 쓰지 않는다. "이거 놓치면 다음은
+     언제" 라는 물음에는 그 줄에서 답하는 것으로 족하다. */
+  const again = plan.nextRide != null ? ` · ${T.nextRide(fmt(plan.nextRide))}` : '';
   const sub = first
-    ? `${fmt(leave)} → ${fmt(plan.arrive)} · ${T.boardAt(shortLabel(stopLabel(first.from)), fmt(first.depart))}`
+    ? `${fmt(leave)} → ${fmt(plan.arrive)} · ${T.boardAt(shortLabel(stopLabel(first.from)), fmt(first.depart))}${again}`
     : `${fmt(leave)} → ${fmt(plan.arrive)} · ${T.walkOnly}`;
   // 다음 운행일 것은 지금 탈 수 있는 것과 섞이지 않게 따로 표시한다
   const day = plan.nextDay ? dayLabel(nextServiceDay()?.days || 1) : '';
