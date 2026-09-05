@@ -77,6 +77,10 @@ json.dump({"stops": {k: list(v) for k, v in STOPS.items()},
            "canon": CANON, "paths": paths, "routes": out_routes, "pois": POIS, "walk": WALK, "en": EN, "service": holidays.build(),
            "source": json.load(open('source.json'))},
           open('map-data.json', 'w'), ensure_ascii=False)
+# 브라우저가 읽는 것은 이쪽이다. 여기서 함께 쓰지 않으면 손으로 빌드해 올린
+# 날에는 .json 만 새것이고 화면은 옛 자료를 그린다 — 유강 노선을 고쳐 놓고도
+# 지도에는 옛 길이 그대로 있었다.
+open('map-data.js', 'w').write('const DATA = ' + open('map-data.json').read() + ';\n')
 # 오프라인 캐시 버전 — 배포마다 바뀌어야 옛 코드가 남지 않는다
 _files = ['index.html', 'map.js', 'i18n.js', 'planner.js', 'walk.js',
           'map-data.json', 'style-muted.json', 'style-muted-en.json']

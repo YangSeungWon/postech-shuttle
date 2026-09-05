@@ -72,9 +72,7 @@ def main():
 
     print('다시 빌드')
     sh('python3', 'basemap.py')
-    sh('python3', 'build.py')
-    data = open('map-data.json').read()
-    open('map-data.js', 'w').write('const DATA = ' + data + ';\n')
+    sh('python3', 'build.py')          # map-data.js 까지 build.py 가 쓴다
 
     if CHANGED:
         summary = '\n'.join(f'### {k}\n' + '\n'.join(f'- {x}' for x in v) for k, v in CHANGED)
