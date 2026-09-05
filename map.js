@@ -188,8 +188,12 @@ function nextServiceDay(from = new Date()) {
 }
 
 function arrivalsAt(stopName, t, day = 0) {
-  // 오늘 차가 없으면(운행일이 아니거나 다 끊겼으면) 다음 운행일 첫차를 본다
-  if (day === 0 && !today().runs) return arrivalsAt(stopName, -1e9, 1);
+  // 오늘 차가 없으면(운행일이 아니거나 다 끊겼으면) 다음 운행일 첫차를 본다.
+  // 다음 운행일이 늘 내일인 것은 아니다 — 토요일에는 이틀 뒤 월요일이다.
+  if (day === 0 && !today().runs) {
+    const nx = nextServiceDay();
+    if (nx) return arrivalsAt(stopName, -1e9, nx.days);
+  }
   const out = [];
   for (const r of ROUTES) {
     if (!isOn(r)) continue;
