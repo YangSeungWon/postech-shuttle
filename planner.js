@@ -320,16 +320,13 @@ function finish(results, keepRide, directMin) {
      안이 9분 걷는 것보다 2분 늦다고 지우면, 정류장 코앞에 서 있는 사람에게
      "걸어가세요" 만 남는다. 걸을지 탈지는 그 사람이 정할 일이다. 위의
      되걸어오는 안은 걷는 시간이 곧장 걷는 것보다 길어서 여기 걸리지 않고,
-     1분 타서 1분 덜 걷는 안은 덜어 주는 것이 없어서 걸리지 않는다. 늦어지는
-     것은 덜어 주는 걷기만큼까지다 — 8분 걷는 길에 26분 돌아가는 차는 아니다. */
+     1분 타서 1분 덜 걷는 안은 덜어 주는 것이 없어서 걸리지 않는다. 얼마나
+     늦게 닿는지로는 지우지 않는다 — 정류장에서 30분을 기다렸다 타는 것도
+     그 사람의 선택이다. 너무 늦는 것은 줄 세우기가 뒤로 미룬다. */
   if (directMin != null) {
-    all = all.filter(r => {
-      if (!r.legs.some(l => l.kind === 'ride')) return true;
-      if (r.arrive < r.leave + directMin) return true;
-      const saved = directMin - r.walkMin;
-      const lost = (r.arrive - r.leave) - directMin;
-      return saved >= WALK_SAVED && lost <= saved;
-    });
+    all = all.filter(r => !r.legs.some(l => l.kind === 'ride')
+                       || r.arrive < r.leave + directMin
+                       || r.walkMin <= directMin - WALK_SAVED);
   }
 
   return rank(all, 4, keepRide);
