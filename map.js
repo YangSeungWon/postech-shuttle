@@ -129,6 +129,10 @@ let focusPeriod = null;                // '오전' | '오후'
 const isExt = g => g === 'jigok' || g === 'yugang';
 const isOn = r => focusGroup === null
   || (r.group === focusGroup && (!focusPeriod || r.period === focusPeriod));
+/* 오전·오후는 지도에 어느 길을 그릴지 고르는 것이지 어느 차를 탈 수 있는지가
+   아니다. 정류장 카드의 다음 차까지 그것으로 거르면, 오후에 오전 길을 보고
+   있을 때 오늘 퇴근 차를 두고 내일 출근 차를 내민다. 다음 차는 노선으로만. */
+const rides = r => focusGroup === null || r.group === focusGroup;
 
 /* 마커를 세울 고유 정류장 목록 */
 const STOP_LIST = [...new Set(ROUTES.flatMap(r => r.canonStops))]
@@ -196,7 +200,7 @@ function arrivalsAt(stopName, t, day = 0) {
   }
   const out = [];
   for (const r of ROUTES) {
-    if (!isOn(r)) continue;
+    if (!rides(r)) continue;
     // 마지막 정류장은 그 운행의 종점이라 탈 수 없다. 들어오는 차를 "곧 도착"
     // 으로 보여 주면 못 타는 차를 기다리게 된다. 순환노선도 종점에 들어온 뒤
     // 다시 나가는 시각이 따로 있으므로 그것만 보여 주면 된다.
@@ -1293,8 +1297,14 @@ function setMyLocation(ll, accuracy) {
     }
     /* 출발지는 거의 언제나 지금 있는 자리다. 비어 있으면 채운다 —
        위치가 늦게 잡혀도, 지웠다가 다시 열어도. 지운 채로 두고 싶으면
-       다른 곳을 고르면 되고, 되돌리려면 옆의 ◎ 를 누르면 된다. */
-    if ($('trip').classList.contains('show') && !tripFrom && !$('inFrom').value) {
+       다른 곳을 고르면 되고, 되돌리려면 옆의 ◎ 를 누르면 된다.
+       단 출발 칸을 눌러 "내 위치" 를 고치는 중이면 아니다 — 그때는 focus 가
+       칸을 비워 둔 것이고, watchPosition 은 몇 초마다 들어오니 여기서 다시
+       채우면 고치려던 사람의 칸이 도로 채워지고 커서까지 도착으로 넘어간다.
+       held 에 원래 값이 있으면 고치는 중이고, 없으면 빈 칸에서 위치가
+       잡히길 기다리던 것이다. */
+    if ($('trip').classList.contains('show') && !tripFrom && !$('inFrom').value
+        && !(held && held.field === 'from' && held.place)) {
       tripFrom = { ll: myLL, label: T.here };
       $('inFrom').value = T.here;
       // 출발칸에 커서를 두고 기다리던 참이면 이제 도착으로 넘긴다
