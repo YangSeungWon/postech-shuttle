@@ -2292,13 +2292,19 @@ function collapseForm(on) {
              aria-label="${which === 'from' ? T.editFrom : T.editTo}">
        <span class="pin ${which}" aria-hidden="true"></span><span>${label}</span>
      </button>`;
+  /* 펼친 폼과 같은 배치다 — 바꾸기는 왼쪽, 닫기는 오른쪽 끝. 나가는 문은
+     접혀도 같은 자리에 있어야 한다. */
   $('tripSummary').innerHTML =
-    end('from', tripFrom.label)
+    `<button type="button" class="mini" id="tsSwap" aria-label="${T.swap}">⇅</button>`
+    + end('from', tripFrom.label)
     + `<span class="arrow" aria-hidden="true">→</span>`
     + end('to', tripTo.label)
-    + `<button type="button" class="mini" id="tsSwap" aria-label="${T.swap}">⇅</button>`;
+    + `<button type="button" class="trip-close" id="tsClose" aria-label="${T.close}">
+         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5"/></svg>
+       </button>`;
   $('tripSummary').querySelectorAll('.ts-end').forEach(el => el.onclick = () => editEnd(el.dataset.end));
   $('tsSwap').onclick = () => $('btnSwap').click();
+  $('tsClose').onclick = () => $('tripClose').click();
 }
 
 /* 고칠 칸을 눌러 연다. 글자를 다 선택해 두어 바로 새로 칠 수 있게 한다. */
