@@ -319,14 +319,14 @@ function finish(results, keepRide, directMin) {
   /* 다만 걷기를 제법 덜어 주는 안은 남긴다. 정류장까지 6분 걷고 4분 타는
      안이 9분 걷는 것보다 2분 늦다고 지우면, 정류장 코앞에 서 있는 사람에게
      "걸어가세요" 만 남는다. 걸을지 탈지는 그 사람이 정할 일이다. 위의
-     되걸어오는 안은 걷는 시간이 곧장 걷는 것보다 길어서 여기 걸리지 않고,
-     1분 타서 1분 덜 걷는 안은 덜어 주는 것이 없어서 걸리지 않는다. 얼마나
-     늦게 닿는지로는 지우지 않는다 — 정류장에서 30분을 기다렸다 타는 것도
-     그 사람의 선택이다. 너무 늦는 것은 줄 세우기가 뒤로 미룬다. */
+     되걸어오는 안은 걷는 시간이 곧장 걷는 것보다 길어서 여기 걸리지 않는다.
+     1분이라도 덜 걷는 안이면 남긴다. 얼마나 늦게 닿는지로는 지우지 않는다 —
+     정류장에서 30분을 기다렸다 타는 것도 그 사람의 선택이다. 너무 늦는 것은
+     줄 세우기가 뒤로 미룬다. */
   if (directMin != null) {
     all = all.filter(r => !r.legs.some(l => l.kind === 'ride')
                        || r.arrive < r.leave + directMin
-                       || r.walkMin <= directMin - WALK_SAVED);
+                       || r.walkMin < directMin);
   }
 
   return rank(all, 4, keepRide);
@@ -334,7 +334,6 @@ function finish(results, keepRide, directMin) {
 
 /* 어느 면에서도 나은 구석이 없는 후보는 빼고, 남은 것을 줄 세운다. */
 const SHORT_WALK = 6;    // 이만큼이면 버스를 기다릴 것도 없이 걸어간다
-const WALK_SAVED = 3;    // 걷기를 이만큼은 덜어 줘야 걷는 대신 탈 만한 안이다
 const LEAVE_EPS = 3;   // 1분 늦게 나가려고 12분 늦게 닿는 안은 고를 이유가 없다
 const LATER_MIN = 45;  // 이보다 나중에 떠나는 차는 지금 나설 답이 아니다 — 점선으로 뗀다
 
@@ -347,9 +346,9 @@ const felt = r => r.arrive + r.walkMin * (WALK_WORTH - 1);
 function rank(all, limit, keepRide) {
   const worse = (a, b) =>                      // b 가 a 를 모든 면에서 누르는가
     felt(b) <= felt(a) && b.leave >= a.leave - LEAVE_EPS &&
-    /* 걷는 안은 더 늦게 닿는 차에 눌리지 않는다. 체감으로는 덜 걷는 쪽이
-       낫다 해도, 걷기 대신 기다렸다 탈지는 그 사람이 고를 일이다. */
-    !(a.walkOnly && b.arrive > a.arrive) &&
+    /* 걷는 안은 먼저 닿는 차에만 눌린다. 체감으로는 덜 걷는 쪽이 낫다
+       해도, 걷기 대신 기다렸다 탈지는 그 사람이 고를 일이다. */
+    !(a.walkOnly && b.arrive >= a.arrive) &&
     b.transfers <= a.transfers &&
     (felt(b) < felt(a) || b.leave > a.leave + LEAVE_EPS ||
      b.transfers < a.transfers ||
