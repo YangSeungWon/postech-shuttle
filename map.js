@@ -2393,6 +2393,10 @@ function runTrip() {
     if (p.legs.some(l => l.kind === 'ride')) p.nextDay = true;
   }
   drawEnds();
+  /* 눌러 둔 버스의 자취는 놓는다. 길찾기 결과가 뜨면 render 가 그 자취를
+     지우는 단계까지 가지 않아서, 진한 노선 하나가 후보 경로 옆에 그대로
+     남아 어느 것이 찾은 길인지 헷갈렸다. 지금 보려는 것은 찾은 길이다. */
+  if (tripPlans.length) { selectedBus = null; drawBusPath(null); }
   // 시트를 먼저 낮춰야 지도에 맞출 때 가려지는 높이를 제대로 계산한다
   collapseForm(tripPlans.length > 0);
   if (tripPlans.length) sheet.goto(1);   // 목록을 세로로 쌓아 보여 준다
